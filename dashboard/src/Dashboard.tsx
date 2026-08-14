@@ -1,6 +1,5 @@
 import { useMemo, useRef, type KeyboardEvent } from "react";
 import type { PanelProps, TabId } from "./types";
-import { clearToken } from "./api/auth";
 import { getFilters } from "./api/endpoints";
 import { useQuery } from "./lib/useQuery";
 import { monthsInRange, monthsOf, usePeriodState } from "./lib/period";
@@ -45,15 +44,6 @@ export function Dashboard() {
     return (
       <main className="mx-auto max-w-[560px] px-5 py-16">
         <ErrorState error={filtersQ.error} onRetry={filtersQ.refetch} />
-        <div className="mt-3 text-center">
-          <button
-            type="button"
-            onClick={clearToken}
-            className="cursor-pointer text-[12.5px] font-semibold text-ink-2 underline hover:text-ink"
-          >
-            Чиқиш ва қайта кириш
-          </button>
-        </div>
       </main>
     );
   }
@@ -142,14 +132,9 @@ function DashboardBody({ range }: { range: { min: string; max: string } }) {
             </div>
           </div>
           <div className="flex-1" />
+          {/* «Чиқиш» тугмаси йўқ: сеансни хост илова бошқаради, дашборд
+              токенни фақат ўқийди. */}
           <PeriodPicker months={allMonths} period={period} onChange={setPeriod} />
-          <button
-            type="button"
-            onClick={clearToken}
-            className="cursor-pointer rounded-[5px] border border-hair bg-surface-2 px-3 py-1.5 text-[12px] font-semibold text-ink-2 hover:text-ink"
-          >
-            Чиқиш
-          </button>
         </div>
       </header>
 

@@ -1,4 +1,4 @@
-import { clearToken, getToken } from "./auth";
+import { getToken, invalidateToken } from "./auth";
 
 /**
  * Битта fetch обёртка: токен қўшади, хатоларни маънога эга турларга ажратади
@@ -28,10 +28,10 @@ export class NotAvailableError extends ApiError {
   }
 }
 
-/** 401 — токен йўқ ёки муддати ўтган. Токен ўчирилади, логин экрани очилади. */
+/** 401 — токен йўқ ёки муддати ўтган. Янгиси хостдан қайта ўқилади. */
 export class UnauthorizedError extends ApiError {
   constructor() {
-    super("Сеанс муддати тугади. Қайта киринг.", 401);
+    super("Сеанс муддати тугади. Хост тизимига қайта киринг.", 401);
     this.name = "UnauthorizedError";
   }
 }
@@ -76,7 +76,7 @@ export async function apiGet<T>(
   }
 
   if (res.status === 401) {
-    clearToken();
+    invalidateToken();
     throw new UnauthorizedError();
   }
   if (res.status === 404) throw new NotAvailableError(path);

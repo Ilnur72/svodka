@@ -1,53 +1,151 @@
 import { useSyncExternalStore } from "react";
-import type { LoginResponse } from "./types";
 
 /**
- * Токен ишчи сеанс давомида `sessionStorage` да сақланади: build ичига
- * ёзилмайди, ойна ёпилганда ўчади ва бошқа таб'га кўчмайди.
+ * Дашборд ўз логин экранига эга эмас: у хост илованинг саҳифасида `iframe`
+ * ичида очилади ва токенни ўша хостдан олади.
  *
- * `useSyncExternalStore` ишлатилган, чунки токен React'дан ташқарида —
- * `api/client.ts` 401 жавобда уни ўзи ўчиради, интерфейс эса шу заҳоти
- * логин экранига қайтиши керак.
+ * Манбалар кетма-кетлиги (биринчи топилгани ишлатилади):
+ *
+ *   1. `?token=…` ёки `#token=…` — хост iframe манзилига қўшган бўлса.
+ *      Ўқилгач манзилдан дарҳол тозаланади ва `sessionStorage` га кўчирилади,
+ *      токен браузер тарихида ва «ссылкани нусхалаш» да қолиб кетмаслиги учун.
+ *   2. `localStorage["tmk-token-bgs"]` — дашборд хост билан **бир origin** да
+ *      бўлса, хост ёзган калит тўғридан-тўғри ўқилади.
+ *   3. Ота-ойна (`window.parent`, `window.top`) нинг `localStorage` и — фақат
+ *      same-origin'да ўқилади; cross-origin'да браузер тўсади, хато ютилади
+ *      ва навбат кейинги манбага ўтади.
+ *
+ * Хост қийматни `Bearer eyJ…` кўринишида сақлаши мумкин — префикс олиб
+ * ташланади, чунки `Authorization` сарлавҳасини `api/client.ts` ўзи ясайди.
  */
-const KEY = "uzktmk.token";
-
-const AUTH_BASE = String(import.meta.env.VITE_AUTH_BASE ?? "").replace(/\/+$/, "");
+const KEY = "tmk-token-bgs";
 
 const listeners = new Set<() => void>();
 
+/**
+ * Ўқилган токен кэшланади: `useSyncExternalStore` `getSnapshot` ни тез-тез
+ * чақиради, у эса ҳар сафар бир хил стринг қайтариши шарт — акс ҳолда React
+ * чексиз қайта рендер қилади.
+ */
+let cached: string | null | undefined;
+
 function emit(): void {
+  cached = undefined;
   listeners.forEach((l) => l());
+}
+
+/** Бегона калитлар (хостнинг бошқа ҳолати) бекорга қайта рендер қилмасин. */
+function onStorage(e: StorageEvent): void {
+  if (e.key === null || e.key === KEY) emit();
 }
 
 function subscribe(listener: () => void): () => void {
   listeners.add(listener);
-  // Бошқа таб/ойна токенни ўзгартирса ҳам синхрон қоламиз.
-  window.addEventListener("storage", emit);
+  // Хост (бир origin'даги ота-ойна ёки бошқа таб) токенни янгиласа, `storage`
+  // ҳодисаси шу ойнага ҳам келади — кэшни бекор қилиб қайта ўқиймиз.
+  window.addEventListener("storage", onStorage);
   return () => {
     listeners.delete(listener);
-    if (listeners.size === 0) window.removeEventListener("storage", emit);
+    if (listeners.size === 0) window.removeEventListener("storage", onStorage);
   };
 }
 
-export function getToken(): string | null {
+/** `Bearer …` префикси ва ортиқча бўшлиқлар олиб ташланади. */
+function normalize(raw: string | null | undefined): string | null {
+  if (typeof raw !== "string") return null;
+  const t = raw.trim().replace(/^Bearer\s+/i, "").trim();
+  return t.length > 0 ? t : null;
+}
+
+/**
+ * Хранилище thunk орқали олинади: cross-origin ота-ойнада ва cookie ўчирилган
+ * браузерда `localStorage` нинг **ўзига мурожаат** `SecurityError` беради,
+ * шунинг учун ўқиш ҳам, олиш ҳам битта `try` ичида туриши керак.
+ */
+function read(store: () => Storage | undefined, key: string): string | null {
   try {
-    return sessionStorage.getItem(KEY);
+    return store()?.getItem(key) ?? null;
   } catch {
-    // Приват режимда sessionStorage ёпиқ бўлиши мумкин.
     return null;
   }
 }
 
-export function setToken(token: string): void {
+/**
+ * Манзилдаги токенни `sessionStorage` га кўчиради ва манзилдан тозалайди.
+ * Модул юкланганда **бир марта** ишлайди: буни рендер вақтида қилиб бўлмайди,
+ * чунки `history.replaceState` — ён таъсир.
+ *
+ * Query ва hash иккови ҳам қаралади: хост қайси бирини ишлатишини билмаймиз,
+ * дашборд эса hash'ни бўлимлар учун ишлатади (`#prod`) — шунинг учун
+ * `#prod&token=…` шакли ҳам тўғри ажратилади ва `#prod` жойида қолади.
+ */
+function bootstrapFromUrl(): void {
+  let url: URL;
+  try {
+    url = new URL(window.location.href);
+  } catch {
+    return;
+  }
+
+  const fromQuery = url.searchParams.get("token");
+  if (fromQuery) url.searchParams.delete("token");
+
+  let fromHash: string | null = null;
+  const hash = url.hash.replace(/^#/, "");
+  if (hash.includes("token=")) {
+    const params = new URLSearchParams(hash);
+    fromHash = params.get("token");
+    if (fromHash) {
+      params.delete("token");
+      // Бўлим номи (`#prod`) қиймати йўқ калит бўлиб қолади — `=` тозаланади.
+      const rest = params.toString().replace(/=(?=&|$)/g, "");
+      url.hash = rest ? `#${rest}` : "";
+    }
+  }
+
+  const token = normalize(fromQuery ?? fromHash);
+  if (!token) return;
+
   try {
     sessionStorage.setItem(KEY, token);
   } catch {
-    /* сақлаб бўлмаса ҳам жорий сеанс ишлайверади */
+    /* приват режимда ёзиб бўлмаса ҳам қуйидаги манбалар қолади */
   }
-  emit();
+  try {
+    window.history.replaceState(null, "", url.toString());
+  } catch {
+    /* манзилни ўзгартириб бўлмаса, токен фақат манзил сатрида кўринади */
+  }
 }
 
-export function clearToken(): void {
+bootstrapFromUrl();
+
+function readToken(): string | null {
+  return (
+    normalize(read(() => sessionStorage, KEY)) ??
+    normalize(read(() => localStorage, KEY)) ??
+    normalize(read(() => storageOf(window.parent), KEY)) ??
+    normalize(read(() => storageOf(window.top), KEY))
+  );
+}
+
+/** Ўзи (iframe'да эмас) бўлса такрор ўқилмайди. */
+function storageOf(w: Window | null): Storage | undefined {
+  return !w || w === window ? undefined : w.localStorage;
+}
+
+/** Жорий токен (топилмаса `null`). */
+export function getToken(): string | null {
+  if (cached === undefined) cached = readToken();
+  return cached;
+}
+
+/**
+ * `401` дан кейин чақирилади: кэш ва сеанс нусхаси ташланади, шунда токен
+ * хостдан қайтадан ўқилади. Хостнинг `localStorage` ига тегилмайди — у калит
+ * бизники эмас ва уни ўчириш хост иловасини ҳам тизимдан чиқариб юборарди.
+ */
+export function invalidateToken(): void {
   try {
     sessionStorage.removeItem(KEY);
   } catch {
@@ -56,74 +154,7 @@ export function clearToken(): void {
   emit();
 }
 
-/** Жорий токен (йўқ бўлса `null`) — логин экрани шу асосда кўрсатилади. */
+/** Токен ўзгарса интерфейс ўзи янгиланади — алоҳида редирект керак эмас. */
 export function useAuthToken(): string | null {
   return useSyncExternalStore(subscribe, getToken, () => null);
-}
-
-export class LoginError extends Error {
-  readonly status: number;
-  constructor(message: string, status: number) {
-    super(message);
-    this.name = "LoginError";
-    this.status = status;
-  }
-}
-
-/**
- * `POST {AUTH_BASE}/auth/login` → `{ success, data: { token } }`.
- * Муваффақиятли бўлса токен sessionStorage'га ёзилади.
- */
-export async function login(email: string, password: string, signal?: AbortSignal): Promise<void> {
-  let res: Response;
-  try {
-    res = await fetch(`${AUTH_BASE}/auth/login`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password }),
-      signal,
-    });
-  } catch (e) {
-    if (e instanceof DOMException && e.name === "AbortError") throw e;
-    throw new LoginError("Сервер билан боғланиб бўлмади. Тармоқни текширинг.", 0);
-  }
-
-  let body: unknown = null;
-  try {
-    body = await res.json();
-  } catch {
-    /* JSON эмас — қуйида статус бўйича хабар берилади */
-  }
-
-  if (!res.ok) {
-    const serverMsg = messageOf(body);
-    // 401 да сервер инглизча умумий матн («Invalid credentials») қайтаради —
-    // фойдаланувчига ўз тилидаги аниқ хабар кўрсатилади.
-    if (res.status === 401) {
-      throw new LoginError("Email ёки парол нотўғри. Қайтадан уриниб кўринг.", res.status);
-    }
-    // 400 да сервер майдонга оид аниқ хабар бериши мумкин — уни сақлаймиз.
-    if (res.status === 400) {
-      throw new LoginError(serverMsg ?? "Киритилган маълумот нотўғри.", res.status);
-    }
-    if (res.status === 403) {
-      throw new LoginError(serverMsg ?? "Ушбу ҳисоб учун рухсат йўқ.", res.status);
-    }
-    throw new LoginError(serverMsg ?? `Сервер хатоси (${res.status}).`, res.status);
-  }
-
-  const token = (body as LoginResponse | null)?.data?.token;
-  if (typeof token !== "string" || token.length === 0) {
-    throw new LoginError("Сервер жавобида токен топилмади.", res.status);
-  }
-  setToken(token);
-}
-
-/** Серверда `{ message: "..." }` ёки `{ message: ["..."] }` бўлиши мумкин. */
-function messageOf(body: unknown): string | null {
-  if (!body || typeof body !== "object") return null;
-  const m = (body as { message?: unknown }).message;
-  if (typeof m === "string" && m.trim()) return m;
-  if (Array.isArray(m) && typeof m[0] === "string") return m[0];
-  return null;
 }

@@ -25,7 +25,7 @@
 ```bash
 cd dashboard
 npm install
-cp .env.example .env      # API манзилларини ёзинг
+cp .env.example .env      # API манзилини ёзинг
 npm run dev               # http://localhost:5173
 ```
 
@@ -33,12 +33,35 @@ npm run dev               # http://localhost:5173
 
 ```
 VITE_API_BASE=https://<host>/api/production-report
-VITE_AUTH_BASE=https://<host>/api
 ```
 
-Кириш `/auth/login` орқали (email + парол). Токен `sessionStorage` да сақланади
-ва **build ичига кирмайди**. `401` келса фойдаланувчи кириш саҳифасига
-қайтарилади.
+## Кириш (токен)
+
+Дашбордда **логин саҳифаси йўқ**. У хост илованинг саҳифасида `iframe` ичида
+очилади ва токенни ўша хостдан олади — `src/api/auth.ts`, манбалар кетма-кет
+синалади:
+
+1. **`?token=…` ёки `#token=…`** — хост iframe манзилига қўшган бўлса. Токен
+   ўқилгач манзилдан тозаланади (тарихда ва «ссылкани нусхалаш» да қолмайди)
+   ва `sessionStorage` га кўчирилади. `#prod&token=…` шакли ҳам ишлайди —
+   бўлим номи жойида қолади.
+2. **`localStorage["tmk-token-bgs"]`** — дашборд хост билан **бир origin** да
+   бўлганда (масалан `tmkm.bgs.uz/main` ва `tmkm.bgs.uz/svodka/`). Бу асосий йўл.
+3. **Ота-ойна `localStorage` и** (`window.parent`, `window.top`) — фақат
+   same-origin'да ўқилади.
+
+Қиймат `Bearer eyJ…` кўринишида сақланган бўлса префикс олиб ташланади.
+
+`401` келганда сеанс нусхаси ташланади ва токен хостдан қайта ўқилади; хостнинг
+`localStorage` калитига **тегилмайди** — акс ҳолда хост илова ҳам тизимдан
+чиқиб кетарди. Токен умуман топилмаса, логин ўрнига сабаби кўрсатилади.
+
+> **Cross-origin бўлса** (дашборд бошқа доменда) браузер ота-ойна
+> `localStorage` ига йўл бермайди — бу ҳолда хост iframe манзилига
+> `?token=<токен>` қўшиши керак.
+>
+> `iframe` да очилиши учун дашборд серверида `X-Frame-Options` бўлмаслиги ёки
+> `Content-Security-Policy: frame-ancestors https://tmkm.bgs.uz` турилиши керак.
 
 ## Йиғиш ва деплой
 
@@ -74,11 +97,12 @@ server {
 
 ```
 dashboard/src/
-  api/          client (токен, 401, 404 → «бўлим мавжуд эмас»), endpoints, types
+  api/          auth (токенни хостдан ўқиш), client (401, 404 → «бўлим
+                мавжуд эмас»), endpoints, types
   lib/adapters/ API жавоби → панел кутадиган view-model
   lib/          format, period, theme, useQuery, dataQuality
   components/   диаграммалар ва UI бўлаклари
-  panels/       8 та бўлим + кириш саҳифаси
+  panels/       8 та бўлим
 ```
 
 Панеллар API тузилмасини билмайди — фақат адаптерлар билади. API ўзгарса
