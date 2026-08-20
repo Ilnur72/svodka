@@ -4,7 +4,13 @@ import { getCisterns, getCisternsList } from "../api/endpoints";
 import { useQuery } from "../lib/useQuery";
 import { nf, periodLabel, exact } from "../lib/format";
 import { isUnverified } from "../lib/dataQuality";
-import { CISTERN_KIND_LABEL, cisternVM } from "../lib/adapters/resources";
+import type { CisternKind } from "../lib/adapters/resources";
+import {
+  CISTERN_KIND_LABEL,
+  CISTERN_KIND_UNIT,
+  cisternLabel,
+  cisternVM,
+} from "../lib/adapters/resources";
 import { usePalette } from "../lib/theme";
 import { GRID } from "../components/layout";
 import { Card, Section } from "../components/Card";
@@ -20,8 +26,16 @@ import { Loader } from "../components/states";
 
 const AREA = "cisterns";
 
-/** Устун диаграммада кўрсатиладиган асосий уч материал. */
-const MAIN = ["Азотная к-та цистерны", "Аммиак цистерны", "Сода"];
+/**
+ * Ўлчов бирлиги гуруҳлари. Ҳар бири ўз картасида — цистерна сони (дона),
+ * автотранспортдаги тонна ва бирлиги номаълум «бошқа» юклар бир шкалага
+ * қўйилмайди. Гуруҳ сервернинг `transport_type` майдонидан аниқланади.
+ */
+const KINDS = ["cistern", "tonne", "other"] as const satisfies readonly CisternKind[];
+
+/** Ойлар кесимидаги диаграммада нечта модда кўрсатилади. */
+const MAIN_COUNT = 3;
+const MAIN_COLORS = ["var(--s1)", "var(--s2)", "var(--s3)"];
 
 export function CistPanel({ period, months }: PanelProps) {
   const p = usePalette();
@@ -37,7 +51,13 @@ export function CistPanel({ period, months }: PanelProps) {
     [sumQ.data, listQ.data],
   );
 
-  const top = vm?.materials.slice(0, 6) ?? [];
+  const top = vm?.positions.slice(0, 6) ?? [];
+
+  /* Ойлар кесимидаги диаграмма фақат **цистерна сони** ни кўрсатади, шунинг
+     учун унга бошқа бирликдаги позициялар кирмайди. Модда номлари қўлда
+     ёзилмайди — рўйхат маълумотнинг ўзидан, ҳажм бўйича олинади. */
+  const main = (vm?.positions ?? []).filter((x) => x.kind === "cistern").slice(0, MAIN_COUNT);
+  const mainColors = [p.s1, p.s2, p.s3];
 
   return (
     <>
@@ -50,112 +70,119 @@ export function CistPanel({ period, months }: PanelProps) {
         q={sumQ}
         height={260}
         notAvailableWhat="/cisterns"
-        isEmpty={() => !vm || vm.materials.length === 0}
+        isEmpty={() => !vm || vm.positions.length === 0}
         emptyTitle="Ушбу давр учун цистерна маълумоти йўқ"
       >
         {() =>
           vm && (
             <>
               <div className={GRID.g6}>
-                {top.map((m, i) => (
+                {top.map((pos, i) => (
                   <StatTile
-                    key={m.material}
-                    label={m.material}
-                    value={<MaskedValue area={AREA}>{exact(m.value)}</MaskedValue>}
-                    unit={masked ? undefined : m.kind === "tonne" ? "т" : "цистерна"}
+                    key={pos.key}
+                    label={cisternLabel(pos)}
+                    value={<MaskedValue area={AREA}>{exact(pos.value)}</MaskedValue>}
+                    unit={masked ? undefined : (CISTERN_KIND_UNIT[pos.kind].tile ?? undefined)}
                     stripe={i === 0 ? "var(--s1)" : i === 1 ? "var(--s2)" : undefined}
                     foot={
                       <Pill>
-                        <Masked area={AREA}>{nf(m.deliveries)} етказиш</Masked>
+                        <Masked area={AREA}>{nf(pos.deliveries)} етказиш</Masked>
                       </Pill>
                     }
                   />
                 ))}
               </div>
 
-              <Section
-                className="mt-5"
-                title="Ойлар кесимида"
-                note={`${periodLabel(months)} · цистерна сони`}
-              >
-                {masked ? (
-                  <MaskedChart area={AREA} what="Ойлар кесимидаги цистерна диаграммаси" />
-                ) : (
-                  <Card>
-                    <ChartLegend
-                      items={MAIN.map((name, i) => ({
-                        name,
-                        color: ["var(--s1)", "var(--s2)", "var(--s3)"][i],
-                      }))}
-                    />
-                    <Columns
-                      labels={vm.months.map((m) => m.label)}
-                      fullLabels={vm.months.map((m) => m.full)}
-                      height={230}
-                      thick={20}
-                      ariaLabel="Ойлар кесимида темир йўл цистерналари сони"
-                      vFmt={(v) => nf(v) + " цистерна"}
-                      series={MAIN.map((name, i) => ({
-                        name,
-                        color: [p.s1, p.s2, p.s3][i],
-                        values: vm.months.map((m) => m.byMaterial[name] ?? 0),
-                      }))}
-                    />
-                    <TableToggle
-                      caption="Ойлар кесимида темир йўл цистерналари"
-                      cols={[{ t: "Ой" }, ...MAIN.map((n) => ({ t: n, num: true as const }))]}
-                      rows={vm.months.map((m) => ({
-                        key: m.month,
-                        cells: [m.full, ...MAIN.map((n) => nf(m.byMaterial[n] ?? 0))],
-                      }))}
-                    />
-                  </Card>
-                )}
-              </Section>
+              {main.length > 0 && (
+                <Section
+                  className="mt-5"
+                  title="Ойлар кесимида"
+                  note={`${periodLabel(months)} · цистерна сони`}
+                >
+                  {masked ? (
+                    <MaskedChart area={AREA} what="Ойлар кесимидаги цистерна диаграммаси" />
+                  ) : (
+                    <Card>
+                      <ChartLegend
+                        items={main.map((pos, i) => ({
+                          name: pos.name,
+                          color: MAIN_COLORS[i],
+                        }))}
+                      />
+                      <Columns
+                        labels={vm.months.map((m) => m.label)}
+                        fullLabels={vm.months.map((m) => m.full)}
+                        height={230}
+                        thick={20}
+                        ariaLabel="Ойлар кесимида темир йўл цистерналари сони"
+                        vFmt={(v) => nf(v) + " цистерна"}
+                        series={main.map((pos, i) => ({
+                          name: pos.name,
+                          color: mainColors[i],
+                          values: vm.months.map((m) => m.byKey[pos.key] ?? 0),
+                        }))}
+                      />
+                      <TableToggle
+                        caption="Ойлар кесимида темир йўл цистерналари"
+                        cols={[
+                          { t: "Ой" },
+                          ...main.map((pos) => ({ t: pos.name, num: true as const })),
+                        ]}
+                        rows={vm.months.map((m) => ({
+                          key: m.month,
+                          cells: [m.full, ...main.map((pos) => nf(m.byKey[pos.key] ?? 0))],
+                        }))}
+                      />
+                    </Card>
+                  )}
+                </Section>
+              )}
 
-              <Section title="Материаллар кесимида" note="давр бўйича жами">
+              <Section title="Моддалар кесимида" note="давр бўйича жами">
                 {masked ? (
                   <Card>
                     <DataTable
-                      caption="Материаллар кесимида цистерна ва етказишлар"
+                      caption="Моддалар кесимида цистерна ва етказишлар"
                       cols={[
-                        { t: "Материал" },
+                        { t: "Модда" },
                         { t: "Қиймат", num: true },
                         { t: "Етказишлар", num: true },
                       ]}
-                      rows={vm.materials.map((m) => ({
-                        key: m.material,
+                      rows={vm.positions.map((pos) => ({
+                        key: pos.key,
                         cells: [
-                          m.material,
-                          <Masked area={AREA}>{exact(m.value)}</Masked>,
-                          <Masked area={AREA}>{nf(m.deliveries)}</Masked>,
+                          cisternLabel(pos),
+                          <Masked area={AREA}>{exact(pos.value)}</Masked>,
+                          <Masked area={AREA}>{nf(pos.deliveries)}</Masked>,
                         ],
                       }))}
                     />
                   </Card>
                 ) : (
-                  /* Цистерна сони (дона) ва автотранспортдаги тонна — иккита
-                     турли ўлчов бирлиги. Бир диаграммада юзлаб тонна ёнида
-                     бир нечта цистерна устуни кўринмай кетарди, шунинг учун ҳар
-                     бири ўз картасида, ўз шкаласида. */
+                  /* Цистерна сони (дона), автотранспортдаги тонна ва бирлиги
+                     номаълум «бошқа» юклар — учта турли ўлчов бирлиги. Бир
+                     диаграммада юзлаб тонна ёнида бир нечта цистерна устуни
+                     кўринмай кетарди, шунинг учун ҳар бири ўз картасида, ўз
+                     шкаласида. */
                   <div className={GRID.g2}>
-                    {(["cistern", "tonne"] as const).map((kind) => {
-                      const list = vm.materials.filter((m) => m.kind === kind);
+                    {KINDS.map((kind) => {
+                      const list = vm.positions.filter((pos) => pos.kind === kind);
                       if (list.length === 0) return null;
+                      const unit = CISTERN_KIND_UNIT[kind];
                       return (
                         <Card key={kind} title={CISTERN_KIND_LABEL[kind]}>
                           <div className="mt-2">
                             <BarsH
-                              ariaLabel={`${CISTERN_KIND_LABEL[kind]} — материаллар кесимида`}
-                              rows={list.map((m) => ({
-                                label: m.material,
-                                v: m.value,
-                                extra: ["Етказишлар", `${nf(m.deliveries)} та`],
+                              ariaLabel={`${CISTERN_KIND_LABEL[kind]} — моддалар кесимида`}
+                              rows={list.map((pos) => ({
+                                label: pos.name,
+                                v: pos.value,
+                                extra: ["Етказишлар", `${nf(pos.deliveries)} та`],
                               }))}
                               rowH={26}
                               padR={74}
-                              vName={kind === "cistern" ? "Цистерна" : "Тонна"}
-                              vFmt={(v) => exact(v) + (kind === "cistern" ? " цис." : " т")}
+                              vName={unit.series}
+                              vFmt={(v) => exact(v) + unit.short}
                             />
                           </div>
                         </Card>

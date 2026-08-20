@@ -148,37 +148,93 @@ export function ingichkaVM(
 /* цистерналар                                                                */
 /* -------------------------------------------------------------------------- */
 
-export interface CisternMaterial {
-  material: string;
+/**
+ * Ўлчов бирлиги гуруҳи. Уччаласи ўзаро қўшилмайди ва бир диаграммага
+ * ҳам тушмайди — ҳар бири ўз картасида, ўз шкаласида кўрсатилади.
+ */
+export type CisternKind = "cistern" | "tonne" | "other";
+
+/**
+ * Транспорт тури → ўлчов бирлиги гуруҳи.
+ *
+ * Ягона манба — сервернинг `transport_type` майдони (`Справочники.xlsx` →
+ * «Цифстерны SPR» → `Тип транспорта`). Илгари бу ном бўйича regex билан
+ * тахмин қилинарди (`/на\s*машин/`), лекин у `Серная к-та` ни ҳам,
+ * `Вывоз кеков` ни ҳам «цистерна сони» деб хато таснифларди — шунинг учун
+ * regex'га **fallback ҳам қилинмайди**: тури номаълум бўлса `other`.
+ *
+ * Сервер қиймати айнан уч сатр: `«цистерны»`, `«машины»`, `«Другое»`
+ * (биринчи иккитаси кичик, учинчиси бош ҳарф билан ёзилади — солиштириш
+ * шунинг учун регистрга боғлиқ эмас). Справочникка тўртинчи тур қўшилса у
+ * `other` га тушади, яъни панел йиқилмайди ва қатор йўқолмайди.
+ */
+export function cisternKind(transportType: string | null | undefined): CisternKind {
+  switch (String(transportType ?? "").trim().toLowerCase()) {
+    case "машины":
+      return "tonne";
+    case "цистерны":
+      return "cistern";
+    default:
+      // «Другое» ва боғланмаган (`null`) ёзувлар — бирлиги номаълум.
+      return "other";
+  }
+}
+
+export const CISTERN_KIND_LABEL: Record<CisternKind, string> = {
+  cistern: "Цистерна сони (дона)",
+  tonne: "Автотранспортда келтирилган (тонна)",
+  other: "Бошқа юклар (манба бирлигида)",
+};
+
+/**
+ * Ўлчов бирлигининг ёзилиши. `other` да бирлик номаълум — ўйлаб топилмайди,
+ * сон бирликсиз кўрсатилади.
+ */
+export const CISTERN_KIND_UNIT: Record<
+  CisternKind,
+  { tile: string | null; short: string; series: string }
+> = {
+  cistern: { tile: "цистерна", short: " цис.", series: "Цистерна" },
+  tonne: { tile: "т", short: " т", series: "Тонна" },
+  other: { tile: null, short: "", series: "Қиймат" },
+};
+
+/** Номи ҳам, тури ҳам номаълум қатор шу ном билан кўринади — йўқолиб кетмайди. */
+const UNKNOWN_NAME = "Номаълум юк";
+
+/** Экранда кўринадиган ном: аввал `Реагент`, у йўқ бўлса варақ устуни. */
+const positionName = (r: { reagent: string | null; material: string | null }): string =>
+  r.reagent?.trim() || r.material?.trim() || UNKNOWN_NAME;
+
+export interface CisternPosition {
+  /** Гуруҳ калити — `«ном|тур»`. Ой кесимидаги `byKey` да ҳам айни шу калит. */
+  key: string;
+  /** Кўрсатиладиган ном — модда номи (`Реагент`). */
+  name: string;
+  /** Сервердаги транспорт тури, ўзгартирилмаган ҳолда; боғланмаган ёзувда `null`. */
+  transport: string | null;
   value: number;
   deliveries: number;
-  /** Ўлчов бирлиги: цистерна сони ёки автотранспортдаги тонна. */
-  kind: "cistern" | "tonne";
+  kind: CisternKind;
 }
 
 /**
- * Материал номидан ўлчов бирлигини аниқлаш.
- *
- * `цистерны` варағида иккита турдаги устун бор: цистерна **сони** (дона) ва
- * автомашинада келтирилган **тонна**. Уларни битта диаграммага қўйиб бўлмайди —
- * юзлаб тонна ёнида бир нечта цистерна устуни кўринмай кетади.
- *
- * Ном қоидаси `Справочники.xlsx` → «Цифстерны SPR» билан мос: «на машине» /
- * «на машину» бор бўлса — тонна, акс ҳолда цистерна сони.
+ * Битта модда варақда икки устун билан келади (`Азотная к-та цистерны` ва
+ * `Азотная к-та на машине(т)`). Улар **қўшилмайди** — бири цистерна сони,
+ * иккинчиси тонна. Шунинг учун гуруҳлаш калити «модда + тур».
  */
-export const cisternKind = (material: string): "cistern" | "tonne" =>
-  /на\s*машин/i.test(String(material ?? "")) ? "tonne" : "cistern";
+const positionKey = (name: string, kind: CisternKind): string => `${name}|${kind}`;
 
-export const CISTERN_KIND_LABEL: Record<"cistern" | "tonne", string> = {
-  cistern: "Цистерна сони (дона)",
-  tonne: "Автотранспортда келтирилган (тонна)",
-};
+/** Аралаш рўйхатда (масалан устки карточкаларда) турни ажратиб турадиган ёрлиқ. */
+export const cisternLabel = (p: { name: string; transport: string | null }): string =>
+  p.transport ? `${p.name} (${p.transport})` : p.name;
 
 export interface CisternMonth {
   month: string;
   label: string;
   full: string;
-  byMaterial: Record<string, number>;
+  /** Калит — `CisternPosition.key`, яъни «модда + тур». */
+  byKey: Record<string, number>;
 }
 
 export interface CisternTx {
@@ -186,13 +242,18 @@ export interface CisternTx {
   day: string;
   full: string;
   time: string | null;
+  /**
+   * Реестр — қатор даражасидаги манба кўриниши, шунинг учун бу ерда варақ
+   * устунининг номи ўзгартирилмасдан қолади (ёнида «манба файл» устуни бор).
+   * Йиғинди кўринишларда эса модда номи ишлатилади.
+   */
   material: string;
   value: number;
   source: string;
 }
 
 export interface CisternVM {
-  materials: CisternMaterial[];
+  positions: CisternPosition[];
   months: CisternMonth[];
   tx: CisternTx[];
   txTotal: number;
@@ -204,48 +265,54 @@ export function cisternVM(
   txRows: CisternTxRow[],
   txTotal: number,
 ): CisternVM {
-  const byMaterial = new Map<string, CisternMaterial>();
+  const byPosition = new Map<string, CisternPosition>();
   const byMonth = new Map<string, Record<string, number>>();
 
   for (const r of rows) {
-    const m = byMaterial.get(r.material) ?? {
-      material: r.material,
+    const kind = cisternKind(r.transport_type);
+    const name = positionName(r);
+    const key = positionKey(name, kind);
+
+    const p = byPosition.get(key) ?? {
+      key,
+      name,
+      transport: r.transport_type?.trim() || null,
       value: 0,
       deliveries: 0,
-      kind: cisternKind(r.material),
+      kind,
     };
-    m.value += r.value ?? 0;
-    m.deliveries += r.deliveries ?? 0;
-    byMaterial.set(r.material, m);
+    p.value += r.value ?? 0;
+    p.deliveries += r.deliveries ?? 0;
+    byPosition.set(key, p);
 
-    const key = r.month ?? r.day ?? "";
-    if (!key) continue;
-    const slot = byMonth.get(key) ?? {};
-    slot[r.material] = (slot[r.material] ?? 0) + (r.value ?? 0);
-    byMonth.set(key, slot);
+    const slot = r.month ?? r.day ?? "";
+    if (!slot) continue;
+    const month = byMonth.get(slot) ?? {};
+    month[key] = (month[key] ?? 0) + (r.value ?? 0);
+    byMonth.set(slot, month);
   }
 
   return {
-    materials: [...byMaterial.values()].sort((a, b) => b.value - a.value),
+    positions: [...byPosition.values()].sort((a, b) => b.value - a.value),
     months: [...byMonth.entries()]
       .sort((a, b) => (a[0] < b[0] ? -1 : 1))
-      .map(([month, byMat]) => ({
+      .map(([month, byKey]) => ({
         month,
         label: monthTick(month),
         full: monthLabel(month),
-        byMaterial: byMat,
+        byKey,
       })),
     tx: txRows.map((r, i) => ({
-      key: `${r.day}#${r.time ?? ""}#${r.material}#${i}`,
+      key: `${r.day}#${r.time ?? ""}#${r.material ?? ""}#${i}`,
       day: r.day,
       full: dateLabel(r.day),
       time: r.time,
-      material: r.material,
+      material: r.material?.trim() || positionName(r),
       value: r.value ?? 0,
       source: r.source_file,
     })),
     txTotal,
-    totalDeliveries: [...byMaterial.values()].reduce((a, m) => a + m.deliveries, 0),
+    totalDeliveries: [...byPosition.values()].reduce((a, p) => a + p.deliveries, 0),
   };
 }
 

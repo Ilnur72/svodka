@@ -38,6 +38,13 @@ export interface FiltersData {
   processes: string[];
   energyTypes: string[];
   chemicals: string[];
+  /**
+   * `chemicals` нинг тўлиқ шакли — ҳар бир варақ устуни ўз реагенти ва
+   * транспорт тури билан. `reagent` бўйича гуруҳлаш шу ердан қурилади.
+   */
+  chemicalsDetailed: { name: string; reagent: string | null; transport_type: string | null }[];
+  /** Такрорсиз тоза модда номлари; `reagent = null` бўлганлар кирмайди. */
+  reagents: string[];
   dateRange: { min: string; max: string };
 }
 
@@ -107,6 +114,8 @@ export interface TreePlant {
   name: string;
   workshopCount: number;
   productCount: number;
+  /** Шу заводдаги «всего» сатрлари сони (`productCount` га кирмайди). */
+  totalRowCount?: number;
   totals: Totals | null;
   /** `depth=plant` бўлганда келмайди. */
   workshops?: TreeWorkshop[];
@@ -117,20 +126,36 @@ export interface TreeData {
   depth: string;
   totals: Totals;
   plantCount: number;
+  /** «Всего» сатрларисиз — улар `totalRowCount` да алоҳида саналади. */
   productCount: number;
+  /** Жавобдаги «всего» сатрлари сони; ҳеч қайси `totals` га қўшилмаган. */
+  totalRowCount: number;
   plants: TreePlant[];
 }
 
 export interface SummaryData {
   period: { from: string; to: string };
   production: { byUnit: UnitTotal[]; weight: WeightTotal | null };
-  /** ⚠️ Йиғинди сатри чиқарилмаган — API-BUGS №1. Экранда ишлатилмайди. */
+  /** Экранда ишлатилмайди — электр панели `/electricity` дан ўқийди. */
   electricity: { kwh: number | null };
   hydrogen: { hydrogen: number | null; gas: number | null };
   cisterns: { value: number | null; deliveries: number | null };
   ogarok: { physical: number | null; metal: number | null };
   ingichka: { downtimeHours: number | null; stops: number | null };
-  sales: { category: string; value: number | null }[];
+  /**
+   * СГП жамланмаси. ⚠️ Бир категория **бир нечта қатор** билан келади: бэкенд
+   * `GROUP BY category, base_unit` қилади (тн / шт / м3 ўзаро қўшилмайди).
+   * «Бир категория = бир қатор» деб қаралмасин — аввал `baseUnit` бўйича
+   * ажратилсин, кейин йиғилсин.
+   */
+  sales: {
+    category: string;
+    /** Шу қатор қайси базавий бирликда; аниқланмаса `null` ёки `«—»`. */
+    baseUnit: string | null;
+    /** `true` — қолдиқ: давр охиридаги ҳолат, кунлар бўйича йиғилмайди. */
+    isStock: boolean;
+    value: number | null;
+  }[];
 }
 
 /* -------------------------------------------------------------------------- */
@@ -160,6 +185,18 @@ export interface NarastaykaRow {
   plan_base: number | null;
   fakt_base: number | null;
   source_file: string;
+  /**
+   * Манбадаги «всего» йиғинди сатри — пастдаги қаторларнинг йиғиндиси
+   * (маъноси `TreeProduct.isTotal` билан бир хил).
+   *
+   * ⚠️ `/narastayka` — деталь рўйхат бўлгани учун бошқа endpoint'лардан
+   * фарқли равишда бу сатрларни **чиқариб ташламайди**. `product` ILIKE
+   * қидируви бир вақтда «всего» ни ҳам, унинг таркибий қисмларини ҳам
+   * топиши мумкин; иккиси қўшилса битта миқдор икки марта саналади.
+   * Шунинг учун кунлик динамикада улар ажратилади —
+   * `dailyFromNarastayka()` га қаранг.
+   */
+  isTotal?: boolean;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -195,7 +232,23 @@ export interface HydrogenRow {
 export interface CisternRow {
   month?: string;
   day?: string;
-  material: string;
+  /**
+   * Варақ устунининг сарлавҳаси (`sisterna_helper.name`), масалан
+   * `«Аммиак на машине(т)»`. `LEFT JOIN` бўлгани учун боғланмаган эски
+   * ёзувларда `null` бўлиши мумкин.
+   */
+  material: string | null;
+  /** Тоза модда номи — `Реагент` устуни, масалан `«Азотная кислота»`. */
+  reagent: string | null;
+  /**
+   * Ўлчов бирлигини аниқлайдиган ягона манба — ном бўйича тахмин эмас.
+   * Ҳозирча айнан уч сатр келади, ёзилиши ҳам ўзгартирилмаган:
+   * `«цистерны»` ва `«машины»` кичик, `«Другое»` бош ҳарф билан.
+   * Справочникда топилмаган устун ва боғланмаган ёзувларда `null`
+   * (масалан 05-2026 файлидаги «Вывоз кеков»). Справочникка тўртинчи қиймат
+   * қўшилса ҳам адаптер йиқилмайди — қаранг `cisternKind()`.
+   */
+  transport_type: string | null;
   value: number | null;
   deliveries: number | null;
 }
@@ -203,7 +256,9 @@ export interface CisternRow {
 export interface CisternTxRow {
   day: string;
   time: string | null;
-  material: string;
+  material: string | null;
+  reagent: string | null;
+  transport_type: string | null;
   value: number | null;
   source_file: string;
 }
@@ -246,9 +301,14 @@ export interface IngichkaDailyRow {
 export interface SalesMonthlyRow {
   month: string;
   category: string;
-  /** ⚠️ Аралаш ўлчов бирликлари (тн ва дона) — категориялар ўзаро қўшилмайди. */
+  /**
+   * ⚠️ Фақат **оғирлик оиласи** (`тн` / `т`) йиғиндиси: бэкенд бошқа
+   * бирликларни бу сонга умуман қўшмайди. Аралашма эмас — аксинча,
+   * кг / шт / м3 маҳсулотлар бу ерга **тушмайди**, шунинг учун бу сон
+   * категория ҳажмини тўлиқ ифодаламайди.
+   */
   value_base: number | null;
-  /** Бирлик кесимида ажратилган йиғинди — қўшишга ярайдиган ягона шакл. */
+  /** Бирлик кесимида ажратилган йиғинди — категория ҳажмининг тўлиқ шакли. */
   byUnit?: SalesMonthlyByUnit[];
 }
 
