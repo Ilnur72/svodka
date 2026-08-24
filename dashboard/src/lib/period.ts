@@ -26,6 +26,17 @@ export function monthEnd(month: string): string {
   return `${month}-${String(last).padStart(2, "0")}`;
 }
 
+/**
+ * Ойни `n` та орқага суради: `("2026-03", 11)` → `"2025-04"`.
+ * Йил чегарасидан ўтишни `Date` ўзи ҳисоблайди — қўлда `%12` ёзилмайди.
+ */
+export function monthMinus(month: string, n: number): string {
+  const [y, m] = month.split("-").map(Number);
+  if (!isFinite(y) || !isFinite(m)) return month;
+  const d = new Date(Date.UTC(y, m - 1 - n, 1));
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
 /** `dateRange` дан `["2025-01", …, "2026-08"]`. */
 export function monthsInRange(min: string, max: string): string[] {
   if (!DATE_RE.test(min) || !DATE_RE.test(max)) return [];

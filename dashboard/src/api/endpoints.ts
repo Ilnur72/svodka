@@ -10,6 +10,7 @@ import type {
   HydrogenRow,
   IngichkaDailyRow,
   IngichkaMonthlyRow,
+  KpiResponse,
   NarastaykaRow,
   OgarokDailyRow,
   OgarokMonthlyRow,
@@ -187,3 +188,17 @@ export const getSalesProducts = (r: Range, signal?: AbortSignal): Promise<SalesP
  */
 export const getBalance = (r: Range, signal?: AbortSignal): Promise<BalanceResponse> =>
   unwrap(apiGet<Envelope<BalanceResponse>>("/balance", { ...r }, signal));
+
+/**
+ * «Паспорт показателей» — 45 кўрсаткич битта жавобда, ой кесимида.
+ *
+ * `from`/`to` ойлик: жавобдаги `months` — сўралган оралиққа тушган ва камида
+ * битта манбада ёзуви бор ойлар. Қиймат ойлар бўйича **қўшилмайди** (турли
+ * бирлик, айримлари эса қолдиқ), шунинг учун панел битта ойни танлаб
+ * кўрсатади — қаранг `adapters/kpi.ts` → `kpiMonth()`.
+ *
+ * Endpoint серверда бўлмаса 404 → `NotAvailableError`, бўлим «серверда йўқ»
+ * ҳолатини кўрсатади ва қолган бўлимлар ишлашда давом этади.
+ */
+export const getKpi = (r: Range, signal?: AbortSignal): Promise<KpiResponse> =>
+  unwrap(apiGet<Envelope<KpiResponse>>("/kpi", { ...r }, signal));
