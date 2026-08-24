@@ -125,8 +125,25 @@ function readToken(): string | null {
     normalize(read(() => sessionStorage, KEY)) ??
     normalize(read(() => localStorage, KEY)) ??
     normalize(read(() => storageOf(window.parent), KEY)) ??
-    normalize(read(() => storageOf(window.top), KEY))
+    normalize(read(() => storageOf(window.top), KEY)) ??
+    devToken()
   );
+}
+
+/**
+ * Локал ишлаб чиқиш учун захира: `.env.local` даги `VITE_DEV_TOKEN`.
+ *
+ * Энг охирида турибди — хостдан ёки манзил сатридан келган ҳақиқий токен
+ * ҳар доим ундан устун. Шунинг учун бу қиймат prod хулқини ўзгартирмайди.
+ *
+ * `import.meta.env.DEV` prod build'да Vite томонидан `false` га алмаштирилади,
+ * шунинг учун бу шох **бутунлай олиб ташланади** ва `VITE_DEV_TOKEN` бирор
+ * марта ҳам bundle ичига тушмайди. `.env.example` даги «махфий қиймат
+ * ёзилмайди» қоидаси шу тарзда бузилмайди.
+ */
+function devToken(): string | null {
+  if (!import.meta.env.DEV) return null;
+  return normalize(import.meta.env.VITE_DEV_TOKEN);
 }
 
 /** Ўзи (iframe'да эмас) бўлса такрор ўқилмайди. */

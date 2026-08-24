@@ -19,6 +19,7 @@ import { Pill } from "../components/Pill";
 import { KeyValueList } from "../components/KeyValueList";
 import { ElectricityTrendCard } from "../components/ElectricityTrendCard";
 import { BulletChart, BulletLegend } from "../components/BulletRow";
+import { BalanceSection } from "./BalanceSection";
 import { MonthlyTrendSection } from "./MonthlyTrendSection";
 import { MaskedValue } from "../components/Masked";
 import { Loader } from "../components/states";
@@ -245,6 +246,8 @@ export function ObzorPanel({ period, months }: PanelProps) {
           )}
         </Loader>
       </Section>
+
+      <BalanceSection period={period} />
 
       <Section
         title={granularity === "daily" ? "Кунлик электр энергия истеъмоли" : "Ойлик электр энергия истеъмоли"}

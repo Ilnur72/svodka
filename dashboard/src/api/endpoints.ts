@@ -1,5 +1,6 @@
 import { apiGet } from "./client";
 import type {
+  BalanceResponse,
   CisternRow,
   CisternTxRow,
   ElectricityObjectRow,
@@ -58,15 +59,34 @@ export const getProductionMonthly = (
     ),
   );
 
-/** Битта позициянинг кунлик қаторлари (`product` — ILIKE қидирув). */
+/**
+ * Кунлик (детал) қаторлар.
+ *
+ *  - `product` — ILIKE қидирув, яқин номли позицияларни ҳам ушлайди;
+ *  - `workshop` — цехнинг каноник коди (бэкендда `COALESCE(f.name_correct,
+ *    f.name)`), яъни `/production/tree` даги `workshops[].code` билан айнан
+ *    бир хил қиймат;
+ *  - `plant` — завод (`f.main_object`). «Белгиланмаган» заводда `main_object`
+ *    бўш бўлгани учун у бу параметр билан изланмайди.
+ *
+ * Жавоб `for_day DESC` тартибида саҳифаланади — `limit` етмаса энг **эски**
+ * кунлар тушиб қолади, энг сўнгги кун эса ҳар доим тўлиқ келади.
+ */
 export async function getNarastayka(
   r: Range,
-  opts: { product?: string; limit?: number; page?: number } = {},
+  opts: { product?: string; workshop?: string; plant?: string; limit?: number; page?: number } = {},
   signal?: AbortSignal,
 ): Promise<{ rows: NarastaykaRow[]; total: number }> {
   const body = await apiGet<PagedEnvelope<NarastaykaRow>>(
     "/narastayka",
-    { ...r, product: opts.product, limit: opts.limit, page: opts.page },
+    {
+      ...r,
+      product: opts.product,
+      workshop: opts.workshop,
+      plant: opts.plant,
+      limit: opts.limit,
+      page: opts.page,
+    },
     signal,
   );
   return { rows: body.data, total: body.total };
@@ -145,8 +165,25 @@ export const getIngichkaMonthly = (r: Range, signal?: AbortSignal): Promise<Ingi
 export const getIngichkaDaily = (r: Range, signal?: AbortSignal): Promise<IngichkaDailyRow[]> =>
   unwrap(apiGet<Envelope<IngichkaDailyRow[]>>("/ingichka", { ...r, period: "daily" }, signal));
 
+/**
+ * Ой кесимидаги СГП. Ҳозирча экранда ишлатилмайди — СГП панели маҳсулот
+ * кесимидан (`/sales/products`) қурилган. Қатор шу қаватда қолдирилди:
+ * бу файл API'нинг тўлиқ типли кўзгуси. Тренд кераклигида **`byUnit`**
+ * устига қурилсин, `value_base` устига эмас (`SalesMonthlyRow` изоҳи).
+ */
 export const getSalesMonthly = (r: Range, signal?: AbortSignal): Promise<SalesMonthlyRow[]> =>
   unwrap(apiGet<Envelope<SalesMonthlyRow[]>>("/sales/monthly", { ...r }, signal));
 
 export const getSalesProducts = (r: Range, signal?: AbortSignal): Promise<SalesProductRow[]> =>
   unwrap(apiGet<Envelope<SalesProductRow[]>>("/sales/products", { ...r }, signal));
+
+/**
+ * Металлар баланси — технологик занжир (хомашё → тайёр маҳсулот) ва ҳар бир
+ * босқичда режа/факт. Жавоб ой кесимида келади: `months` даги ҳар бир ой
+ * ҳар бир босқичнинг `values` калитида бор, маълумот бўлмаса `null`.
+ *
+ * Endpoint серверда ҳали бўлмаслиги мумкин — 404 `NotAvailableError` билан
+ * ажратилади ва бўлим «серверда йўқ» ҳолатини кўрсатади, панел йиқилмайди.
+ */
+export const getBalance = (r: Range, signal?: AbortSignal): Promise<BalanceResponse> =>
+  unwrap(apiGet<Envelope<BalanceResponse>>("/balance", { ...r }, signal));
