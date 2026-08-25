@@ -1,13 +1,12 @@
 import type {
   NarastaykaRow,
-  ProductionMonthlyRow,
   TreeData,
   UnitTotal,
   WeightTotal,
 } from "../../api/types";
 import { UNASSIGNED_PLANT, isUnknownUnit, plantLabel } from "../dataQuality";
 import { fixWorkshop } from "../workshopFixes";
-import { dateLabel, dateTick, monthLabel, monthTick } from "../format";
+import { dateLabel, dateTick } from "../format";
 
 /**
  * Ишлаб чиқариш: `/production/tree` даражали жавобини панел ишлатадиган
@@ -609,72 +608,4 @@ export function cumulative(values: number[], dec = 3): number[] {
     out.push(Number(acc.toFixed(dec)));
   }
   return out;
-}
-
-/* -------------------------------------------------------------------------- */
-/* ойлик тренд (/production/monthly)                                          */
-/* -------------------------------------------------------------------------- */
-
-export interface MonthlyTrendPoint {
-  month: string;
-  label: string;
-  full: string;
-  plan: number;
-  fakt: number;
-}
-
-export interface MonthlyTrendVM {
-  /** Фақат битта базавий бирлик (одатда `тн`) — қийматлар қўшилиши мумкин. */
-  unit: string;
-  points: MonthlyTrendPoint[];
-  /** Базавий бирлиги аниқланмагани учун ҳисобдан чиқарилган ойлар сони. */
-  skippedUnassigned: number;
-  /** Мавжуд бошқа бирликлар — изоҳда эслатилади. */
-  otherUnits: string[];
-}
-
-/**
- * Ойлик тренд фақат **битта** базавий бирлик бўйича қурилади: `тн`, у бўлмаса
- * энг кўп учрайдиган бирлик. Турли бирликларни битта устунга қўшиш мумкин эмас.
- */
-export function monthlyTrend(rows: ProductionMonthlyRow[], months: string[]): MonthlyTrendVM {
-  const units = new Map<string, number>();
-  let skippedUnassigned = 0;
-  for (const r of rows) {
-    if (isUnknownUnit(r.base_unit)) {
-      skippedUnassigned += 1;
-      continue;
-    }
-    const u = (r.base_unit as string).trim();
-    units.set(u, (units.get(u) ?? 0) + 1);
-  }
-  const unit =
-    units.get("тн") !== undefined
-      ? "тн"
-      : ([...units.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? "—");
-
-  const byMonth = new Map<string, { plan: number; fakt: number }>();
-  for (const r of rows) {
-    if (isUnknownUnit(r.base_unit) || (r.base_unit as string).trim() !== unit) continue;
-    const slot = byMonth.get(r.month) ?? { plan: 0, fakt: 0 };
-    slot.plan += r.plan ?? 0;
-    slot.fakt += r.fakt ?? 0;
-    byMonth.set(r.month, slot);
-  }
-
-  const keys = months.length ? months : [...byMonth.keys()].sort();
-  const points = keys.map((m) => ({
-    month: m,
-    label: monthTick(m),
-    full: monthLabel(m),
-    plan: byMonth.get(m)?.plan ?? 0,
-    fakt: byMonth.get(m)?.fakt ?? 0,
-  }));
-
-  return {
-    unit,
-    points,
-    skippedUnassigned,
-    otherUnits: [...units.keys()].filter((u) => u !== unit),
-  };
 }

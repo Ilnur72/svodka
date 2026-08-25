@@ -3,41 +3,59 @@ import type { PanelProps } from "../types";
 import { getKpi } from "../api/endpoints";
 import { useQuery } from "../lib/useQuery";
 import { monthMinus, monthOf, monthStart } from "../lib/period";
-import { kpiMonth, kpiView } from "../lib/adapters/kpi";
-import { monthLabel } from "../lib/format";
-import { Pill } from "../components/Pill";
 import { SegmentSwitch, type SegmentOption } from "../components/SegmentSwitch";
 import { ManagementView } from "./ManagementView";
-import { ProductionView } from "./ProductionView";
+import { BalanceSection } from "./BalanceSection";
+import { ChainView } from "./ChainView";
+import { DailyView } from "./DailyView";
 
 /**
- * «Умумий кўрсаткичлар» бўлими — иккита кўриниш, битта таб ичида.
+ * «Умумий кўрсаткичлар» бўлими — тўртта кўриниш, битта таб ичида.
  *
- *  · **Раҳбарият** — 10–20 сонияда қарор учун: катта карточкалар, жараённинг
+ *  · **Кўрсаткичлар паспорти** — 10–20 сонияда қарор учун: катта карточкалар, жараённинг
  *    йиғма ҳолати, категориялар, ойлик динамика ва TOP рўйхатлар.
- *  · **Ишлаб чиқариш** — жараённинг ичи: технологик занжир, майдончалар,
- *    ўлчов бирлиги кесими, хомашё/ресурслар, чиқиндилар ва тўхташлар,
- *    кунлик динамика.
+ *  · **Металлар баланси** — Mo, W ва Re оқими босқичма-босқич: технологик
+ *    йўл ва ҳар босқичда режа/факт.
+ *  · **Цехлар занжири** — бутун комбинат технологик оқими: хомашёдан тайёр
+ *    маҳсулотгача, босқичлар орасидаги боғланиш ва унинг аниқлик даражаси.
+ *  · **Кунлик сводка** — кунлик кесим: 8 йўналиш, «Кунлик · Ой бошидан ·
+ *    Йил бошидан» ва ҳар бир кўрсаткич бўйича ҳолат.
  *
- * Иккиси **бир вақтда** чизилмайди, шунинг учун битта кўрсаткич экранда икки
+ * Учаласи **бир вақтда** чизилмайди, шунинг учун битта кўрсаткич экранда икки
  * марта турмайди; тақсимот қоидаси `lib/adapters/kpi.ts` бошидаги изоҳда.
  *
- * Паспорт сўрови (`/kpi`) шу ерда — иккала кўриниш ҳам ундан фойдаланади ва
- * кўриниш алмашганда қайта юкланмайди.
+ * Паспорт сўрови (`/kpi`) шу ерда — уни фақат «Кўрсаткичлар паспорти»
+ * ишлатади. Қолган учаласи мустақил: «Металлар баланси» (`/balance`),
+ * «Цехлар занжири» (`/chain`) ва «Кунлик сводка» (`/daily`) ҳар бири ўз
+ * сўровини ўзи юритади, шунинг учун паспорт юкланмаса ҳам улар ишлайверади.
+ *
+ * ⚠️ «Кунлик сводка» бошқа **маълумот қатлами**: қолган учаласи ойлик
+ * «цеховые сводки» варағига, у эса кунлик сводка файлига таянади. Улар бир
+ * экранда аралаштирилмайди ва бир-бирининг рақамини тасдиқламайди.
  */
 
-type ViewId = "mgmt" | "prod";
+type ViewId = "mgmt" | "prod" | "chain" | "daily";
 
 const VIEWS: readonly SegmentOption<ViewId>[] = [
   {
     id: "mgmt",
-    label: "Раҳбарият",
+    label: "Кўрсаткичлар паспорти",
     hint: "Умумий манзара: режа бажарилдими, қаерда муаммо, қайси кўрсаткичга эътибор.",
   },
   {
     id: "prod",
-    label: "Ишлаб чиқариш",
-    hint: "Жараённинг ичи: технологик занжир, сехлар, хомашё, ресурслар, чиқиндилар ва тўхташлар.",
+    label: "Металлар баланси",
+    hint: "Mo, W ва Re оқими босқичма-босқич: технологик йўл ва ҳар босқичда режа/факт.",
+  },
+  {
+    id: "chain",
+    label: "Цехлар занжири",
+    hint: "Бутун комбинат оқими: хомашёдан тайёр маҳсулотгача, ҳар бир босқич ва улар орасидаги боғланишнинг аниқлик даражаси.",
+  },
+  {
+    id: "daily",
+    label: "Кунлик сводка",
+    hint: "Кунлик кесим: бугун қанча ишлаб чиқарилди, режага нисбатан қандай, ой ва йил бошидан қанча, қолдиқлар ва муаммоли масалалар.",
   },
 ] as const;
 
@@ -67,11 +85,6 @@ export function ObzorPanel({ period, months }: PanelProps) {
     getKpi({ from: kpiFrom, to: period.to }, s),
   );
 
-  const vm = useMemo(
-    () => (kpiQ.data ? kpiView(kpiQ.data, kpiMonth(kpiQ.data, shownMonth)) : null),
-    [kpiQ.data, shownMonth],
-  );
-
   return (
     <>
       <div className="mb-4 flex flex-wrap items-start justify-between gap-x-5 gap-y-2.5">
@@ -81,26 +94,19 @@ export function ObzorPanel({ period, months }: PanelProps) {
           value={view}
           onChange={setView}
         />
-        {/* Паспорт блоклари қайси ойни кўрсатаётгани доим ёзилиб туради:
-            қиймат ойлар бўйича қўшилмайди, шунинг учун давр бир нечта ойни
-            қамраса ҳам экранда битта ой туради. */}
-        {vm && (
-          <span className="flex flex-wrap items-center gap-1.5 text-[11.5px] text-ink-3">
-            Кўрсаткич қийматлари:
-            <Pill>{monthLabel(vm.month)}</Pill>
-            {vm.month === vm.reference && <Pill>эталон ой</Pill>}
-            {vm.month !== shownMonth && (
-              <Pill status="warn">{monthLabel(shownMonth)} учун маълумот йўқ</Pill>
-            )}
-          </span>
-        )}
       </div>
 
-      {view === "mgmt" ? (
-        <ManagementView period={period} months={months} kpiQ={kpiQ} vm={vm} />
-      ) : (
-        <ProductionView period={period} months={months} kpiQ={kpiQ} vm={vm} />
-      )}
+      {/* Паспорт кўриниши фақат `/kpi` дан фойдаланади. Ой ва фильтрларни
+          ўзи бошқаради — сўров эса шу ерда, чунки у кенгроқ оралиқни олади
+          (тренд учун) ва кўриниш алмашганда қайта юкланмайди. */}
+      {view === "mgmt" && <ManagementView kpiQ={kpiQ} />}
+      {/* «Металлар баланси» — бошқа блокларсиз, сегмент номига тўлиқ мос.
+          У фақат `/balance` дан фойдаланади ва паспорт сўровига боғлиқ эмас. */}
+      {view === "prod" && <BalanceSection period={period} />}
+      {/* Занжир ва кунлик сводка паспорт сўровига боғлиқ эмас — ҳар бири
+          ўз маълумотини ўзи юклайди. */}
+      {view === "chain" && <ChainView period={period} months={months} />}
+      {view === "daily" && <DailyView period={period} months={months} />}
     </>
   );
 }

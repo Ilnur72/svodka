@@ -188,6 +188,14 @@ function DashboardBody({ range }: { range: { min: string; max: string } }) {
         </div>
       </main>
 
+      {/*
+        Манба изоҳи «Умумий кўрсаткичлар» табида кўрсатилмайди: у табда тўртта
+        сегмент бор ва уларнинг манбаи ҳар хил — паспорт, баланс ва занжир ойлик
+        «Сводки» файлларидан, «Кунлик сводка» эса бутунлай бошқа (кунлик) файлдан
+        келади. Битта умумий изоҳ у ерда нотўғри бўларди. Қолган табларнинг
+        ҳаммаси айнан ўша ойлик манбадан, шунинг учун улар учун изоҳ ўринли.
+      */}
+      {tab !== "obzor" && (
       <footer className="mx-auto max-w-[1560px] px-5 pb-10 text-[11.5px] leading-[1.6] text-ink-3">
         <p>
           <b className="font-semibold text-ink-2">Манба:</b> «Production Report» API — ойлик
@@ -208,6 +216,7 @@ function DashboardBody({ range }: { range: { min: string; max: string } }) {
           йиғиндиларга қўшилмайди.
         </p>
       </footer>
+      )}
     </>
   );
 }

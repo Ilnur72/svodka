@@ -197,8 +197,10 @@ function LevelBlock({
 }
 
 function BranchFlow({ branch, reference }: { branch: BalanceBranchVM; reference: string }) {
+  // Занжирда ўрни белгиланмаган қаторлар (`aside`) бу ерда чизилмайди: улар
+  // йўлнинг бир қисми эмас ва раҳбар учун шовқин эди. Йўқолмайди — «режа ва
+  // факт» блокида ўз ўрнида кўринади (`BalanceBranchVM.steps` уларни сақлайди).
   const flow = branch.levels.filter((l) => !l.aside);
-  const aside = branch.levels.filter((l) => l.aside);
 
   return (
     <div>
@@ -219,17 +221,6 @@ function BranchFlow({ branch, reference }: { branch: BalanceBranchVM; reference:
           </Fragment>
         ))}
       </div>
-
-      {aside.length > 0 && (
-        <div className="mt-3 border-t border-grid pt-3">
-          <p className="mb-2 text-[11.5px] text-ink-3">
-            Занжирда ўрни белгиланмаган қаторлар (справочно) — йўлга қўшилмайди:
-          </p>
-          {aside.map((level) => (
-            <LevelBlock key={level.no} level={level} reference={reference} withElbow={false} />
-          ))}
-        </div>
-      )}
     </div>
   );
 }
@@ -239,10 +230,16 @@ function BranchFlow({ branch, reference }: { branch: BalanceBranchVM; reference:
  * жойлашади — шунда номлар ва вертикал чизиқлар ҳисоб-китобсиз бир хил
  * нуқтада туради; горизонтал ўқ биринчи ва охирги чизиқни туташтиради.
  */
+/**
+ * Тармоқларнинг якуний тугунда бирлашиши — **тор экран** учун: устунлар
+ * пастга тушади ва тугунга юқоридан кирилади. Кенг экранда занжир чапдан
+ * ўнгга оқади, шунинг учун у ерда бошқа геометрия ишлатилади
+ * ({@link MergeElbow} ва {@link MergeArrow}).
+ */
 function MergeJoin({ from }: { from: string[] }) {
   const n = from.length;
   return (
-    <div className="pt-2">
+    <div className="pt-2 wide:hidden">
       {/* `flex-1` — ҳар бир устун тенг кенгликда, шунинг учун ном ва унинг
           остидаги чизиқ ҳисоб-китобсиз бир хил вертикалда туради. */}
       <div className="flex">
@@ -270,6 +267,69 @@ function MergeJoin({ from }: { from: string[] }) {
   );
 }
 
+/** Бирлашиш тирсаги ва ундан кейинги стрелка учун ажратилган кенглик. */
+const MERGE_W = 26;
+const ARROW_W = 26;
+
+/**
+ * Кенг экранда битта тармоқдан якуний тугунга кетадиган тирсак.
+ *
+ * Геометрия: горизонтал чизиқ тармоқ карточкасининг **вертикал марказидан**
+ * (`top-1/2`, шунинг учун қатор `items-stretch` бўлиши шарт) ўнгга боради ва
+ * тирсакнинг **ўнг четидаги** умумий вертикал ўққа уланади. Ўқ айнан ўнг
+ * четда — шунда кейинги стрелка ҳеч қандай бўшлиқсиз ўша нуқтадан бошланади.
+ *
+ * Вертикал ўқ бўлаклари қўшни тирсакларга `-top-2 / -bottom-2` билан кириб
+ * боради (тармоқлар орасидаги масофа `gap-3` = 12px, 8px кириш иккала
+ * томондан етарли) — шунда ўқ узилмайди ва баландликларни ўлчаш керак эмас.
+ */
+function MergeElbow({ index, count }: { index: number; count: number }) {
+  const trunk =
+    count === 1
+      ? null
+      : index === 0
+        ? "top-1/2 -bottom-2"
+        : index === count - 1
+          ? "-top-2 bottom-1/2"
+          : "-top-2 -bottom-2";
+
+  return (
+    <div
+      aria-hidden="true"
+      className="relative hidden flex-none wide:block"
+      style={{ width: MERGE_W }}
+    >
+      {trunk && <span className={"absolute right-0 w-px bg-rule " + trunk} />}
+      <span className="absolute top-1/2 right-0 left-0 h-px bg-rule" />
+    </div>
+  );
+}
+
+/**
+ * Умумий вертикал ўқдан якуний тугунга кирувчи стрелка (кенг экран).
+ *
+ * Ташқи флекс `items-center` бўлгани учун **ҳар бир устуннинг маркази қатор
+ * маркази билан устма-уст тушади**: тармоқлар устуни ҳам, бу стрелка ҳам,
+ * якуний карточка ҳам. Демак стрелка доим ўққа тегади.
+ *
+ * Ўқ ҳам ўша нуқтани қоплайди: иккита ва ундан кўп тармоқда биринчисининг
+ * маркази устун ярмидан юқорида, охиргисиники пастда бўлади
+ * (`h1/2 < H/2 < h1+g+h2/2`), шунинг учун улар орасидаги ўқ устун марказидан
+ * ўтади — тармоқлар турли баландликда бўлса ҳам.
+ */
+function MergeArrow() {
+  return (
+    <div
+      aria-hidden="true"
+      className="hidden flex-none items-center wide:flex"
+      style={{ width: ARROW_W }}
+    >
+      <span className="h-px flex-1 bg-rule" />
+      <span className="-translate-x-[3px] h-[7px] w-[7px] rotate-45 border-t border-r border-rule" />
+    </div>
+  );
+}
+
 export function BalanceChainGroup({
   group,
   reference,
@@ -281,22 +341,41 @@ export function BalanceChainGroup({
     <div className="rounded-card border border-hair bg-surface-2 px-3 pt-3 pb-3.5">
       <h3 className="mb-2.5 text-[13px] [font-weight:650]">{group.title}</h3>
 
-      <div className="flex flex-col gap-3">
-        {group.branches.map((b) => (
-          <BranchFlow key={b.key} branch={b} reference={reference} />
-        ))}
-      </div>
-
-      {group.merge && (
-        <>
-          <MergeJoin from={group.branches.map((b) => b.sub ?? b.title)} />
-          <p className="mt-1.5 mb-2 text-center text-[11.5px] text-ink-3">
-            {group.branches.length} та мустақил тармоқ шу тугунда бирлашади
-          </p>
-          <div className="wide:mx-auto wide:max-w-[300px]">
-            <BranchFlow branch={group.merge} reference={reference} />
+      {!group.merge ? (
+        <div className="flex flex-col gap-3">
+          {group.branches.map((b) => (
+            <BranchFlow key={b.key} branch={b} reference={reference} />
+          ))}
+        </div>
+      ) : (
+        // Занжир чапдан ўнгга оқади, шунинг учун бирлашиш тугуни ҳам **ўнгда**,
+        // тармоқлардан кейинги ўринда туради. Тор экранда оқим юқоридан пастга
+        // бўлгани учун у ерда тугун пастда қолади — бу зиддият эмас, ўша
+        // экрандаги оқим йўналишига мос (`MergeJoin`).
+        <div className="wide:flex wide:items-center">
+          <div className="flex flex-col gap-3 wide:flex-none">
+            {group.branches.map((b, i) => (
+              // `items-stretch` — тирсак тармоқ баландлигини тўлиқ эгаллайди,
+              // шунда `top-1/2` айнан карточка марказига тушади.
+              <div key={b.key} className="flex items-stretch">
+                <div className="min-w-0 flex-1">
+                  <BranchFlow branch={b} reference={reference} />
+                </div>
+                <MergeElbow index={i} count={group.branches.length} />
+              </div>
+            ))}
           </div>
-        </>
+
+          <MergeArrow />
+          <MergeJoin from={group.branches.map((b) => b.sub ?? b.title)} />
+
+          <div className="mt-2 wide:mt-0 wide:w-[248px] wide:flex-none">
+            <BranchFlow branch={group.merge} reference={reference} />
+            <p className="mt-1.5 text-center text-[11.5px] text-ink-3 wide:text-left">
+              {group.branches.length} та мустақил тармоқ шу тугунда бирлашади
+            </p>
+          </div>
+        </div>
       )}
     </div>
   );

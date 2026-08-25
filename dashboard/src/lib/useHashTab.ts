@@ -20,6 +20,20 @@ const fromHash = (): TabId => {
 };
 
 /**
+ * Номаълум хэш (масалан эскирган `#chain` ҳаволаси) хатога олиб келмайди —
+ * `fromHash()` уни `obzor` га туширади. Лекин манзил қаторида эски идентификатор
+ * қолиб кетса, у ёлғон гапириб турарди ва кейинги `hashchange` да яна ўша
+ * ҳолатга қайтарарди. Шунинг учун бўш бўлмаган номаълум хэш бир марта
+ * ҳақиқий табга алмаштирилади (`replaceState` — тарихга янги ёзув қўшмайди).
+ */
+function normaliseHash(tab: TabId): void {
+  if (typeof window === "undefined") return;
+  const h = window.location.hash.slice(1);
+  if (h === "" || IDS.has(h)) return;
+  window.history.replaceState(null, "", "#" + tab);
+}
+
+/**
  * Tab state lives in the URL hash so a panel can be linked to and the browser
  * back button behaves. `hashchange` is an external system, hence the effect.
  */
@@ -27,6 +41,10 @@ export function useHashTab(): [TabId, (t: TabId) => void] {
   const [tab, setTab] = useState<TabId>(fromHash);
 
   useEffect(() => {
+    // Биринчи рендердаги хэшни бир марта тозалаш. Кейинги алмашишларни
+    // `select()` нинг ўзи ёзади, шунинг учун бу эффект қайта ишламайди —
+    // `fromHash()` эса эффект ичида чақирилади ва доим янги қийматни ўқийди.
+    normaliseHash(fromHash());
     const onHash = () => setTab(fromHash());
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);

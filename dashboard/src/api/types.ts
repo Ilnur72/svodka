@@ -520,3 +520,236 @@ export interface KpiResponse {
   /** `no` бўйича тартибланган, 45 та. */
   kpis: KpiIndicator[];
 }
+
+/* -------------------------------------------------------------------------- */
+/* /chain                                                                     */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * «Цехлар занжири» (`Тех.цепочки.xlsx`) — хомашёдан тайёр маҳсулотгача бўлган
+ * бутун комбинат технологик занжири: 43 босқич + 3 ресурс, 5 даража, 12 сех,
+ * устига омбор, чиқинди ва тўхташлар.
+ *
+ * `/balance` нинг кенгайтирилган ўринбосари: W, Mo ва Re нинг ҳаммасини битта
+ * тузилмада беради. Манба файлнинг режа/факт устунлари бузуқ бўлгани учун
+ * ундан **фақат тузилма** олинади, қиймат эса ҳар доим базадан.
+ */
+export type ChainSource = "sex_svodka" | "cisterns" | "ogarok" | "ingichka";
+
+/** `KpiHow` устига `meter` — режа варақдан, факт ҳисоблагичдан. */
+export type ChainHow = KpiHow | "meter";
+
+export interface ChainCell {
+  plan: number | null;
+  fakt: number | null;
+  pct: number | null;
+  pctSource: KpiPctSource;
+  how: ChainHow;
+  /** Манба варағидаги сатр — фақат ички мантиқ учун, экранга чиқмайди. */
+  row: number | null;
+}
+
+export interface ChainLink {
+  id: string;
+  /**
+   * `exact` — файлда алоҳида «Межцеховая передача» қатори бор ёки чиқиш/кириш
+   * айнан бир хил номда (30 та); `probable` — файл матни боғланишни кўрсатади,
+   * лекин алоҳида қатор йўқ (8 та). Иккиси турли чизиқ услуби билан чизилади.
+   */
+  confidence: "exact" | "probable";
+}
+
+export interface ChainStep {
+  /** Барқарор slug — рўйхат калити ва `next` ҳаволаси. */
+  id: string;
+  /** `Тех.цепочки.xlsx` даги қатор — текшириш учун, экранга чиқмайди. */
+  excelRow: number;
+  /** Технологик даража 0..4. ⚠️ Бу **граф чуқурлиги эмас**: 38 боғланишнинг
+   *  20 таси битта даража ичида, айримлари эса 3–4 даража сакрайди. */
+  level: number;
+  /** «Уровень» устуни — даражанинг умумий номи файлда йўқ, тўқилмаган. */
+  stage: string;
+  site: string;
+  input: string;
+  process: string;
+  output: string;
+  /** `"—"` бўлиши мумкин. */
+  resource: string;
+  /** `"—"` бўлиши мумкин. */
+  waste: string;
+  unit: string;
+  source: ChainSource;
+  /** `false` — манбада режа/факт йўқ (омбор қаторлари матн катаклари). */
+  available: boolean;
+  /**
+   * `false` — файлнинг ўзи «не детализировано» деб ёзган: кириш қаердан
+   * келиши номаълум. Бундай босқичга **кирувчи чизиқ тортилмайди**,
+   * тахмин қилиш тақиқланган.
+   */
+  inputKnown: boolean;
+  inBalance: boolean;
+  balanceStepId: string | null;
+  anchor: string | null;
+  /** «Источник в Excel» — сўзма-сўз, экранга чиқмайди. */
+  cells: string;
+  note: string | null;
+  next: ChainLink[];
+  /** Калит — `months` даги ҳар бир ой. Қиймат `null` бўлиши мумкин. */
+  values: Record<string, ChainCell | null>;
+}
+
+/** Ресурс — занжир **тугуни эмас**, босқичга бириктирилган сарф. */
+export interface ChainResource extends ChainStep {
+  /** `ChainStep.id` — қайси босқичга тегишли. */
+  resourceOf: string;
+}
+
+export interface ChainResponse {
+  months: string[];
+  reference: string;
+  /** Даражадаги такрорсиз `stage` қийматлари; умумий ном файлда йўқ. */
+  levels: { level: number; stages: string[] }[];
+  steps: ChainStep[];
+  resources: ChainResource[];
+}
+
+/* -------------------------------------------------------------------------- */
+/* /daily                                                                     */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * «Кунлик сводка» — 8 йўналиш, кунлар кесимида.
+ *
+ * ⚠️ Бу `/balance` · `/kpi` · `/chain` дан **бошқа қатлам**: улар ойлик ва
+ * «цеховые сводки» варағига таянади, бу эса кунлик сводка файлига
+ * (`daily_svodka_log`). Иккиси бир-бирини алмаштирмайди ва аралаштирилмайди:
+ * «Кунлик» устуни билан ойлик «С начала месяца» устуни бошқа-бошқа нарса.
+ */
+export type DailyBlockKey =
+  | "ingichka"
+  | "raw_supply"
+  | "chirchiq"
+  | "output"
+  | "sales"
+  | "stock_products"
+  | "stock_materials"
+  | "energy";
+
+export type DailyLayout = "triple" | "stock" | "stock_note";
+
+/** `computed` — бэкенд `fakt/plan × 100` дан ҳисоблаган; `null` — фоиз йўқ. */
+export type DailyPctSource = "source" | "computed" | null;
+
+/** «Кунлик» / «Ой бошидан» / «Йил бошидан» ойналарининг бири. */
+export interface DailyWindow {
+  plan: number | null;
+  fakt: number | null;
+  diff: number | null;
+  /** Режа 0 ёки `null` бўлса `null` — нолга бўлинмайди. */
+  pct: number | null;
+  pctSource: DailyPctSource;
+  /** Манбадаги «%» устуни **хом** ҳолда — яширилмайди, лекин асосий устунга чиқмайди. */
+  pctRaw: number | null;
+}
+
+export interface DailyTripleCell {
+  /** Манба варағидаги қатор — фақат ички мантиқ учун, экранга чиқмайди. */
+  row: number;
+  unit: string | null;
+  day: DailyWindow;
+  month: DailyWindow;
+  year: DailyWindow;
+}
+
+/** Қолдиқ — оқим эмас, **ҳолат**: манбада режа/факт/% умуман йўқ. */
+export interface DailyStockCell {
+  row: number;
+  unit: string | null;
+  /** 6-блок «Омборда». */
+  warehouse: number | null;
+  /** 6-блок «Цехда». */
+  workshop: number | null;
+  /** 7-блок «Қолдиқ миқдори». */
+  total: number | null;
+  /** 7-блок «Муаммо» устуни — эркин матн. `"0"` бўлиши мумкин (муаммо йўқ). */
+  note: string | null;
+}
+
+export interface DailyTripleTrend {
+  current: string;
+  previous: string;
+  day: { faktDelta: number | null; faktPct: number | null };
+  month: { faktDelta: number | null; faktPct: number | null };
+  year: { faktDelta: number | null; faktPct: number | null };
+}
+
+export interface DailyStockTrend {
+  current: string;
+  previous: string;
+  warehouseDelta: number | null;
+  workshopDelta: number | null;
+  totalDelta: number | null;
+}
+
+export interface DailyMetric {
+  /** `блок|бўлим|ота|ном|бирлик` (+ `#N`) — барқарор калит, экранга чиқмайди. */
+  key: string;
+  name: string;
+  unit: string | null;
+  /** «Участок №1», «ВОЛЬФРАМ ишлаб чиқариш цикли», «Чирчиқ заводида:» … */
+  section: string | null;
+  /** «ш.ж.:» остидаги қатор учун устки қатор номи. */
+  parent: string | null;
+  /** «… жами» — йиғиндига **қўшилмайди**. */
+  isTotal: boolean;
+  /** «шундан …» / «ш.ж.» — устки қаторнинг бир қисми, йиғиндига қўшилмайди. */
+  isSubset: boolean;
+  occurrence: number;
+  /**
+   * Манбада кўрилган ўлчов бирликлари. Биттадан кўп бўлиши **кутилмайди**
+   * (бирлик калитнинг бир қисми): «Қаттиқ қотишмалар» 2026-03-13 дан
+   * `тн` → `кг` га ўтган ва шу сабабли **иккита алоҳида калит** бўлиб келади —
+   * улар битта диаграммага қўшилмайди.
+   */
+  unitVariants: string[];
+  /** Калит — кун (`YYYY-MM-DD`). Ҳар бир кун калити бор, қиймат `null` бўлиши мумкин. */
+  values: Record<string, DailyTripleCell | DailyStockCell | null>;
+  trend: DailyTripleTrend | DailyStockTrend | null;
+}
+
+export interface DailyBlock {
+  /** 1..8, доим шу тартибда. */
+  no: number;
+  key: DailyBlockKey;
+  title: string;
+  layout: DailyLayout;
+  /** Бэкенддаги лотин ёзувли изоҳ — экранга **чиқарилмайди**. */
+  note: string;
+  metrics: DailyMetric[];
+}
+
+export interface DailyProblemItem {
+  no: number | null;
+  text: string;
+  row: number;
+}
+
+export interface DailyProblemDay {
+  day: string;
+  items: DailyProblemItem[];
+  /** Варақ ости изоҳлари (`**` билан) — муаммо банди **эмас**, санаққа кирмайди. */
+  notes: string[];
+}
+
+export interface DailyResponse {
+  /** `YYYY-MM-DD`, ўсиш тартибида. */
+  days: string[];
+  latest: string | null;
+  previous: string | null;
+  /** `source: "default"` — фойдаланувчи оралиқ сўрамаган, охирги 31 кун берилган. */
+  range: { from: string | null; to: string | null; source: "query" | "default" };
+  available: { from: string | null; to: string | null; days: number };
+  /** Доим 8 та, `no` тартибида. */
+  blocks: DailyBlock[];
+  problems: DailyProblemDay[];
+}

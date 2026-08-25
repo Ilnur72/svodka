@@ -1,8 +1,10 @@
 import { apiGet } from "./client";
 import type {
   BalanceResponse,
+  ChainResponse,
   CisternRow,
   CisternTxRow,
+  DailyResponse,
   ElectricityObjectRow,
   ElectricityTypeRow,
   Envelope,
@@ -37,6 +39,14 @@ const unwrap = async <T>(p: Promise<Envelope<T>>): Promise<T> => (await p).data;
 export const getFilters = (signal?: AbortSignal): Promise<FiltersData> =>
   unwrap(apiGet<Envelope<FiltersData>>("/filters", {}, signal));
 
+/**
+ * Корхона миқёсидаги йиғма кўрсаткичлар.
+ *
+ * Ҳозирча экранда ишлатилмайди: у таянган «Корхона миқёсидаги якуний
+ * кўрсаткичлар» блоки «Металлар баланси» сегментидан олиб ташланган. Қатор шу
+ * қаватда қолдирилди — бу файл API'нинг тўлиқ типли кўзгуси (`getSalesMonthly`
+ * изоҳига қаранг).
+ */
 export const getSummary = (r: Range, signal?: AbortSignal): Promise<SummaryData> =>
   unwrap(apiGet<Envelope<SummaryData>>("/summary", { ...r }, signal));
 
@@ -47,6 +57,10 @@ export const getProductionTree = (
 ): Promise<TreeData> =>
   unwrap(apiGet<Envelope<TreeData>>("/production/tree", { ...r, depth: opts.depth }, signal));
 
+/**
+ * Ой кесимидаги ишлаб чиқариш. Ҳозирча экранда ишлатилмайди — «Ойлик тренд»
+ * блоки олиб ташланган. Тип ва имзо API кўзгуси сифатида сақланади.
+ */
 export const getProductionMonthly = (
   r: Range,
   opts: { level?: "plant" | "workshop" } = {},
@@ -202,3 +216,27 @@ export const getBalance = (r: Range, signal?: AbortSignal): Promise<BalanceRespo
  */
 export const getKpi = (r: Range, signal?: AbortSignal): Promise<KpiResponse> =>
   unwrap(apiGet<Envelope<KpiResponse>>("/kpi", { ...r }, signal));
+
+/**
+ * «Цехлар занжири» — бутун комбинат технологик занжири (`Тех.цепочки.xlsx`
+ * тузилмаси + базадаги қийматлар). `/balance` нинг кенгайтирилган ўринбосари:
+ * W, Mo ва Re ни бирга, устига омбор, чиқинди, тўхташ ва ресурс сарфини беради.
+ *
+ * Жавоб ой кесимида: `months` даги ҳар бир ой ҳар бир босқичнинг `values`
+ * калитида бор, маълумот бўлмаса `null`.
+ */
+export const getChain = (r: Range, signal?: AbortSignal): Promise<ChainResponse> =>
+  unwrap(apiGet<Envelope<ChainResponse>>("/chain", { ...r }, signal));
+
+/**
+ * «Кунлик сводка» — 8 йўналиш, кунлар кесимида (`daily_svodka_log`).
+ *
+ * ⚠️ `from`/`to` **фақат `YYYY-MM-DD`** форматида; `YYYY-MM` берилса сервер
+ * `400` қайтаради. Иккиси ҳам берилмаса жавоб охирги 31 кун билан келади ва
+ * буни `range.source: "default"` кўрсатади.
+ *
+ * Жавоб ҳажми катта (31 кун ≈ 835 KB), шунинг учун чақирувчи оралиқни ўзи
+ * чегаралайди — қаранг `adapters/daily.ts` → `dailyRange()`.
+ */
+export const getDaily = (r: Range, signal?: AbortSignal): Promise<DailyResponse> =>
+  unwrap(apiGet<Envelope<DailyResponse>>("/daily", { ...r }, signal));

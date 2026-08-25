@@ -8,7 +8,15 @@
 
 import type { Period } from "./lib/period";
 
-export type TabId = "obzor" | "prod" | "sgp" | "energy" | "h2" | "cist" | "ogarok" | "ing";
+export type TabId =
+  | "obzor"
+  | "prod"
+  | "sgp"
+  | "energy"
+  | "h2"
+  | "cist"
+  | "ogarok"
+  | "ing";
 
 export type Status = "good" | "warn" | "crit" | "mute";
 
