@@ -2,14 +2,16 @@ import { Fragment, useDeferredValue, useId, useMemo, useState } from "react";
 import type { PanelProps } from "../types";
 import { getNarastayka, getProductionTree } from "../api/endpoints";
 import { useQuery } from "../lib/useQuery";
-import { inkTokenOf, nf, pctTxt, periodLabel, exact, smart, statusOf, stripeOf } from "../lib/format";
+import { nf, pctTxt, periodLabel, exact, smart, statusOf, stripeOf } from "../lib/format";
 import { UNASSIGNED_PLANT_NOTE } from "../lib/dataQuality";
 import {
   FILTER_ALL,
   NARASTAYKA_LAST_DAY_LIMIT,
   dailyFromNarastayka,
-  deviationRows,
+  DEFAULT_VALUE_FILTER,
+  VALUE_FILTERS,
   facets,
+  filterByValue,
   filterItems,
   fromTree,
   lastDayFacts,
@@ -17,37 +19,24 @@ import {
   prodStats,
   productCards,
   scopeItems,
-  unitGroups,
-  type DeviationRow,
   type FacetKey,
   type ProdFilter,
+  type ValueFilterKey,
   type ProdItem,
 } from "../lib/adapters/production";
 import { usePalette } from "../lib/theme";
 import { GRID } from "../components/layout";
 import { Card, Section } from "../components/Card";
 import { ProductCard } from "../components/ProductCard";
+import { CheckSelect } from "../components/CheckSelect";
 import { StatTile } from "../components/StatTile";
 import { Pill } from "../components/Pill";
 import { Banner } from "../components/Banner";
-import { BarsH } from "../components/BarsH";
-import { BulletChart, BulletLegend } from "../components/BulletRow";
 import { ChartLegend } from "../components/ChartLegend";
 import { TimeLine } from "../components/TimeLine";
 import { TableToggle } from "../components/TableToggle";
 import { DataTable } from "../components/DataTable";
 import { Loader } from "../components/states";
-
-const devRows = (items: DeviationRow[]) =>
-  items.map((x) => ({
-    label: x.name,
-    v: x.pc,
-    valueColor: inkTokenOf(x.pc),
-    extra: ["Режа / Факт", `${exact(x.plan)} / ${exact(x.fakt)} ${x.unit ?? ""}`.trim()] as [
-      string,
-      string,
-    ],
-  }));
 
 /** Битта саҳифада нечта карточка чизилади — қолгани тугма билан очилади. */
 const CARD_PAGE = 48;
@@ -66,6 +55,10 @@ export function ProdPanel({ period, months }: PanelProps) {
     process: FILTER_ALL,
   });
   const [query, setQuery] = useState("");
+  // Қиймат мавжудлиги бўйича фильтр — **фақат маҳсулот карточкаларига**
+  // тегишли. Четланиш рўйхатлари, ҳажм рейтинги ва плиткалар ўзгармайди:
+  // улар бутун кесимни кўрсатиши керак.
+  const [valueSel, setValueSel] = useState<ValueFilterKey[]>(DEFAULT_VALUE_FILTER);
   const [pickedKey, setPickedKey] = useState<string | null>(null);
   const [expandedSig, setExpandedSig] = useState<string | null>(null);
 
@@ -123,7 +116,9 @@ export function ProdPanel({ period, months }: PanelProps) {
     filter.category !== FILTER_ALL ||
     filter.material !== FILTER_ALL ||
     filter.process !== FILTER_ALL ||
-    query.trim() !== "";
+    query.trim() !== "" ||
+    valueSel.length !== DEFAULT_VALUE_FILTER.length ||
+    !DEFAULT_VALUE_FILTER.every((k) => valueSel.includes(k));
 
   const resetFilters = () => {
     setPlant(FILTER_ALL);
@@ -131,11 +126,12 @@ export function ProdPanel({ period, months }: PanelProps) {
     setFacetSel({ category: FILTER_ALL, material: FILTER_ALL, process: FILTER_ALL });
     setQuery("");
     setPickedKey(null);
+    // Стандарт ҳолатга қайтарилади, «ҳаммаси» га эмас — акс ҳолда тозалаш
+    // бўш позицияларни экранга қайтариб чиқарарди.
+    setValueSel(DEFAULT_VALUE_FILTER);
   };
 
   const stats = useMemo(() => prodStats(rows), [rows]);
-  const { low, high, all, showAll, noPlan, totals } = useMemo(() => deviationRows(rows), [rows]);
-  const groups = useMemo(() => unitGroups(rows), [rows]);
 
   const candidates = useMemo(() => {
     const withValue = rows.filter((x) => x.plan > 0 || x.fakt > 0);
@@ -183,7 +179,20 @@ export function ProdPanel({ period, months }: PanelProps) {
     [lastDayQ.data],
   );
 
-  const cards = useMemo(() => productCards(rows, lastDay), [rows, lastDay]);
+  const allCards = useMemo(() => productCards(rows, lastDay), [rows, lastDay]);
+  const cards = useMemo(() => filterByValue(allCards, valueSel), [allCards, valueSel]);
+  const hiddenByValue = allCards.length - cards.length;
+  // Ҳар бир шарт нечта позицияга тушади — рўйхатда сон бўлиб кўринади.
+  const valueCounts = useMemo(() => {
+    const c = { planSet: 0, planNone: 0, faktSet: 0, faktNone: 0 };
+    for (const x of allCards) {
+      if (x.planSet) c.planSet += 1;
+      else c.planNone += 1;
+      if (x.faktSet) c.faktSet += 1;
+      else c.faktNone += 1;
+    }
+    return c;
+  }, [allCards]);
   // «Барчасини кўрсатиш» ҳолати фильтрнинг ўзига боғланади — фильтр ўзгарса
   // рўйхат ўзи яна қисқа ҳолатга қайтади (эффект керак эмас).
   const filterSig = [
@@ -290,6 +299,17 @@ export function ProdPanel({ period, months }: PanelProps) {
               </Fragment>
             ))}
 
+            {/* Қиймат мавжудлиги — кўп танловли, фақат карточкаларга таъсир
+                қилади. Стандарт ҳолатда бўш позициялар яширилади. */}
+            <span className={LBL}>Қиймат</span>
+            <CheckSelect
+              label="Қиймат мавжудлиги бўйича фильтр"
+              options={VALUE_FILTERS.map((v) => ({ ...v, count: valueCounts[v.key] }))}
+              picked={valueSel}
+              onChange={setValueSel}
+              emptyText="ҳеч бири танланмаган"
+            />
+
             <label htmlFor={`${uid}-q`} className={LBL}>
               Қидирув
             </label>
@@ -350,8 +370,9 @@ export function ProdPanel({ period, months }: PanelProps) {
           </div>
 
           {/* Фойдаланувчи сўраган асосий кўриниш: ҳар бир маҳсулот — алоҳида
-              карточка. Йиғинди («всего») сатрлари бу ерга кирмайди, улар
-              қуйида «Йиғинди сатрлар» карточкасида қолади. */}
+              карточка. Манбадаги «всего» сатрлари бу ерга кирмайди: улар
+              пастдаги қаторларнинг йиғиндиси ва қўшилса битта миқдор икки
+              марта саналарди (`prodStats()` даги қоида билан бир хил). */}
           <Section
             className="mt-5"
             title="Маҳсулот карточкалари"
@@ -360,7 +381,9 @@ export function ProdPanel({ period, months }: PanelProps) {
             {cards.length === 0 ? (
               <Card>
                 <div className="px-2.5 py-6 text-center text-[13px] text-ink-3">
-                  Фильтр бўйича позиция топилмади.
+                  {valueSel.length === 0
+                    ? "«Қиймат» фильтрида ҳеч бир шарт танланмаган — шунинг учун ҳеч нарса кўрсатилмаяпти."
+                    : "Фильтр бўйича позиция топилмади."}
                 </div>
               </Card>
             ) : (
@@ -374,6 +397,21 @@ export function ProdPanel({ period, months }: PanelProps) {
                     : "Битта цех танланса, ҳар бир карточкага маълумот бор сўнгги куннинг чиқими ҳам қўшилади."}{" "}
                   Йиғинди («всего») сатрлари бу ерга кирмайди.
                 </p>
+                {/* Нима яширилгани доим ёзиб турилади — фойдаланувчи фильтр
+                    таъсирини кўрмасдан қолмаслиги учун. */}
+                {hiddenByValue > 0 && (
+                  <p className="mb-2.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11.5px] text-ink-3">
+                    <Pill>{nf(hiddenByValue)} та қиймати йўқ позиция яширилди</Pill>
+                    <span>
+                      «Қиймат» фильтрида ҳозир танланган:{" "}
+                      {VALUE_FILTERS.filter((v) => valueSel.includes(v.key))
+                        .map((v) => v.label)
+                        .join(", ")}
+                      . Нол режа ҳақиқий қиймат ҳисобланади — режаси нол, лекин факти бор
+                      позиция «Факти бор» шарти билан кўринишда қолади.
+                    </span>
+                  </p>
+                )}
                 <div className={GRID.g4}>
                   {cardsShown.map((c) => (
                     <ProductCard key={c.key} card={c} showWorkshop={!oneWorkshop} />
@@ -390,190 +428,6 @@ export function ProdPanel({ period, months }: PanelProps) {
                 )}
               </>
             )}
-          </Section>
-
-          <Section
-            className="mt-5"
-            title={showAll ? "Режа бажарилиши" : "Энг катта четланишлар"}
-            note={showAll ? "режага нисбатан бажарилиш · тўлиқ рўйхат" : "режага нисбатан бажарилиш, фақат режали позициялар"}
-          >
-            {showAll ? (
-              /* Позиция кам бўлса (одатда битта цех танланганда) чекка рўйхат
-                 эмас, ҳаммаси кўрсатилади — ўртадаги қаторлар ҳам кўринсин. */
-              <Card
-                title="Барча режали позициялар"
-                sub={`${all.length} та · бажарилиш бўйича`}
-                note="Позиция кўп бўлмагани учун тўлиқ рўйхат кўрсатилмоқда. Барчаси танланганда фақат энг чекка позициялар чиқади."
-              >
-                <div className="mt-2">
-                  <BarsH
-                    ariaLabel="Барча режали позициялар — бажарилиш"
-                    rows={devRows(all)}
-                    track
-                    rowH={25}
-                    thick={15}
-                    padR={62}
-                    vName="Бажарилиш"
-                    vFmt={(v) => nf(v, 1) + "%"}
-                  />
-                </div>
-              </Card>
-            ) : (
-              <div className={GRID.g2}>
-                <Card title="Режадан ортда қолган позициялар" sub={`пастки ${low.length} та`}>
-                  <div className="mt-2">
-                    <BarsH
-                      ariaLabel="Режадан ортда қолган позициялар"
-                      rows={devRows(low)}
-                      max={100}
-                      track
-                      rowH={25}
-                      thick={15}
-                      padR={62}
-                      vName="Бажарилиш"
-                      vFmt={(v) => nf(v, 1) + "%"}
-                    />
-                  </div>
-                </Card>
-                <Card title="Режа ошиқча бажарилган позициялар" sub={`юқори ${high.length} та`}>
-                  <div className="mt-2">
-                    <BarsH
-                      ariaLabel="Режа ошиқча бажарилган позициялар"
-                      rows={devRows(high)}
-                      track
-                      rowH={25}
-                      thick={15}
-                      padR={62}
-                      vName="Бажарилиш"
-                      vFmt={(v) => nf(v, 1) + "%"}
-                    />
-                  </div>
-                </Card>
-              </div>
-            )}
-
-            {/* Манбадаги «всего» сатрлари — пастдаги қаторларнинг йиғиндиси
-                (`Ввод W концентрата, всего = ИОФ + покупной`). Улар юқоридаги
-                рўйхатларга ва ҳажм рейтингига кирмайди, акс ҳолда битта миқдор
-                икки марта саналарди. Лекин раҳбар учун айнан шу умумлаштирувчи
-                сон муҳим, шунинг учун алоҳида карточкада. */}
-            {totals.length > 0 && (
-              <Card
-                className="mt-3"
-                title="Йиғинди сатрлар"
-                sub={`${totals.length} та · манбадаги «всего»`}
-                note="Бу қаторлар пастдаги позицияларнинг йиғиндиси, шунинг учун улар умумий ҳисоб-китобларга, четланиш рўйхатларига ва ҳажм рейтингига қўшилмайди — акс ҳолда битта миқдор икки марта саналарди."
-              >
-                <div className="mt-2">
-                  <BarsH
-                    ariaLabel="Манбадаги йиғинди сатрлар — бажарилиш"
-                    rows={totals.map((x) => ({
-                      label: x.name,
-                      v: x.pc ?? 0,
-                      valueColor: x.pc === null ? "var(--ink-3)" : inkTokenOf(x.pc),
-                      extra: [
-                        "Режа / Факт",
-                        `${exact(x.plan)} / ${exact(x.fakt)} ${x.unit ?? ""}`.trim(),
-                      ] as [string, string],
-                    }))}
-                    track
-                    rowH={26}
-                    thick={15}
-                    padR={62}
-                    vName="Бажарилиш"
-                    vFmt={(v) => nf(v, 1) + "%"}
-                  />
-                </div>
-                <TableToggle
-                  caption="Манбадаги йиғинди сатрлар"
-                  cols={[
-                    { t: "Қатор", wrap: true },
-                    { t: "Цех" },
-                    { t: "Бирлик" },
-                    { t: "Режа", num: true },
-                    { t: "Факт", num: true },
-                    { t: "Бажарилиш", num: true },
-                  ]}
-                  rows={totals.map((x) => ({
-                    key: x.key,
-                    cells: [
-                      x.name,
-                      x.workshop,
-                      x.unit ?? "—",
-                      exact(x.plan),
-                      exact(x.fakt),
-                      x.pc === null ? "—" : pctTxt(x.pc),
-                    ],
-                  }))}
-                />
-              </Card>
-            )}
-
-            {/* Режаси йўқ позициялар фоиз диаграммасига тушмайди (нолга бўлиб
-                бўлмайди), лекин уларда факт бўлиши мумкин — масалан «Получение
-                ТМА из 5 цеха по факту». Уларни бутунлай яшириб қўймаслик учун
-                алоҳида жадвал. */}
-            {noPlan.length > 0 && (
-              <Card
-                className="mt-3"
-                title="Режаси йўқ позициялар"
-                sub={`${noPlan.length} та`}
-                note="Бу қаторларга режа қўйилмаган, шунинг учун бажарилиш фоизи ҳисобланмайди ва улар юқоридаги диаграммаларга тушмайди. Кўпчилиги — бошқа цехдан қабул қилиш («по факту») қаторлари."
-              >
-                <DataTable
-                  caption="Режаси йўқ позициялар"
-                  cols={[
-                    { t: "Позиция", wrap: true },
-                    { t: "Цех" },
-                    { t: "Бирлик" },
-                    { t: "Факт", num: true },
-                  ]}
-                  rows={noPlan.map((x) => ({
-                    key: `${x.workshop}#${x.id}`,
-                    cells: [
-                      x.name,
-                      <span className="text-ink-3">{x.workshop}</span>,
-                      <span className="text-ink-3">{x.unit ?? "—"}</span>,
-                      exact(x.fakt),
-                    ],
-                  }))}
-                />
-              </Card>
-            )}
-          </Section>
-
-          <Section
-            title="Ҳажм бўйича энг йирик позициялар"
-            note="ўлчов бирлиги гуруҳлари бўйича алоҳида — қиймати ўзаро қўшилмайди"
-          >
-            <Card>
-              <BulletLegend />
-              {groups.length === 0 ? (
-                <div className="px-2.5 py-6 text-center text-[13px] text-ink-3">
-                  Фильтр бўйича кўрсаткич топилмади.
-                </div>
-              ) : (
-                <div className={GRID.g2}>
-                  {groups.map((g) => (
-                    <div key={g.unit}>
-                      <div className="mt-1.5 mb-1 text-[12px] [font-weight:650] text-ink-2">
-                        {g.name}{" "}
-                        <span className="font-normal text-ink-3">· {g.items.length} позиция</span>
-                      </div>
-                      <BulletChart
-                        rows={g.items.map((x) => ({
-                          key: x.key,
-                          label: x.name,
-                          plan: x.plan,
-                          fact: x.fakt,
-                          unit: x.unit ?? "",
-                        }))}
-                      />
-                    </div>
-                  ))}
-                </div>
-              )}
-            </Card>
           </Section>
 
           <Section

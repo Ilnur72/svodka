@@ -3,9 +3,7 @@ import type {
   DailyMetric,
   DailyResponse,
   DailyStockCell,
-  DailyStockTrend,
   DailyTripleCell,
-  DailyTripleTrend,
   DailyWindow,
 } from "../../api/types";
 import type { Status } from "../../types";
@@ -14,233 +12,225 @@ import type { Period } from "../period";
 /**
  * «Кунлик сводка»: API жавобидан панел кутадиган кўринишга ўтказиш.
  *
- * ─── «Ҳолат» устуни қандай ҳисобланади ────────────────────────────────────
- * Ҳолат **фақат манбадаги маълумотдан** олинади — фоиз ва қолдиқ миқдоридан.
- * Ҳеч нарса тахмин қилинмайди ва тўқилмайди.
+ * ═══ 1. Ҳолат чегаралари — ФАҚАТ шу бўлимга тегишли ═══════════════════════
  *
- *  · Оқим кўрсаткичлари (`triple`) — бажарилиш фоизи бўйича:
+ * Лойиҳанинг умумий чегараси (`lib/format.ts` → `statusOf()`) — 100 / 85, у
+ * «Металлар баланси» ва «Цехлар занжири» бўлимларида ишлатилади.
+ * «Кўрсаткичлар паспорти» да ўз чегараси бор (95 / 80). Кунлик сводка учун
+ * учинчи чегара сўралди, шунинг учун у ҳам **шу файлда алоҳида** эълон
+ * қилинган ва `statusOf()` га умуман тегмайди:
  *
- *      pct ≥ 110  → «Режадан юқори»
- *      95 … 110   → «Нормада»
- *      85 … 95    → «Режадан паст»
- *      pct < 85   → «Муаммоли»
+ *   < 90 %        → Муаммоли      (қизил)
+ *   90 … 99,9 %   → Эътибор       (сариқ)
+ *   ≥ 100 %       → Нормада       (яшил)
+ *   фоиз йўқ      → Маълумот йўқ  (кулранг)
  *
- *    Чегаралар нимага асосланган: лойиҳанинг қолган ҳамма жойида (баланс,
- *    паспорт, занжир) ягона чегара — **100% режа, 85% муаммо** (`statusOf()`).
- *    Бу ерга «Нормада» алоҳида ҳолат сифатида қўшилгани учун 100% атрофида
- *    тор йўлак керак бўлди: кунлик режа бутун сонларда қўйилади ва ±5%
- *    четланиш кундалик тебраниш, режанинг бузилиши эмас. 110% дан юқориси
- *    эса аллақачон сезиларли ортиқча бажарилиш — уни «Нормада» ичида
- *    яшириш рақамни бекитиб қўярди.
+ * Чегара **созланадиган**: битта константада (`DAILY_THRESHOLDS`). Уни
+ * ўзгартириш карточкалардаги нуқталарга, устунларга, огоҳлантириш қаторига
+ * ва легендага автоматик тарқалади.
  *
- *    ⚠️ Ҳолат номи **баҳо эмас, тавсиф**: энергия блокида «Режадан юқори»
- *    ортиқча сарф деганидир (блок изоҳида ёзилган).
+ * ═══ 2. Ойна — фойдаланувчи танлайди ══════════════════════════════════════
  *
- *  · Қолдиқ кўрсаткичлари (`stock` / `stock_note`) — миқдор бўйича:
+ * Манба ҳар кўрсаткич учун учта устун беради: «Кунлик», «Ой бошидан»,
+ * «Йил бошидан». Аввал улар бир вақтда кўрсатиларди ва ҳолат «кунлик → ой →
+ * йил» тартибида биринчи топилганидан олинарди. Энди экранда **ойна
+ * танлагич** бор, шунинг учун ҳолат ҳам, режа/факт/фарқ ҳам **айнан
+ * танланган ойнадан** олинади — қаторлар ўзаро таққосланадиган бўлади.
  *
- *      манбадаги «Муаммо» устуни тўлдирилган → «Муаммоли»
- *      қиймат йўқ (null)                    → «Маълумот мавжуд эмас»
- *      қиймат = 0                           → «Қолдиқ кам»
- *      қиймат > 0                           → «Қолдиқ етарли»
+ * ═══ 3. Сузувчи нуқта артефакти ═══════════════════════════════════════════
  *
- *    ⚠️ Манбада **минимал норма йўқ**, шунинг учун «Қолдиқ етарли» фақат
- *    «қолдиқ мавжуд» деганини билдиради — етарлилик даражаси ҳисобланмайди.
- *    Бу чегара экрандаги легендада ҳам очиқ ёзилади.
+ * Манбадаги сонлар Excel double'лари: жавобда `9.600000000000001` (кунлик
+ * режа), `2105.2780000000002` (йил бошидан) каби қийматлар учрайди — ўлчанди,
+ * 20 кун × 3 ойнада **1801 та** `plan`/`fakt` ва **1860 та** `diff` шундай.
+ * Улар экранда 19–22 белгили бўлиб устундан чиқиб кетарди.
  *
- * ─── Қайси ойна бўйича баҳоланади ─────────────────────────────────────────
- * Кунлик сводка бўлгани учун аввал **кунлик** фоиз қаралади. Лекин ўлчов:
- * охирги кунда 64 оқим кўрсаткичидан фақат 30 тасида кунлик фоиз бор,
- * ойликда 33, йилликда 50. Фақат кунлик билан чегараланилса кўрсаткичларнинг
- * ярмидан кўпи «баҳоланмайди» бўлиб қоларди.
+ * Шунинг учун ҳар бир сон `clean()` дан ўтади — `adapters/balance.ts`,
+ * `chain.ts` ва `kpi.ts` да аллақачон ишлатиладиган усул. `toPrecision(12)`
+ * 12 та маънодор рақамгача **яхлитлайди** — артефакт думи кесилади
+ * (`9.600000000000001` → `9.6`), фарқ 1e-9 атрофида, тонна/кВт·с да
+ * аҳамиятсиз. 15 та рақам етмади: `0.004999999999999893` унда ҳам
+ * `0,00499999999999989` бўлиб қоларди.
  *
- * Шунинг учун тартиб: **кунлик → ой бошидан → йил бошидан**, ва қайси ойна
- * ишлатилгани қатор ёнида кўрсатилади. Бу тўқиш эмас — ҳар учаласи ҳам
- * манбадаги ҳақиқий устун.
+ * ═══ 4. Ҳисоблаш йўқ ══════════════════════════════════════════════════════
  *
- * ─── Йўналиш хулосаси (РАҲБАРЛИК ХУЛОСАСИ) ────────────────────────────────
- * Йўналишга битта ҳолат берилади. У блокнинг **бош қаторлари** бўйича
- * ҳисобланади: манбада «… жами» қаторлари бўлса ўшалар, бўлмаса қисм
- * бўлмаган барча қаторлар (шунда битта миқдор икки марта саналмайди).
+ * Кунлик қиймат манбада бўлмаса у ой ёки йил қийматидан **чиқарилмайди**.
+ * `null` ҳеч қачон `0` эмас — қаторда «—» туради ва қатор кулранг бўлади.
+ * `pct` ни `fakt/plan` билан солиштирадиган эвристика **йўқ**.
  *
- * Қоида — **кўпчилик**: баҳоланган қаторларнинг қайси ҳолати кўп бўлса,
- * йўналиш ҳолати ўша. Тенг бўлса оғирроғи танланади. «Маълумот мавжуд эмас»
- * қаторлари овоз бермайди; ҳаммаси шундай бўлса йўналиш ҳам шу ҳолатда.
+ * ═══ 5. Қайси қаторлар кўрсатилади ════════════════════════════════════════
  *
- * Нега «энг оғири» эмас: у билан 9 йўналишдан 8 таси «Муаммоли» бўлиб чиқди
- * ва устун маъносини йўқотди — раҳбар қайси йўналиш оғирроқ эканини ажрата
- * олмасди. Энг оғир қатор эса йўқолмайди: у ёнида **сабаб** сифатида номи
- * билан кўрсатилади.
+ * `blocks[].metrics` — **бутун давр** бўйича кўрсаткичларнинг бирлашмаси,
+ * чунки манба варағида қаторлар кундан-кунга ўзгаради. Экран эса **битта
+ * кунни** кўрсатади, шунинг учун ўша кунда манбада бўлмаган қаторлар
+ * чизилмайди (`absent`).
  *
- * ─── Нима ҳисобланмайди ───────────────────────────────────────────────────
- * Кунлик қиймат йўқ бўлса у ой ёки йил қийматидан **чиқарилмайди** (айирма
- * орқали ҳам). `null` ҳеч қачон `0` эмас. `pct` ни `fakt/plan` билан
- * солиштирадиган эвристика **йўқ**.
+ * Икки ҳолат **фарқланади** ва улар бир хил эмас:
  *
- * ─── Техник майдонлар ─────────────────────────────────────────────────────
- * `row`, `key`, `occurrence`, `pctSource`, `pctRaw`, варақ номлари ва катак
- * манзиллари view-model'га **ўтмайди**. Бэкенддаги блок изоҳи (`block.note`)
- * ҳам чиқмайди: у лотин ёзувида ва ишлаб чиқувчи учун ёзилган. 7-блокдаги
- * `note` эса бошқа нарса — манбанинг «Муаммо» устуни, домен мазмуни, у
- * `problemNote` бўлиб кўрсатилади.
+ *   `values[кун] === null`        → қатор ўша кунда варақда **умуман йўқ**
+ *                                   → кўрсатилмайди (`absent: true`)
+ *   `values[кун]` бор, ичи бўш    → қатор бор, лекин **тўлдирилмаган**
+ *                                   → кўрсатилади, сонлар ўрнида «—»
+ *
+ * Ўлчов (2026-03-10, 1-блок): 12 та кўрсаткичдан 8 таси ўша кунда мавжуд,
+ * улардан 5 тасида қиймат бор. Яъни 4 та қатор олиб ташланади, 3 таси эса
+ * «—» билан қолади — уларни яшириш «манбада қатор бор, лекин тўлдирилмаган»
+ * фактини бекитган бўларди.
+ *
+ * ═══ 6. Техник майдонлар ══════════════════════════════════════════════════
+ *
+ * `row`, `key`, `occurrence`, `pctSource`, `pctRaw`, варақ номлари ва
+ * бэкенддаги лотин ёзувли блок изоҳи (`block.note`) view-model'га **ўтмайди**.
  */
 
 /* -------------------------------------------------------------------------- */
-/* ҳолат                                                                      */
+/* созламалар                                                                 */
 /* -------------------------------------------------------------------------- */
 
-export type DailyStatus =
-  | "abovePlan"
-  | "normal"
-  | "belowPlan"
-  | "problem"
-  | "stockOk"
-  | "stockLow"
-  | "noData";
+/** Бажарилиш фоизи чегаралари — **бир жойда**, фақат шу бўлим учун. */
+export const DAILY_THRESHOLDS = {
+  /** Шу фоиздан бошлаб — «Нормада». */
+  norm: 100,
+  /** Шу фоиздан бошлаб — «Эътибор»; ундан пасти «Муаммоли». */
+  attention: 90,
+} as const;
 
-export const DAILY_STATUS_LABEL: Record<DailyStatus, string> = {
-  abovePlan: "Режадан юқори",
-  normal: "Нормада",
-  belowPlan: "Режадан паст",
-  problem: "Муаммоли",
-  stockOk: "Қолдиқ етарли",
-  stockLow: "Қолдиқ кам",
-  noData: "Маълумот мавжуд эмас",
+/** «Бажарилиши» устунидаги шкаланинг охири; 100% белгиси шу шкалада турадi. */
+export const DAILY_BAR_MAX = 150;
+
+/** Ўқдаги «100%» тик чизиғининг ўрни (устун кенглигининг фоизи). */
+export const DAILY_BAR_REF = (100 / DAILY_BAR_MAX) * 100;
+
+/** Огоҳлантириш қаторида нечта кўрсаткич номи ёзилади. */
+export const DAILY_ATTENTION_MAX = 6;
+
+export type DailyWindowKey = "day" | "month" | "year";
+
+export const DAILY_WINDOWS: { id: DailyWindowKey; label: string }[] = [
+  { id: "day", label: "Кунлик" },
+  { id: "month", label: "Ой бошидан" },
+  { id: "year", label: "Йил бошидан" },
+];
+
+export const DAILY_STATUS_LABEL: Record<Status, string> = {
+  crit: "Муаммоли",
+  warn: "Эътибор",
+  good: "Нормада",
+  mute: "Маълумот йўқ",
 };
 
-/** Ранг учун — лойиҳадаги тўртта оҳанг; ранг ягона маъно ташувчиси эмас. */
-export const DAILY_STATUS_TONE: Record<DailyStatus, Status> = {
-  abovePlan: "good",
-  normal: "good",
-  belowPlan: "warn",
-  problem: "crit",
-  stockOk: "good",
-  stockLow: "warn",
-  noData: "mute",
+/** Ранг — CSS токени, hex ёзилмайди. */
+export const DAILY_STATUS_TOKEN: Record<Status, string> = {
+  crit: "var(--crit)",
+  warn: "var(--warn)",
+  good: "var(--good)",
+  mute: "var(--rule)",
 };
 
-/** Йўналиш хулосасини топишда «энг оғири» шу тартиб бўйича танланади. */
-const SEVERITY: Record<DailyStatus, number> = {
-  problem: 4,
-  belowPlan: 3,
-  stockLow: 3,
-  abovePlan: 2,
-  normal: 1,
-  stockOk: 1,
-  noData: 0,
-};
+/** Нуқталар ва саноқлар шу тартибда: оғирдан енгилга. */
+export const DAILY_STATUS_ORDER: Status[] = ["crit", "warn", "good", "mute"];
 
-/** Бажарилиш фоизи чегаралари — юқоридаги изоҳда асосланган. */
-export const PCT_ABOVE = 110;
-export const PCT_NORMAL = 95;
-export const PCT_PROBLEM = 85;
-
-function statusOfPct(pct: number): DailyStatus {
-  if (pct >= PCT_ABOVE) return "abovePlan";
-  if (pct >= PCT_NORMAL) return "normal";
-  if (pct >= PCT_PROBLEM) return "belowPlan";
-  return "problem";
-}
-
-/** Манбадаги «Муаммо» устуни тўлдирилганми: `"0"`, `"-"`, бўш — муаммо эмас. */
-function hasProblemNote(note: string | null): boolean {
-  if (note === null) return false;
-  const t = note.trim();
-  return t !== "" && t !== "0" && t !== "-" && t !== "—";
+/** Фоиздан ҳолат — **фақат шу бўлимнинг** чегараси бўйича. */
+export function dailyStatusOf(pct: number | null | undefined): Status {
+  if (pct === null || pct === undefined || !isFinite(pct)) return "mute";
+  if (pct >= DAILY_THRESHOLDS.norm) return "good";
+  if (pct >= DAILY_THRESHOLDS.attention) return "warn";
+  return "crit";
 }
 
 /* -------------------------------------------------------------------------- */
 /* view-model                                                                 */
 /* -------------------------------------------------------------------------- */
 
-export type DailyWindowKey = "day" | "month" | "year";
+/** Қатор қандай ўқилади: оқим (режа/факт) ёки қолдиқ (ҳолат). */
+export type DailyRowKind = "flow" | "stockSplit" | "stockTotal";
 
-export interface DailyWindowVM {
-  plan: number | null;
-  fakt: number | null;
-  diff: number | null;
-  /** Бэкенддан келган фоиз — қайта ҳисобланмайди ва текширилмайди. */
-  pct: number | null;
-}
-
-export interface DailyMetricVM {
+export interface DailyRowVM {
   id: string;
   name: string;
   unit: string | null;
-  section: string | null;
-  parent: string | null;
-  /** «… жами» — йиғиндига қўшилмайди, лекин йўналиш хулосасининг асоси. */
-  isTotal: boolean;
-  /** «шундан …» — устки қаторнинг қисми, йиғиндига қўшилмайди. */
-  isSubset: boolean;
-  /** Манбада бирдан ортиқ ўлчов бирлиги кўрилган — бирлик қаторда кўрсатилади. */
+  /**
+   * Манбада бу кўрсаткич учун бирдан ортиқ ўлчов бирлиги кўрилган.
+   *
+   * Амалда **учрамайди**: бэкенд бирликни калитнинг бир қисми қилади, шунинг
+   * учун бирлик ўзгарса қатор **иккита алоҳида кўрсаткич** бўлиб келади.
+   * Ўлчанди — «Қаттиқ қотишмалар» 2026-03-01…03-12 да `тн`, 03-13 дан `кг`,
+   * иккови ҳар хил калит ва **кунлари кесишмайди**, шунинг учун битта кунда
+   * фақат биттаси кўринади. Байроқ ҳимоя учун қолдирилган: манба ўзгариб
+   * иккита бирлик битта калитга тушса, экранда ⚠ билан белгиланади.
+   */
   mixedUnit: boolean;
-  /** Манбада бўлим ёрлиғи тушиб қолган кун (`key` да `#N`). */
-  sectionMissing: boolean;
-  kind: "flow" | "stock";
-  /** `kind === "flow"` да тўлдирилади. */
-  day: DailyWindowVM | null;
-  month: DailyWindowVM | null;
-  year: DailyWindowVM | null;
-  /** `kind === "stock"` да тўлдирилади. */
+  /** Манбадаги бўлим номи; қаторлар устида сарлавҳа бўлиб чиқади. */
+  section: string | null;
+  /** «ш.ж.:» остидаги қатор — чапдан сурилади. */
+  isSubset: boolean;
+  /** «… жами» — қалинроқ ёзилади, йиғиндига қўшилмайди. */
+  isTotal: boolean;
+  kind: DailyRowKind;
+
+  /* оқим (танланган ойна) */
+  plan: number | null;
+  fakt: number | null;
+  diff: number | null;
+  pct: number | null;
+
+  /* қолдиқ */
   warehouse: number | null;
   workshop: number | null;
   total: number | null;
-  /** Манбадаги «Муаммо» матни — домен мазмуни, кўрсатилади. */
-  problemNote: string | null;
-  /** Олдинги кунга нисбатан ўзгариш (бэкенд ҳисоблаган). */
-  delta: number | null;
-  status: DailyStatus;
-  /** Ҳолат қайси ойнадан олингани; қолдиқда `null`. */
-  statusWindow: DailyWindowKey | null;
+  /** Омбор улуши, `0…1`; иккови ҳам йўқ бўлса `null`. */
+  ratio: number | null;
+  /** 7-блокдаги «Муаммо» устуни — домен матни, кўрсатилади. */
+  note: string | null;
+
+  status: Status;
+  /** Қиймат умуман йўқ — қатор кулранг, сонлар ўрнида «—». */
+  empty: boolean;
+  /**
+   * Қатор **шу кунда** манба варағида йўқ (`values[кун] === null`). Бундай
+   * қатор чизилмайди — у бошқа кунларнинг қатори. `empty` дан фарқли:
+   * `empty` — қатор бор, лекин тўлдирилмаган.
+   */
+  absent: boolean;
 }
 
-export type DailyCounts = Record<DailyStatus, number> & { total: number };
+export type DailyCounts = Record<Status, number> & { total: number };
 
 export interface DailyBlockVM {
   no: number;
   key: string;
-  /** Сарлавҳа рақамсиз: «№» устуни алоҳида. */
+  /** Сарлавҳа рақамсиз — рақам алоҳида белги бўлиб чиқади. */
   title: string;
-  layout: "triple" | "stock" | "stock_note";
-  metrics: DailyMetricVM[];
-  /** Блокнинг бош қаторлари — «жами» бўлса ўшалар, бўлмаса қисм бўлмаганлари. */
-  headline: DailyMetricVM[];
+  kind: DailyRowKind;
+  rows: DailyRowVM[];
   counts: DailyCounts;
-  /** Кўпчилик қоидаси бўйича йўналиш ҳолати. */
-  verdict: DailyStatus;
-  /** Энг оғир қатор — хулоса ёнида сабаб сифатида кўрсатилади. */
-  worst: DailyMetricVM | null;
 }
 
-export interface DailySummaryRowVM {
+/** Огоҳлантириш қаторидаги битта ёзув. */
+export interface DailyAttentionVM {
   id: string;
-  no: number;
-  title: string;
-  /** Блок ичидаги бўлим (3-блокда ВОЛЬФРАМ / МОЛИБДЕН). */
-  section: string | null;
-  metricCount: number;
-  counts: DailyCounts;
-  verdict: DailyStatus;
-  worst: DailyMetricVM | null;
+  blockNo: number;
+  name: string;
+  pct: number;
 }
 
 export interface DailyVM {
   day: string;
   previous: string | null;
   days: string[];
-  /** `default` — сервер ўзи охирги 31 кунни берган. */
+  window: DailyWindowKey;
   rangeSource: "query" | "default";
   available: { from: string | null; to: string | null; days: number };
   blocks: DailyBlockVM[];
-  /** 8 йўналиш; 3-блок ВОЛЬФРАМ ва МОЛИБДЕН бўйича иккига ажралади. */
-  summary: DailySummaryRowVM[];
-  problems: { day: string; items: { no: number | null; text: string }[]; notes: string[] } | null;
-  /** Танланган оралиқдаги муаммо кунлари ва бандлари сони. */
-  problemDays: number;
-  problemItems: number;
+  /**
+   * Юқоридаги саноқ — **фақат оқим кўрсаткичлари** бўйича: ҳолат режанинг
+   * бажарилишини билдиради, қолдиқ қаторларида эса режа умуман юритилмайди.
+   * Қолдиқ блокларининг ўз саноғи карточка сарлавҳасида.
+   */
   counts: DailyCounts;
-  /** Кунлик қиймати манбада йўқ бўлган оқим кўрсаткичлари сони. */
-  noDayValue: number;
+  /** Энг паст бажарилишлар — сарлавҳа остидаги огоҳлантириш қатори учун. */
+  attention: DailyAttentionVM[];
+  /** Чегарадан паст тушган кўрсаткичлар сони (огоҳлантириш матни учун). */
+  attentionTotal: number;
   hasValues: boolean;
 }
 
@@ -249,9 +239,9 @@ export interface DailyVM {
 /* -------------------------------------------------------------------------- */
 
 /**
- * Жавоб ҳажми катта (31 кун ≈ 835 KB, бутун тарих ≈ 4 MB), шунинг учун
- * сўров оралиғи шу ерда чегараланади: даврнинг **охирги** 31 куни олинади.
- * Чегара ишлаганини панел экранда очиқ ёзади — жимгина кесиш эмас.
+ * Жавоб ҳажми катта (31 кун ≈ 835 KB), шунинг учун сўров оралиғи шу ерда
+ * чегараланади: даврнинг **охирги** 31 куни. Чегара ишлаганини панел экранда
+ * очиқ ёзади — жимгина кесиш эмас.
  */
 export const DAILY_MAX_DAYS = 31;
 
@@ -271,18 +261,30 @@ export function dailyRange(period: Period): { from: string; to: string; capped: 
 /* ўтказиш                                                                    */
 /* -------------------------------------------------------------------------- */
 
-const emptyCounts = (): DailyCounts => ({
-  abovePlan: 0,
-  normal: 0,
-  belowPlan: 0,
-  problem: 0,
-  stockOk: 0,
-  stockLow: 0,
-  noData: 0,
-  total: 0,
-});
+/**
+ * IEEE-754 шовқинини кесиш.
+ *
+ * Бошқа адаптерларда (`balance.ts`, `chain.ts`, `kpi.ts`) 15 та маънодор
+ * рақам етарли, чунки у ердаги қийматлар катта. Кунлик сводкада эса кичик
+ * айирмалар бор ва 15 та рақам артефактни **кесмайди** — ўлчанди:
+ *
+ *   0.004999999999999893 → p15 = 0,00499999999999989 ✗ · p12 = 0,005 ✓
+ *   61.7899999999999     → p15 = 61,7899999999999   ✗ · p12 = 61,79 ✓
+ *
+ * Шунинг учун бу ерда **12** та маънодор рақам. Бу ҳам яхлитлаш эмас:
+ * манбадаги энг узун ҳақиқий қиймат 10 та маънодор рақам (`1 021,779823`)
+ * ва у ўзгаришсиз қолади; 12 дан кейинги рақамлар фақат қўшиш артефакти.
+ */
+const CLEAN_DIGITS = 12;
 
-export function countStatuses(rows: DailyMetricVM[]): DailyCounts {
+function clean(v: number | null | undefined): number | null {
+  if (v === null || v === undefined || !isFinite(v)) return null;
+  return Number(v.toPrecision(CLEAN_DIGITS));
+}
+
+const emptyCounts = (): DailyCounts => ({ crit: 0, warn: 0, good: 0, mute: 0, total: 0 });
+
+function countRows(rows: DailyRowVM[]): DailyCounts {
   const c = emptyCounts();
   for (const r of rows) {
     c[r.status] += 1;
@@ -291,155 +293,94 @@ export function countStatuses(rows: DailyMetricVM[]): DailyCounts {
   return c;
 }
 
-// `pctRaw` ва `pctSource` **атайлаб олинмайди**: улар манба ҳақидаги техник
-// белги ва экранга чиқмаслиги керак. `pct` нинг ўзи етарли — у режа 0/йўқ
-// бўлганда `null`, демак «фоиз йўқ» ҳолати аллақачон ифодаланган.
-const toWindow = (w: DailyWindow): DailyWindowVM => ({
-  plan: w.plan,
-  fakt: w.fakt,
-  diff: w.diff,
-  pct: w.pct,
-});
-
 const isTriple = (c: DailyTripleCell | DailyStockCell): c is DailyTripleCell =>
   (c as DailyTripleCell).day !== undefined;
 
-function toMetric(m: DailyMetric, day: string, layout: DailyBlock["layout"]): DailyMetricVM {
+/** Манбадаги «Муаммо» устуни тўлдирилганми: `"0"`, `"-"`, бўш — муаммо эмас. */
+function realNote(note: string | null): string | null {
+  if (note === null) return null;
+  const t = note.trim();
+  return t === "" || t === "0" || t === "-" || t === "—" ? null : t;
+}
+
+function kindOf(layout: DailyBlock["layout"]): DailyRowKind {
+  if (layout === "triple") return "flow";
+  return layout === "stock" ? "stockSplit" : "stockTotal";
+}
+
+function toRow(m: DailyMetric, day: string, kind: DailyRowKind, w: DailyWindowKey): DailyRowVM {
   const cell = m.values[day] ?? null;
+  // Кун калити жавобда доим бор; қиймати `null` бўлса қатор ўша кунда йўқ.
+  const absent = cell === null;
   const base = {
     id: m.key,
     name: m.name,
     unit: m.unit,
-    section: m.section,
-    parent: m.parent,
-    isTotal: m.isTotal,
-    isSubset: m.isSubset,
     mixedUnit: m.unitVariants.length > 1,
-    // `key` нинг охиридаги `#N` — манбада бўлим ёрлиғи тушиб қолган кун.
-    sectionMissing: /#\d+$/.test(m.key),
+    section: m.section,
+    isSubset: m.isSubset,
+    isTotal: m.isTotal,
+    kind,
+    absent,
   };
 
-  if (layout === "triple") {
+  if (kind === "flow") {
     const c = cell !== null && isTriple(cell) ? cell : null;
-    const day_ = c ? toWindow(c.day) : null;
-    const month = c ? toWindow(c.month) : null;
-    const year = c ? toWindow(c.year) : null;
+    // Ҳолат ва сонлар **айнан танланган ойнадан** — бошқасидан олинмайди.
+    const win: DailyWindow | null = c ? c[w] : null;
+    const plan = clean(win?.plan);
+    const fakt = clean(win?.fakt);
+    const pct = clean(win?.pct);
+    // Фарқ экрандаги режа ва факт билан **мос** бўлиши учун тозаланганлардан
+    // қайта ҳисобланади: API'нинг `diff` и ҳам ўша айирма, лекин тозаланмаган
+    // операндлардан олингани учун ўзида артефакт олиб келади
+    // (`+0,0430000000001`). Иккови ҳам бўлмаса API қиймати ишлатилади.
+    const diff = plan !== null && fakt !== null ? clean(fakt - plan) : clean(win?.diff);
 
-    // Кунлик → ой → йил: биринчи мавжуд фоиз бўйича баҳоланади.
-    let status: DailyStatus = "noData";
-    let statusWindow: DailyWindowKey | null = null;
-    for (const [k, w] of [
-      ["day", day_],
-      ["month", month],
-      ["year", year],
-    ] as [DailyWindowKey, DailyWindowVM | null][]) {
-      if (w && w.pct !== null) {
-        status = statusOfPct(w.pct);
-        statusWindow = k;
-        break;
-      }
-    }
-
-    const t = m.trend as DailyTripleTrend | null;
     return {
       ...base,
-      kind: "flow",
-      day: day_,
-      month,
-      year,
+      plan,
+      fakt,
+      diff,
+      pct,
       warehouse: null,
       workshop: null,
       total: null,
-      problemNote: null,
-      delta: t?.day.faktDelta ?? null,
-      status,
-      statusWindow,
+      ratio: null,
+      note: null,
+      status: dailyStatusOf(pct),
+      empty: plan === null && fakt === null,
     };
   }
 
   const c = cell !== null && !isTriple(cell) ? cell : null;
-  const warehouse = c?.warehouse ?? null;
-  const workshop = c?.workshop ?? null;
-  const total = c?.total ?? null;
-  const note = c?.note ?? null;
+  const warehouse = clean(c?.warehouse);
+  const workshop = clean(c?.workshop);
+  const total = clean(c?.total);
+  const note = realNote(c?.note ?? null);
 
-  // 6-блокда «Омборда» + «Цехда», 7-блокда «Қолдиқ миқдори».
-  const parts = [warehouse, workshop, total].filter((x): x is number => x !== null);
-  const amount = parts.length ? parts.reduce((a, b) => a + b, 0) : null;
-
-  const status: DailyStatus = hasProblemNote(note)
-    ? "problem"
-    : amount === null
-      ? "noData"
-      : amount === 0
-        ? "stockLow"
-        : "stockOk";
-
-  const t = m.trend as DailyStockTrend | null;
-  const delta =
-    t === null
-      ? null
-      : layout === "stock_note"
-        ? t.totalDelta
-        : t.warehouseDelta === null && t.workshopDelta === null
-          ? null
-          : (t.warehouseDelta ?? 0) + (t.workshopDelta ?? 0);
+  // 6-блокда «Жами» = омбор + цех (иккови ҳам ўша бирликда, қўшилади).
+  const split =
+    warehouse === null && workshop === null ? null : clean((warehouse ?? 0) + (workshop ?? 0));
+  const amount = kind === "stockSplit" ? split : total;
 
   return {
     ...base,
-    kind: "stock",
-    day: null,
-    month: null,
-    year: null,
+    plan: null,
+    fakt: null,
+    diff: null,
+    pct: null,
     warehouse,
     workshop,
-    total,
-    problemNote: hasProblemNote(note) ? note : null,
-    delta,
-    status,
-    statusWindow: null,
+    total: kind === "stockSplit" ? split : total,
+    ratio: kind === "stockSplit" && split !== null && split > 0 ? (warehouse ?? 0) / split : null,
+    note,
+    // Қолдиқда режа йўқ — «нормада» фақат «қиймат кўрсатилган» деганини
+    // билдиради; кўрсатилмаган бўлса «маълумот йўқ».
+    status: amount === null ? "mute" : "good",
+    empty: amount === null,
   };
 }
-
-/** Блокнинг бош қаторлари: «жами» бўлса ўшалар, бўлмаса қисм бўлмаганлари. */
-function headlineOf(rows: DailyMetricVM[]): DailyMetricVM[] {
-  const totals = rows.filter((r) => r.isTotal);
-  return totals.length ? totals : rows.filter((r) => !r.isSubset);
-}
-
-/** Энг оғир ҳолатли қатор — хулоса ёнида «сабаб» сифатида кўрсатилади. */
-function worstOf(rows: DailyMetricVM[]): DailyMetricVM | null {
-  let worst: DailyMetricVM | null = null;
-  for (const r of rows) {
-    if (!worst || SEVERITY[r.status] > SEVERITY[worst.status]) worst = r;
-  }
-  return worst;
-}
-
-/**
- * Йўналиш ҳолати — баҳоланган қаторларнинг **кўпчилиги** қайси ҳолатда
- * бўлса ўша; тенг бўлса оғирроғи. «Маълумот мавжуд эмас» овоз бермайди.
- */
-function verdictOf(rows: DailyMetricVM[]): DailyStatus {
-  const voted = rows.filter((r) => r.status !== "noData");
-  if (voted.length === 0) return "noData";
-
-  const tally = new Map<DailyStatus, number>();
-  for (const r of voted) tally.set(r.status, (tally.get(r.status) ?? 0) + 1);
-
-  let best: DailyStatus = "noData";
-  let bestN = -1;
-  for (const [st, n] of tally) {
-    if (n > bestN || (n === bestN && SEVERITY[st] > SEVERITY[best])) {
-      best = st;
-      bestN = n;
-    }
-  }
-  return best;
-}
-
-/** Сарлавҳадаги «3. » каби рақам префикси олиб ташланади — «№» устуни алоҳида. */
-const stripNo = (title: string): string => title.replace(/^\s*\d+\.\s*/, "");
 
 /** Кўрсатиладиган кун: сўралгани жавобда бўлмаса — рўйхатдаги охиргиси. */
 export function dailyDay(res: DailyResponse, wanted: string | null): string {
@@ -447,88 +388,48 @@ export function dailyDay(res: DailyResponse, wanted: string | null): string {
   return res.latest ?? res.days[res.days.length - 1] ?? "";
 }
 
-export function dailyView(res: DailyResponse, day: string): DailyVM {
+/** Сарлавҳадаги «3. » каби рақам префикси олиб ташланади. */
+const stripNo = (title: string): string => title.replace(/^\s*\d+\.\s*/, "");
+
+export function dailyView(res: DailyResponse, day: string, w: DailyWindowKey): DailyVM {
   const blocks: DailyBlockVM[] = res.blocks.map((b) => {
-    const metrics = b.metrics.map((m) => toMetric(m, day, b.layout));
-    const headline = headlineOf(metrics);
+    const kind = kindOf(b.layout);
+    // Фақат шу кунда мавжуд қаторлар: бошқа кунларники экранда бўш ўрин
+    // эгаллаб, «дубликат» ва «маълумот йўқ» таассуротини берарди.
+    const rows = b.metrics.map((m) => toRow(m, day, kind, w)).filter((r) => !r.absent);
     return {
       no: b.no,
       key: b.key,
       title: stripNo(b.title),
-      layout: b.layout,
-      metrics,
-      headline,
-      counts: countStatuses(metrics),
-      verdict: verdictOf(headline),
-      worst: worstOf(headline),
+      kind,
+      rows,
+      counts: countRows(rows),
     };
   });
 
-  // ── Йўналишлар хулосаси ───────────────────────────────────────────────────
-  // 3-блок ичида ВОЛЬФРАМ ва МОЛИБДЕН цикллари алоҳида — фойдаланувчи шуни
-  // сўраган. Бўлимлар манбадан келади (`section`), тўқилмайди.
-  const summary: DailySummaryRowVM[] = [];
-  for (const b of blocks) {
-    const sections = [...new Set(b.metrics.map((m) => m.section).filter((s): s is string => !!s))];
-    const split = b.key === "chirchiq" && sections.length > 1;
+  // Юқоридаги саноқ — фақат оқим блоклари бўйича (қолдиқда режа йўқ).
+  const flow = blocks.filter((b) => b.kind === "flow").flatMap((b) => b.rows);
 
-    if (!split) {
-      summary.push({
-        id: b.key,
-        no: b.no,
-        title: b.title,
-        section: null,
-        metricCount: b.metrics.length,
-        counts: b.counts,
-        verdict: b.verdict,
-        worst: b.worst,
-      });
-      continue;
-    }
-
-    for (const sec of sections) {
-      const rows = b.metrics.filter((m) => m.section === sec);
-      const head = headlineOf(rows);
-      summary.push({
-        id: `${b.key}:${sec}`,
-        no: b.no,
-        title: b.title,
-        section: sec,
-        metricCount: rows.length,
-        counts: countStatuses(rows),
-        verdict: verdictOf(head),
-        worst: worstOf(head),
-      });
-    }
-  }
-
-  const all = blocks.flatMap((b) => b.metrics);
-  const problems = res.problems.find((p) => p.day === day) ?? null;
+  const attention = blocks
+    .filter((b) => b.kind === "flow")
+    .flatMap((b) =>
+      b.rows
+        .filter((r) => r.status === "crit" && r.pct !== null)
+        .map((r) => ({ id: r.id, blockNo: b.no, name: r.name, pct: r.pct as number })),
+    )
+    .sort((a, b) => a.pct - b.pct);
 
   return {
     day,
     previous: res.previous,
     days: res.days,
+    window: w,
     rangeSource: res.range.source,
     available: res.available,
     blocks,
-    summary,
-    problems: problems
-      ? {
-          day: problems.day,
-          items: problems.items.map((i) => ({ no: i.no, text: i.text })),
-          notes: problems.notes,
-        }
-      : null,
-    problemDays: res.problems.length,
-    problemItems: res.problems.reduce((a, p) => a + p.items.length, 0),
-    counts: countStatuses(all),
-    noDayValue: all.filter((m) => m.kind === "flow" && (m.day === null || m.day.fakt === null))
-      .length,
-    hasValues: all.some((m) =>
-      m.kind === "flow"
-        ? m.day?.fakt != null || m.month?.fakt != null || m.year?.fakt != null
-        : m.warehouse != null || m.workshop != null || m.total != null,
-    ),
+    counts: countRows(flow),
+    attention: attention.slice(0, DAILY_ATTENTION_MAX),
+    attentionTotal: attention.length,
+    hasValues: blocks.some((b) => b.rows.some((r) => !r.empty)),
   };
 }

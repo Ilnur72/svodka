@@ -238,3 +238,8 @@
 .recharts-surface:focus {
   outline: none;
 }
+
+/* `CheckSelect` — браузернинг ўз учбурчак маркери ўрнига ўзимизники. */
+summary::-webkit-details-marker {
+  display: none;
+}

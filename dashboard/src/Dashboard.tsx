@@ -16,6 +16,8 @@ import { H2Panel } from "./panels/H2Panel";
 import { CistPanel } from "./panels/CistPanel";
 import { OgarokPanel } from "./panels/OgarokPanel";
 import { IngPanel } from "./panels/IngPanel";
+import { FinPanel } from "./panels/FinPanel";
+import { InvestPanel } from "./panels/InvestPanel";
 
 /**
  * Даврлар рўйхати `/filters` дан келади. Агар ушбu endpoint серверда
@@ -34,7 +36,7 @@ export function Dashboard() {
 
   if (filtersQ.loading) {
     return (
-      <main className="mx-auto max-w-[1560px] px-5 py-8">
+      <main className="px-5 py-8">
         <Skeleton height={320} />
       </main>
     );
@@ -79,6 +81,14 @@ function DashboardBody({ range }: { range: { min: string; max: string } }) {
         return <OgarokPanel {...props} />;
       case "ing":
         return <IngPanel {...props} />;
+      // Молиявий бўлим давр танлагичига боғлиқ эмас: манбада йил йўқ,
+      // шунинг учун у ўз етти ойини доим кўрсатади ва `props` олмайди.
+      case "fin":
+        return <FinPanel />;
+      // Инвестиция бўлими ҳам шундай: манба — лойиҳалар реестри, ундаги
+      // ягона давр (январь–июнь) йилсиз, шунинг учун `props` олмайди.
+      case "invest":
+        return <InvestPanel />;
       case "obzor":
       default:
         return <ObzorPanel {...props} />;
@@ -114,7 +124,7 @@ function DashboardBody({ range }: { range: { min: string; max: string } }) {
       </a>
 
       <header className="sticky top-0 z-40 border-b border-rule bg-surface shadow-card">
-        <div className="mx-auto flex max-w-[1560px] flex-wrap items-center gap-[18px] px-5 py-3">
+        <div className="flex flex-wrap items-center gap-[18px] px-5 py-3">
           <div className="flex min-w-0 items-center gap-3">
             <div
               aria-hidden="true"
@@ -141,7 +151,7 @@ function DashboardBody({ range }: { range: { min: string; max: string } }) {
       <nav className="sticky top-[61px] z-[35] border-b border-rule bg-surface" aria-label="Бўлимлар">
         <div
           ref={tablistRef}
-          className="tabs-scroll mx-auto flex max-w-[1560px] gap-0.5 px-5"
+          className="tabs-scroll flex gap-0.5 px-5"
           role="tablist"
           aria-label="Бўлимлар"
           onKeyDown={onTabKeyDown}
@@ -178,7 +188,7 @@ function DashboardBody({ range }: { range: { min: string; max: string } }) {
         </div>
       </nav>
 
-      <main id="main" className="mx-auto max-w-[1560px] px-5 pt-5 pb-16">
+      <main id="main" className="px-5 pt-5 pb-16">
         {/*
           Давр ўзгарганда панел remount қилинмайди: сўровлар ўзи янгиланади,
           эски натижа эса янгиси келгунича экранда қолади (скелет миллтилламайди).
@@ -194,9 +204,14 @@ function DashboardBody({ range }: { range: { min: string; max: string } }) {
         «Сводки» файлларидан, «Кунлик сводка» эса бутунлай бошқа (кунлик) файлдан
         келади. Битта умумий изоҳ у ерда нотўғри бўларди. Қолган табларнинг
         ҳаммаси айнан ўша ойлик манбадан, шунинг учун улар учун изоҳ ўринли.
+
+        «Молиявий кўрсаткичлар» ва «Инвестиция лойиҳалари» ҳам чиқарилган:
+        улар бутунлай бошқа манбалар — молиявий ҳисобот жадвали ва лойиҳалар
+        реестри, «Production Report» API'дан келмайди. Ҳар бирининг изоҳи
+        ўз бўлими ичида, сарлавҳаси остида туради.
       */}
-      {tab !== "obzor" && (
-      <footer className="mx-auto max-w-[1560px] px-5 pb-10 text-[11.5px] leading-[1.6] text-ink-3">
+      {tab !== "obzor" && tab !== "fin" && tab !== "invest" && (
+      <footer className="max-w-[120ch] px-5 pb-10 text-[11.5px] leading-[1.6] text-ink-3">
         <p>
           <b className="font-semibold text-ink-2">Манба:</b> «Production Report» API — ойлик
           «Сводки MM-YYYY.xlsx» файлларидан импорт қилинган маълумотлар (Нарастайка,

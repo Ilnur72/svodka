@@ -31,6 +31,19 @@ export interface ProdItem {
   category: string | null;
   plan: number;
   fakt: number;
+  /**
+   * Режа **қўйилганми**. `plan` майдони `null` ни `0` га айлантиради, шунинг
+   * учун «режа йўқ» ва «режа нол» фарқи фақат шу байроқда сақланади.
+   *
+   * ⚠️ Ўлчанди (2026-03, 293 позиция): бу endpoint `plan`/`fakt` учун
+   * **ҳеч қачон `null` қайтармайди** — SQL `SUM(...)` нол беради. Шунинг
+   * учун амалда «йўқ» = `0`. Байроқ иккисини ҳам қамрайди: `null` ҳам, `0`
+   * ҳам «қўйилмаган» деб қаралади, лекин **нол режа факти бор** позиция
+   * (`Ферровольфрам`: режа 0, факт 3) `faktSet` орқали кўринишда қолади.
+   */
+  planSet: boolean;
+  /** Факт **қайд этилганми** — юқоридаги қоида фактга ҳам тегишли. */
+  faktSet: boolean;
   percent: number | null;
   /** Завод/бирлиги аниқланмаган позиция. */
   unassigned: boolean;
@@ -103,6 +116,10 @@ export function fromTree(tree: TreeData): ProdVM {
           category: p.category,
           plan: p.plan ?? 0,
           fakt: p.fakt ?? 0,
+          // Хом қиймат шу ерда ҳали `null` бўлиши мумкин — фарқ шу жойда
+          // ушланади, пастда у `?? 0` билан йўқолади.
+          planSet: p.plan !== null && p.plan !== 0,
+          faktSet: p.fakt !== null && p.fakt !== 0,
           percent: p.percent,
           unassigned: unassignedPlant || isUnknownUnit(p.baseUnit),
           isTotal: Boolean(p.isTotal),
@@ -153,6 +170,58 @@ export const FILTER_ALL = "ALL";
  * фақат ўша заводники билан тўлади. Шунинг учун цех коди ягона калит сифатида
  * етарли (аввалги `завод#цех` калити керак эмас).
  */
+/* -------------------------------------------------------------------------- */
+/* қиймат мавжудлиги бўйича фильтр                                            */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Маҳсулот карточкалари учун қўшимча фильтр: позицияда режа ва/ёки факт
+ * қўйилганми.
+ *
+ * **Мантиқ — «ёки»**: белгиланган шартлардан **камида биттаси** тўғри келса
+ * карточка кўринади. Шунинг учун стандарт ҳолатда (режаси бор + факти бор)
+ * фақат **иккови ҳам йўқ** позициялар яширилади — яъни бутунлай бўш қаторлар.
+ *
+ * `Ферровольфрам` каби «режа 0, факт 3» позиция «Факти бор» шарти билан
+ * кўринишда қолади: нол режа — ҳақиқий қиймат, уни бўш деб яшириш нотўғри
+ * бўларди.
+ */
+export type ValueFilterKey = "planSet" | "planNone" | "faktSet" | "faktNone";
+
+export const VALUE_FILTERS: { key: ValueFilterKey; label: string }[] = [
+  { key: "planSet", label: "Режаси бор" },
+  { key: "planNone", label: "Режаси йўқ" },
+  { key: "faktSet", label: "Факти бор" },
+  { key: "faktNone", label: "Факти йўқ" },
+];
+
+/**
+ * Стандарт ҳолат — фойдаланувчи талаби: «бўшлари, яъни қиймат йўқлари
+ * чиқмаслиги керак». Иккита шарт белгиланган, демак режаси ёки факти бор
+ * позициялар кўринади, иккови ҳам йўқлари эса яширилади.
+ */
+export const DEFAULT_VALUE_FILTER: ValueFilterKey[] = ["planSet", "faktSet"];
+
+const VALUE_TEST: Record<ValueFilterKey, (c: { planSet: boolean; faktSet: boolean }) => boolean> = {
+  planSet: (c) => c.planSet,
+  planNone: (c) => !c.planSet,
+  faktSet: (c) => c.faktSet,
+  faktNone: (c) => !c.faktSet,
+};
+
+/**
+ * Фильтрни қўллаш. Ҳеч нарса белгиланмаган бўлса **ҳеч нарса кўрсатилмайди**
+ * — бу «ҳаммаси» дан фарқли ва аниқ: фойдаланувчи барча шартни ечса, экранда
+ * нима учун бўшлигини панел ёзиб беради.
+ */
+export function filterByValue<T extends { planSet: boolean; faktSet: boolean }>(
+  rows: T[],
+  picked: readonly ValueFilterKey[],
+): T[] {
+  if (picked.length === VALUE_FILTERS.length) return rows;
+  return rows.filter((r) => picked.some((k) => VALUE_TEST[k](r)));
+}
+
 export interface ProdFilter {
   plant: string;
   workshop: string;
@@ -246,8 +315,15 @@ export interface ProdStats {
   zero: number;
 }
 
+/**
+ * ⚠️ `base` да `isTotal` сатрлари **чиқариб ташланади** — бу кўрсатиш эмас,
+ * **ҳисоблаш** қоидаси: манбадаги «…, всего» қатори пастдаги позицияларнинг
+ * йиғиндиси, иккови бирга саналса битта миқдор икки марта ҳисобланарди.
+ * Шу қоида `productCards()`, `dailyFromNarastayka()` ва `lastDayFacts()` да
+ * ҳам бир хил қўлланади; йиғинди сатрлари эса йўқолмайди — улар алоҳида
+ * кўрсатилади.
+ */
 export function prodStats(rows: ProdItem[]): ProdStats {
-  // «Всего» сатрлари ўз таркибий қисмлари билан бирга саналмаслиги керак.
   const base = rows.filter((x) => !x.isTotal);
   const wp = base.filter((x) => x.plan > 0);
   const met = wp.filter((x) => x.fakt >= x.plan * 0.999).length;
@@ -263,94 +339,6 @@ export function prodStats(rows: ProdItem[]): ProdStats {
   };
 }
 
-export interface DeviationRow extends ProdItem {
-  /** Бажарилиш %, 300 да чекланган — битта чегара ҳолат диаграммани текисламасин. */
-  pc: number;
-}
-
-export interface TotalRow extends ProdItem {
-  /** Бажарилиш %, режа нол бўлса `null`. */
-  pc: number | null;
-}
-
-/** Ҳар бир четланиш рўйхатида нечта позиция кўрсатилади. */
-export const DEVIATION_LIMIT = 25;
-
-/**
- * Четланиш рўйхатлари фақат **режаси бор** позициялардан тузилади: режа нол
- * бўлса бажарилиш фоизини ҳисоблаб бўлмайди (API ҳам `percent: null` қайтаради).
- *
- * Лекин уларни бутунлай яшириб қўйиш маълумот йўқотиш бўларди — «Получение
- * ТМА из 5 цеха по факту» каби қаторларда режа йўқ, факт эса 321 тн. Шунинг
- * учун улар `noPlan` да алоҳида қайтарилади ва панелда жадвал сифатида
- * кўрсатилади (фоиз эмас, факт).
- */
-/**
- * Рўйхат шунча позициядан қисқа бўлса, чекка 25 талик эмас, **тўлиқ рўйхат**
- * кўрсатилади. Сабаби: битта цех танлаганда фойдаланувчи ўша цехни бутунлай
- * кўрмоқчи, «энг ёмон 25 та» ни эмас. Ўртадаги позициялар (масалан «Выпуск
- * перрената аммония» 76,7%) акс ҳолда ҳеч қайси рўйхатга тушмай қоларди.
- */
-export const FULL_LIST_MAX = 60;
-
-export function deviationRows(rows: ProdItem[]): {
-  low: DeviationRow[];
-  high: DeviationRow[];
-  /** Барча режали позициялар, бажарилиш бўйича ўсиш тартибида. */
-  all: DeviationRow[];
-  /** `true` — тўлиқ рўйхат кўрсатилсин (позиция кам). */
-  showAll: boolean;
-  noPlan: ProdItem[];
-  /** Манбадаги «всего» сатрлари — алоҳида кўрсатилади. */
-  totals: TotalRow[];
-} {
-  const base = rows.filter((x) => !x.isTotal);
-  const rank: DeviationRow[] = base
-    .filter((x) => x.plan > 0)
-    .map((x) => ({ ...x, pc: Math.min((x.fakt / x.plan) * 100, 300) }));
-  const asc = [...rank].sort((a, b) => a.pc - b.pc);
-  return {
-    low: asc.slice(0, DEVIATION_LIMIT),
-    high: [...rank].sort((a, b) => b.pc - a.pc).slice(0, DEVIATION_LIMIT),
-    all: asc,
-    showAll: rank.length > 0 && rank.length <= FULL_LIST_MAX,
-    noPlan: base.filter((x) => !(x.plan > 0)).sort((a, b) => b.fakt - a.fakt),
-    totals: rows
-      .filter((x) => x.isTotal)
-      .map((x) => ({ ...x, pc: x.plan > 0 ? (x.fakt / x.plan) * 100 : null }))
-      .sort((a, b) => (b.fakt || 0) - (a.fakt || 0)),
-  };
-}
-
-export interface UnitGroup {
-  name: string;
-  unit: string;
-  items: ProdItem[];
-}
-
-/**
- * Ўлчов бирлиги оилалари бўйича энг йирик позициялар. Турли бирликдаги
- * қийматлар ҳеч қачон битта шкалага қўйилмайди — шунинг учун гуруҳлаш.
- */
-export function unitGroups(rows: ProdItem[]): UnitGroup[] {
-  const byUnit = new Map<string, ProdItem[]>();
-  for (const x of rows) {
-    if (x.plan <= 0 || x.isTotal) continue;
-    const u = x.unit && x.unit.trim() ? x.unit.trim() : "—";
-    const list = byUnit.get(u) ?? [];
-    list.push(x);
-    byUnit.set(u, list);
-  }
-  return [...byUnit.entries()]
-    .map(([unit, list]) => ({
-      unit,
-      name: unit === "—" ? "Бирлиги аниқланмаган" : `Ўлчов бирлиги: ${unit}`,
-      items: list
-        .sort((a, b) => Math.max(b.fakt, b.plan) - Math.max(a.fakt, a.plan))
-        .slice(0, 8),
-    }))
-    .sort((a, b) => b.items.length - a.items.length);
-}
 
 /* -------------------------------------------------------------------------- */
 /* маҳсулот карточкалари                                                      */
@@ -368,6 +356,10 @@ export interface ProdCard {
   plan: number;
   /** Танланган давр бошидан йиғилган факт — «шу кунгача чиққани». */
   fakt: number;
+  /** Режа қўйилганми — қаранг `ProdItem.planSet`. */
+  planSet: boolean;
+  /** Факт қайд этилганми — қаранг `ProdItem.faktSet`. */
+  faktSet: boolean;
   /** Бэкенд ҳисоблаган бажарилиш фоизи; режа нол бўлса `null`. */
   percent: number | null;
   /**
@@ -405,6 +397,8 @@ export function productCards(rows: ProdItem[], lastDay: LastDayVM | null): ProdC
       process: x.process,
       plan: x.plan,
       fakt: x.fakt,
+      planSet: x.planSet,
+      faktSet: x.faktSet,
       percent: x.percent,
       day: d && lastDay ? { label: lastDay.label, plan: d.plan, fakt: d.fakt } : null,
     };
@@ -456,8 +450,9 @@ export interface DailySeries {
  * ни ҳам, ҳар бир резец турини ҳам топади. Иккови қўшилса кунлик ва ўсиб
  * борувчи қиймат **икки баробар** бўларди.
  *
- * Шунинг учун улар `deviationRows().totals` даги ёндашув билан **ажратилади**,
- * яширилмайди: ҳисобга кирмайди, лекин `excludedTotals` да қайтарилади ва
+ * Шунинг учун улар `prodStats()` даги қоида билан **ажратилади**
+ * (`isTotal` ҳисобдан чиқарилади), яширилмайди: ҳисобга кирмайди,
+ * лекин `excludedTotals` да қайтарилади ва
  * панелда номи билан кўрсатилади. Агар мос келган ҳамма қатор «всего» бўлса —
  * фойдаланувчи айнан йиғинди позициясини танлаган, диаграмма бўш қолмаслиги
  * учун ўша қаторлар ишлатилади (`totalsOnly`).

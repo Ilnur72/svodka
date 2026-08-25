@@ -3,12 +3,19 @@ import type { PanelProps } from "../types";
 import type { ChainStepVM } from "../lib/adapters/chain";
 import { getChain } from "../api/endpoints";
 import { useQuery } from "../lib/useQuery";
-import { chainMonth, chainView, chainWhyMute } from "../lib/adapters/chain";
+import { chainLayout, chainMonth, chainView, chainWhyMute } from "../lib/adapters/chain";
 import { exact, monthLabel, pctTxt } from "../lib/format";
 import { Card, Section } from "../components/Card";
 import { Pill } from "../components/Pill";
+import { SegmentSwitch } from "../components/SegmentSwitch";
 import { StatusMix, StatusMixLegend } from "../components/StatusMix";
-import { ChainBand, ChainLegend } from "../components/ChainFlow";
+import {
+  CHAIN_LEVEL_ALL,
+  ChainInspector,
+  ChainLegend,
+  ChainMap,
+  chainLevelOptions,
+} from "../components/ChainFlow";
 import { TableToggle } from "../components/TableToggle";
 import { Loader } from "../components/states";
 
@@ -17,33 +24,41 @@ import { Loader } from "../components/states";
  * технологик оқими: 43 босқич + 3 ресурс, 5 даража, 12 сех, устига омбор,
  * чиқинди ва тўхташлар.
  *
- * «Умумий кўрсаткичлар» табидаги сегмент алмаштиргичнинг **учинчи** кўриниши,
- * «Ишлаб чиқариш» дан кейин: аввал корхона нима қилгани, кейин сех кесимидаги
- * тафсилот, сўнг бутун жараённинг оқими.
+ * Бўлим **битта боғланган оқим харитаси** сифатида қурилган: асосий вазн
+ * стрелкаларда ва боғланишларда, тугунлар эса атайлаб кичик (ном + факт +
+ * режа + %). Босқичнинг қолган тафсилоти — жараён, чиқинди, ресурс сарфи,
+ * эҳтимолий кириш — харита остидаги инспекторда, босқич танланганда чиқади.
+ * Шу сабабли экран карточкалар тўрига айланмайди ва оқим бутун кенгликка
+ * ёйилади.
  *
- * «Металлар баланси» билан **алмаштирилмайди**: баланс W/Mo/Re занжирларини
- * металл кесимида беради ва «Ишлаб чиқариш» кўринишида ўз ўрнида қолади, бу
- * кўриниш эса ўшаларнинг ҳаммасини битта оқимда кўрсатиб, устига 10ц/35ц,
- * омбор, чиқинди ва тўхташларни ҳам қўшади. Иккиси турли саволга жавоб
- * беради: баланс — «металл бўйича қанча», занжир — «жараён қандай кетади».
- * Улар бир вақтда чизилмайди, шунинг учун битта босқич экранда икки марта
+ * ─── Уч фильтр, уччаласи бошқа саволга ────────────────────────────────────
+ *
+ *  · **Давр** (юқоридаги умумий танлагич) — серверга қайси ойлар сўралиши;
+ *  · **Занжир ойи** — шулардан қайси бири чизилиши. Занжир **битта ойни**
+ *    кўрсатади: босқичлар турли бирликда (т, кг, м³, шт, соат) ва айримлари
+ *    қолдиқ, шунинг учун қийматларни ойлар бўйича қўшиб бўлмайди;
+ *  · **Уровень** — қайси технологик даража чизилиши. «Все» да ҳамма даража
+ *    битта боғланган занжирда қолади, боғланишлар узилмайди.
+ *
+ * Уччаласи бир-бирини алмаштирмайди: давр қайси ойлар келишини, ой қайси
+ * бири чизилишини, даража эса қайси босқичлар кўринишини белгилайди.
+ *
+ * ─── «Металлар баланси» билан алмаштирилмайди ─────────────────────────────
+ *
+ * Баланс W/Mo/Re занжирларини **металл кесимида** беради, бу кўриниш эса
+ * ўшаларнинг ҳаммасини битта оқимда кўрсатиб, устига 10ц/35ц, омбор,
+ * чиқинди ва тўхташларни ҳам қўшади. Иккиси турли саволга жавоб беради:
+ * баланс — «металл бўйича қанча», занжир — «жараён қандай кетади». Улар
+ * бир вақтда чизилмайди, шунинг учун битта босқич экранда икки марта
  * турмайди.
- *
- * ─── Ой танлагич нега сақланган ───────────────────────────────────────────
- * Занжир **битта ойни** кўрсатади: босқичлар турли бирликда (т, кг, м³, шт,
- * соат) ва айримлари қолдиқ, шунинг учун қийматларни ойлар бўйича қўшиб
- * бўлмайди. Юқоридаги умумий давр танлагич эса **оралиқ** беради.
- *
- * Шу сабабли иккиси бир-бирини алмаштирмайди, балки кетма-кет ишлайди:
- * давр қайси ойлар серверга сўралишини белгилайди, бўлим ичидаги танлагич
- * эса шулардан қайси бири чизилишини. Танлагичсиз давр кўп ойли бўлганда
- * фойдаланувчи фақат охирги ойни кўра оларди ва орқага қарай олмасди.
  */
 export function ChainView({ period, months }: PanelProps) {
   const uid = useId();
   const key = `${period.from}_${period.to}`;
   const q = useQuery(`chain_${key}`, (s) => getChain(period, s));
   const [picked, setPicked] = useState<string | null>(null);
+  const [levelId, setLevelId] = useState<string>(CHAIN_LEVEL_ALL);
+  const [pickedStep, setPickedStep] = useState<string | null>(null);
 
   // Танлов даврдан ташқарида қолса ўзи охирги ойга қайтади — эффект керак эмас.
   const month = q.data ? chainMonth(q.data, picked) : null;
@@ -51,6 +66,13 @@ export function ChainView({ period, months }: PanelProps) {
     () => (q.data && month ? chainView(q.data, month) : null),
     [q.data, month],
   );
+
+  const level = levelId === CHAIN_LEVEL_ALL ? null : Number(levelId);
+  const layout = useMemo(() => (vm ? chainLayout(vm, level) : null), [vm, level]);
+
+  // Танланган босқич фильтрдан чиқиб қолса — инспектор ўзи бўшайди, лекин
+  // танлов эсда қолади: фильтр қайтарилса яна ажратиб кўрсатилади.
+  const pickedNode = pickedStep ? (layout?.byId.get(pickedStep) ?? null) : null;
 
   const refInRange = q.data ? q.data.months.includes(q.data.reference) : false;
 
@@ -63,6 +85,17 @@ export function ChainView({ period, months }: PanelProps) {
           : "хомашёдан тайёр маҳсулотгача"
       }
     >
+      {vm && (
+        <div className="mb-2.5">
+          <SegmentSwitch
+            label="Технологик даража"
+            options={chainLevelOptions(vm.levels, vm.steps.length)}
+            value={levelId}
+            onChange={setLevelId}
+          />
+        </div>
+      )}
+
       {vm && vm.months.length > 0 && (
         <div className="mb-2.5 flex flex-wrap items-center gap-x-2.5 gap-y-2">
           <label
@@ -111,50 +144,66 @@ export function ChainView({ period, months }: PanelProps) {
         q={q}
         height={320}
         notAvailableWhat="/chain"
-        isEmpty={() => !vm || vm.bands.length === 0 || !vm.hasValues}
+        isEmpty={() => !vm || vm.steps.length === 0 || !vm.hasValues}
         emptyTitle={
-          vm && vm.bands.length > 0
+          vm && vm.steps.length > 0
             ? `${monthLabel(vm.month)} учун занжир маълумоти йўқ`
             : "Ушбу давр учун занжир маълумоти йўқ"
         }
         emptyText="Юқоридаги «Занжир ойи» рўйхатидан бошқа ойни танланг."
       >
         {() =>
-          vm && (
+          vm &&
+          layout && (
             <>
-              <Card className="mb-3">
-                <div className="flex flex-col gap-3 mid:flex-row mid:items-start mid:gap-5">
-                  <div className="min-w-0 flex-1">
-                    <StatusMix counts={vm.counts} height={12} />
-                  </div>
-                  <div className="flex flex-none flex-wrap items-center gap-1.5">
-                    {vm.inputUnknownCount > 0 && (
-                      <Pill status="warn">{vm.inputUnknownCount} та кириши аниқланмаган</Pill>
-                    )}
-                    {vm.unavailableCount > 0 && (
-                      <Pill>{vm.unavailableCount} та режа/факт юритилмайди</Pill>
-                    )}
-                  </div>
+              {/* Ҳолат тақсимоти — харитадан олдин битта тор қатор: карточка
+                  тўри ясалмайди, оқим экраннинг асосий элементи бўлиб қолади. */}
+              <div className="mb-2.5 flex flex-col gap-2.5 mid:flex-row mid:items-center mid:gap-5">
+                <div className="min-w-0 flex-1">
+                  <StatusMix counts={layout.counts} height={10} />
                 </div>
-                <div className="mt-3 border-t border-grid pt-2.5">
-                  <ChainLegend counts={vm.linkCounts} />
+                <div className="flex flex-none flex-wrap items-center gap-1.5">
+                  <Pill>
+                    {layout.nodes.length} босқич · {layout.edges.length} боғланиш
+                  </Pill>
+                  {layout.inputUnknownCount > 0 && (
+                    <Pill status="warn">{layout.inputUnknownCount} та кириши аниқланмаган</Pill>
+                  )}
+                  {layout.unavailableCount > 0 && (
+                    <Pill>{layout.unavailableCount} та режа/факт юритилмайди</Pill>
+                  )}
                 </div>
-                <div className="mt-2.5">
-                  <StatusMixLegend />
-                </div>
-              </Card>
+              </div>
 
-              <div className="flex flex-col gap-3">
-                {vm.bands.map((b) => (
-                  <ChainBand key={b.level} band={b} />
-                ))}
+              <div className="mb-2.5">
+                <ChainInspector node={pickedNode} onClose={() => setPickedStep(null)} />
+              </div>
+
+              <ChainMap
+                layout={layout}
+                picked={pickedNode ? pickedStep : null}
+                onPick={setPickedStep}
+              />
+
+              <div className="mt-3">
+                <Card>
+                  <ChainLegend
+                    counts={vm.linkCounts}
+                    drawn={layout.edges.length}
+                    hidden={layout.hiddenLinks}
+                    inputUnknown={layout.inputUnknownCount}
+                  />
+                  <div className="mt-2.5 border-t border-grid pt-2.5">
+                    <StatusMixLegend />
+                  </div>
+                </Card>
               </div>
 
               <div className="mt-3">
                 <Card
                   title="Занжир — тўлиқ рўйхат"
                   sub={monthLabel(vm.month)}
-                  note="Жадвалда ҳеч нарса яширилмайди: аномал фоиз қисқартирилмайди, маълумоти йўқ катаклар «—» билан белгиланади ва нолга айлантирилмайди. Ресурс сарфи қаторлари ҳам шу ерда."
+                  note="Жадвалда ҳеч нарса яширилмайди: аномал фоиз қисқартирилмайди, маълумоти йўқ катаклар «—» билан белгиланади ва нолга айлантирилмайди. Даража фильтри жадвалга таъсир қилмайди — ресурс сарфи қаторлари ҳам шу ерда."
                 >
                   <ChainTable rows={vm.all} />
                 </Card>

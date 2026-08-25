@@ -1,5 +1,14 @@
 import { useMemo } from "react";
-import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  ReferenceLine,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { usePalette } from "../lib/theme";
 import { smart } from "../lib/format";
 import { ChartTooltip } from "./ChartTooltip";
@@ -22,6 +31,14 @@ export interface ColumnsProps {
   /** Y ўқи учун ажратилган кенглик; узун белгиларда (масалан «100,0 млн») оширилади. */
   yWidth?: number;
   vFmt?: (v: number) => string;
+  /**
+   * Устунлар ёнма-ён эмас, бир-бирининг устига қўйилади.
+   * Фақат йиғиндиси маъноли бўлган қаторлар учун — масалан «жорий + узоқ
+   * муддатли активлар». Турли ўлчов бирлигидаги қаторлар стекланмайди.
+   */
+  stacked?: boolean;
+  /** Нол чизиғи — манфий қиймат бор диаграммада мажбурий. */
+  zeroLine?: boolean;
   ariaLabel: string;
 }
 
@@ -43,6 +60,8 @@ export function Columns({
   yTickFmt = smart,
   yWidth = 56,
   vFmt,
+  stacked = false,
+  zeroLine = false,
   ariaLabel,
 }: ColumnsProps) {
   const p = usePalette();
@@ -87,14 +106,23 @@ export function Columns({
             content={<ChartTooltip vFmt={vFmt} />}
             isAnimationActive={false}
           />
+          {/* Манфий устунлар бор диаграммада нол чизиғи ўқдан ажралиб туриши
+              керак — акс ҳолда пастга тушган устун «камайган» эмас, «кичик»
+              бўлиб кўринади. */}
+          {zeroLine && <ReferenceLine y={0} stroke={p.rule} strokeWidth={1} />}
           {series.map((s, k) => (
             <Bar
               key={s.name}
               dataKey={`s${k}`}
               name={s.name}
               fill={s.color}
+              stackId={stacked ? "a" : undefined}
               maxBarSize={Math.min(thick, 24)}
-              radius={[4, 4, 0, 0]}
+              // Стекда фақат энг устки бўлак юмалоқланади: ҳар бўлакка радиус
+              // берилса улар орасида «тиш» пайдо бўларди. Манфий устунда эса
+              // Recharts тўртбурчакни манфий баландлик билан чизади, шунинг
+              // учун бу радиус ноль чизиғида эмас, устуннинг четида қолади.
+              radius={stacked && k < series.length - 1 ? 0 : [4, 4, 0, 0]}
               isAnimationActive={false}
             />
           ))}

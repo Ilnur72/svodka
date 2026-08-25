@@ -16,7 +16,9 @@ export type TabId =
   | "h2"
   | "cist"
   | "ogarok"
-  | "ing";
+  | "ing"
+  | "fin"
+  | "invest";
 
 export type Status = "good" | "warn" | "crit" | "mute";
 
