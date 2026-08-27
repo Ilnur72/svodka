@@ -13,6 +13,7 @@ export const TABS: { id: TabId; label: string }[] = [
   { id: "fin", label: "Молиявий кўрсаткичлар" },
   { id: "invest", label: "Инвестиция лойиҳалари" },
   { id: "mobplan", label: "Кадрлар режаси" },
+  { id: "projects", label: "Лойиҳалар паспорти" },
 ];
 
 const IDS = new Set<string>(TABS.map((t) => t.id));

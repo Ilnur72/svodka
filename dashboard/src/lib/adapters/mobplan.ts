@@ -4,47 +4,60 @@ import type { MobplanPositionRow, MobplanResponse } from "../../api/types";
 /**
  * «Кадрлар режаси» бўлими учун view-model.
  *
- * Панел API тузилмасини билмайди: у фақат шу файл тайёрлаган қийматларни
- * олади. Жавоб шакли ўзгарса — тузатиш шу ерда бўлади, панелга тегилмайди.
+ * Панел API тузилмасини билмайди — у фақат шу файл тайёрлаган қийматларни
+ * олади. Жавоб шакли ўзгарса тузатиш шу ерда бўлади, панелга тегилмайди.
  *
- * ═══ Манба — бэкенд ════════════════════════════════════════════════════
+ * ═══ Манба ══════════════════════════════════════════════════════════════
  *
- * Маълумот `GET /mobplan` дан келади (`api/endpoints.ts` → `getMobplan`).
- * Аввал бу бўлим статик модулга (`lib/mobplan/mobplanSource.ts`) таянар эди;
- * маълумот базага кўчирилгач у модул **ўчирилди** — акс ҳолда битта рақамнинг
- * иккита ҳақиқат манбаи қолиб кетар эди.
+ * `GET /mobplan` (`api/endpoints.ts` → `getMobplan`), **параметрсиз**: манба
+ * вақт қатори эмас, битта ҳужжатнинг жорий ҳолати. Юқоридаги давр танлагичи
+ * бу бўлимга таъсир қилмайди.
  *
- * Сўров **параметрсиз**: манба вақт қатори эмас, битта ҳужжатнинг жорий
- * ҳолати. Шунинг учун юқоридаги давр танлагичи бу бўлимга таъсир қилмайди.
+ * Варақда 78 та лавозим сатри бор. Варақнинг ўз «жами» сатрлари (`Набор по
+ * месяцам`, `По возрастанию`) `rows` га **тушмайди** — улар алоҳида
+ * `sheetMonthly` / `sheetCumulative` / `sheetTotals` бўлиб келади. Уларни
+ * сатрлар билан бирга қўшиш ҳар бир рақамни икки марта санарди; шунинг учун
+ * улар фақат **текширув** учун ишлатилади (`checks`).
  *
  * ═══ Бу бўлимдаги энг муҳим талқин ══════════════════════════════════════
  *
  * 241 штат бирлигидан 25 таси банд, 216 таси вакант. Бу **орқада қолиш эмас**:
- * корхона ҳали ишга туширилмаган ва режанинг ўзи шундай тузилган — 241 тадан
- * 224 таси 2026 йилнинг иккинчи ярмига режалаштирилган. Шу сабабли:
+ * корхона ҳали ишга туширилмаган ва режанинг ўзи шундай тузилган. Шу сабабли:
  *
- *   - вакансия ҳолат ранги билан (`good/warn/crit`) бўялмайди. Ўша ранглар
+ *   - вакансия ҳолат ранги билан (`good/warn/crit`) бўялмайди — ўша ранглар
  *     дашбордда «режа бажарилиши» маъносини ташийди, бу ерда эса баҳоланадиган
- *     режа бажарилиши йўқ — фақат жорий ҳолат ва келажак режаси бор;
+ *     бажарилиш йўқ;
  *   - «бажарилмаган», «орқада», «критик» каби сўзлар ишлатилмайди;
- *   - вакансия учун нейтрал ранг (`--rule`) олинади, банд учун `--s3`.
+ *   - вакансия учун нейтрал ранг (`--rule`), банд учун `--s3`.
  *
  * Айнан шунинг учун бу файл `Status` типини умуман ишлатмайди.
  *
  * ═══ Бўш катак тўлдирилмайди ════════════════════════════════════════════
  *
- * Тасниф устунлари қисман тўлдирилган. Бўш катак «юқоридагидек» дегани эмас,
- * шунинг учун у юқоридаги сатрдан кўчирилмайди ва тахмин қилинмайди — у
- * `«Кўрсатилмаган»` номли **алоҳида гуруҳга** тушади ва бошқа гуруҳлар билан
- * бир қаторда, ўз штат бирлиги билан кўринади. Ҳар бир кесимнинг гуруҳлари
- * йиғиндиси шу сабабли доим тўлиқ штатга (241) тенг бўлади.
+ * Тасниф устунлари қисман тўлдирилган. Бўш катак «юқоридагидек» дегани эмас:
+ * у юқоридаги сатрдан кўчирилмайди, тахмин ҳам қилинмайди — «Кўрсатилмаган»
+ * номли **алоҳида гуруҳга** тушади ва бошқа гуруҳ билан бир қаторда, ўз штат
+ * бирлиги билан кўринади. Шунинг учун ҳар бир кесимнинг гуруҳлари йиғиндиси
+ * доим тўлиқ штатга тенг бўлади.
+ *
+ * ═══ Манбада умуман йўқ кўрсаткич ═══════════════════════════════════════
+ *
+ * Кадрлар дашбордида одатда кутиладиган кўпчилик кўрсаткич (МҲТФ, кадрлар
+ * оқими, таълим/жинс/ёш, ҳужжат муддатлари, ГПХ, экспатлар, ўқитиш, иш
+ * графиклари) бу манбада **устун сифатида ҳам йўқ**. Улар нол билан ҳам,
+ * тахмин билан ҳам тўлдирилмайди — очиқ «маълумот йўқ» бўлиб туради
+ * (`MOB_NO_DATA_*` рўйхатлари).
  *
  * ═══ Сон ════════════════════════════════════════════════════════════════
  *
- * Бу ердаги ҳамма сон — киши (штат бирлиги), яъни бутун сон. Шунинг учун
- * ҳамма жойда `exact()`; фоиз эса ҳисобланган қиймат бўлгани учун `pctTxt()`
- * (бир хона). Яхлитлаш йўқ.
+ * Бу ердаги ҳамма сон — киши (штат бирлиги), яъни бутун сон: ҳамма жойда
+ * `exact()`. Фоиз ҳисобланган қиймат бўлгани учун `pctTxt()` (бир хона).
+ * Яхлитлаш йўқ.
  */
+
+/* -------------------------------------------------------------------------- */
+/* умумий матн ва форматлаш                                                   */
+/* -------------------------------------------------------------------------- */
 
 /** Тасниф устуни тўлдирилмаган сатрлар гуруҳи. */
 export const MOB_UNKNOWN = "Кўрсатилмаган";
@@ -56,17 +69,103 @@ export const MOB_VAKANT = "вакант";
 export const MOB_NO_VALUE = "—";
 
 /**
- * Реестрда умуман йўқ кўрсаткич. Бу «нол» эмас ва «ҳали ҳисобланмаган» ҳам
- * эмас — манбада бундай устун йўқ, шунинг учун қиймат ўйлаб топилмайди.
+ * Манбада бундай устун умуман йўқ. Бу «нол» эмас ва «ҳали ҳисобланмаган» ҳам
+ * эмас — қиймат ўйлаб топилмайди.
  */
 export const MOB_NO_DATA = "маълумот йўқ";
 
 /** Манбадаги қиймат — яхлитланмайди. */
 export const mobExact = (v: number): string => exact(v);
 
+/** Фоиз матни — бўлимнинг ҳамма жойида бир хил кўринишда. */
+export const mobPct = (p: number): string => pctTxt(p);
+
 const sum = (xs: number[]): number => xs.reduce((a, b) => a + b, 0);
 
 const share = (part: number, whole: number): number => (whole === 0 ? 0 : (part / whole) * 100);
+
+/* -------------------------------------------------------------------------- */
+/* манбада йўқ кўрсаткичлар                                                   */
+/* -------------------------------------------------------------------------- */
+
+export interface MobNoDataItem {
+  key: string;
+  label: string;
+}
+
+export interface MobNoDataBlock {
+  key: string;
+  title: string;
+  /** Нима учун йўқ — бир жумлада. */
+  note: string;
+  items: MobNoDataItem[];
+}
+
+const items = (...labels: string[]): MobNoDataItem[] =>
+  labels.map((label, i) => ({ key: `${i}:${label}`, label }));
+
+/** Плиткалардаги иккита кўрсаткич — манбада устуни йўқ. */
+export const MOB_NO_DATA_TILES: { key: string; label: string; note: string }[] = [
+  {
+    key: "fot",
+    label: "Меҳнатга ҳақ тўлаш фонди",
+    note: "ойлик сумма — штат жадвалида иш ҳақи устуни йўқ",
+  },
+  {
+    key: "oqim",
+    label: "Кадрлар оқими",
+    note: "ишга қабул ва бўшатиш ҳаракати — манбада ҳаракат ёзуви йўқ",
+  },
+];
+
+/** Ҳалқалардаги учта кесим — манбада бундай устун йўқ. */
+export const MOB_NO_DATA_DONUTS: { key: string; title: string; note: string }[] = [
+  { key: "talim", title: "Таълим бўйича", note: "манбада таълим устуни йўқ" },
+  { key: "jins", title: "Жинс бўйича", note: "манбада жинс устуни йўқ" },
+  { key: "yosh", title: "Ёш бўйича", note: "манбада туғилган сана ва ёш устуни йўқ" },
+];
+
+/** Ўрта қатордаги учинчи карточка. */
+export const MOB_NO_DATA_SCHEDULE: MobNoDataBlock = {
+  key: "grafik",
+  title: "Иш графиклари",
+  note: "Манбада смена ва иш вақти устуни йўқ — график тақсимоти бошқа ҳужжатдан келади.",
+  items: items("Смена бўйича тақсимот", "Иш вақти нормаси", "Навбатчилик"),
+};
+
+/** Пастки қатордаги бешта карточка — ҳар бирининг ҳамма кўрсаткичи йўқ. */
+export const MOB_NO_DATA_CARDS: MobNoDataBlock[] = [
+  {
+    key: "kdp",
+    title: "Кадрлар иш юритиши",
+    note: "Буйруқ ва ҳаракат статистикаси штат жадвалида сақланмайди.",
+    items: items("Ишга қабул", "Ўтказиш", "Бўшатиш", "Таътил", "Декрет таътили"),
+  },
+  {
+    key: "hujjat",
+    title: "Муддати тугаётган ҳужжатлар",
+    note: "Ҳужжат муддатлари реестри — алоҳида манба, бу варақда йўқ.",
+    items: items("Паспортлар", "Меҳнат шартномалари", "Тиббий кўрик", "Сертификатлар", "Визалар"),
+  },
+  {
+    key: "gph",
+    title: "Фуқаролик-ҳуқуқий шартномалар",
+    note: "ГПХ шартномалари штат жадвалига кирмайди — улар штат бирлиги эмас.",
+    items: items("Амалдаги шартномалар", "Пудратчилар", "Тўловлар"),
+  },
+  {
+    key: "expat",
+    title: "Хорижий мутахассислар",
+    note: "Фуқаролик ва иш рухсатномаси устуни манбада йўқ.",
+    items: items("Жами", "Давлат бўйича"),
+  },
+  {
+    key: "oqitish",
+    title: "Ўқитиш ва малака ошириш",
+    note: "Ўқитиш дастурлари алоҳида ҳисобда — штат жадвалида қайд этилмайди.",
+    items: items("Режа", "Бажарилиши", "Тайинланган", "Ўтган", "Соат"),
+  },
+];
 
 /* -------------------------------------------------------------------------- */
 /* умумий кўрсаткичлар                                                        */
@@ -75,7 +174,10 @@ const share = (part: number, whole: number): number => (whole === 0 ? 0 : (part 
 export interface MobTotals {
   /** Рўйхатдаги лавозим сатрлари сони. */
   rows: number;
-  /** Манбадаги «Лавозим номи» устунининг йиғиндиси — сатрлар сони эмас. */
+  /**
+   * Манбадаги «Единица должности» устунининг йиғиндиси. Бу **сатрлар сони
+   * эмас**: сатр алоҳида лавозим номи бирлиги бўлса 1, акс ҳолда 0.
+   */
   nomBirligi: number;
   shtat: number;
   band: number;
@@ -85,83 +187,12 @@ export interface MobTotals {
 }
 
 /* -------------------------------------------------------------------------- */
-/* ёллаш режаси                                                               */
-/* -------------------------------------------------------------------------- */
-
-export interface MobMonthRow {
-  /** `"2026-09"`. */
-  key: string;
-  /** «Сентябрь 2026». */
-  label: string;
-  /** Ўқ белгиси: «Сен». */
-  tick: string;
-  year: number;
-  /** Шу ойда ёлланиши режалаштирилган киши. */
-  hires: number;
-  /** Шу ой охиридаги жами (ўсиб борувчи). */
-  cum: number;
-  /** Жами режадаги улуши. */
-  cumPct: number;
-  /** Устун устига сон ёзиладими — ҳар бир нуқтага эмас, фақат йирикларига. */
-  labelled: boolean;
-}
-
-export interface MobQuarterRow {
-  id: string;
-  year: number;
-  /** «2025 · I чорак». */
-  label: string;
-  /** Ўқ белгиси: «2025 I». */
-  tick: string;
-  hires: number;
-  cum: number;
-  /** Жами режадаги улуши. */
-  pct: number;
-}
-
-const ROMAN = ["I", "II", "III", "IV"];
-
-export interface MobYearPlan {
-  year: number;
-  hires: number;
-  /** Жами режадаги улуши. */
-  pct: number;
-}
-
-/* -------------------------------------------------------------------------- */
-/* реестрда йўқ кўрсаткичлар                                                  */
-/* -------------------------------------------------------------------------- */
-
-/**
- * Кадрлар дашбордида одатда кутиладиган, лекин **бу манбада умуман йўқ**
- * кўрсаткичлар. Улар экранда яширилмайди ва тахминий сон билан
- * тўлдирилмайди — очиқ «маълумот йўқ» бўлиб туради, чунки манба фақат штат
- * жадвали ва ёллаш режаси; булар бошқа ҳужжатлардан келади.
- */
-export interface MobMissing {
-  k: string;
-  /** Кўрсаткич нимани англатиши — бир қаторда. */
-  note: string;
-}
-
-export const MOB_MISSING: MobMissing[] = [
-  { k: "Меҳнатга ҳақ тўлаш фонди", note: "ойлик сумма ва унинг тузилиши" },
-  { k: "Кадрлар оқими", note: "ишга қабул ва бўшатиш ҳаракати" },
-  { k: "Кадрлар иш юритиши", note: "буйруқ ва ҳужжат айланмаси статистикаси" },
-  { k: "Муддати тугаётган ҳужжатлар", note: "амал қилиш муддати яқинлашган ҳужжатлар" },
-  { k: "Фуқаролик-ҳуқуқий шартномалар", note: "шартномалар сони ва суммаси" },
-  { k: "Хорижий мутахассислар", note: "сони ва иш рухсатномаси муддати" },
-  { k: "Ўқитиш ва малака ошириш", note: "дастурлар ва қатнашчилар сони" },
-  { k: "Иш графиклари", note: "сменалар ва иш вақти тақсимоти" },
-  { k: "Таълим, жинс ва ёш", note: "ходимларнинг демографик тақсимоти" },
-];
-
-/* -------------------------------------------------------------------------- */
 /* кесимлар                                                                   */
 /* -------------------------------------------------------------------------- */
 
 export interface MobGroup {
   key: string;
+  /** Манбадаги ёзувда — таржима ҳам, имло тузатиши ҳам йўқ. */
   name: string;
   /** Манбада катак бўш бўлган сатрлар гуруҳи. */
   unknown: boolean;
@@ -174,93 +205,26 @@ export interface MobGroup {
   shtatPct: number;
 }
 
-export type MobCutId =
-  | "kategoriya"
-  | "podrazdelenie"
-  | "strukturnoe"
-  | "guruh"
-  | "xizmatchiIshchi"
-  | "xodimToifasi"
-  | "malakaDarajasi";
-
 export interface MobCut {
-  id: MobCutId;
+  id: string;
   title: string;
-  /** Алмаштиргич остидаги қисқа изоҳ. */
-  hint: string;
   groups: MobGroup[];
   /** Манбада тўлдирилган сатрлар сони. */
   filled: number;
 }
 
-interface MobCutDef {
-  title: string;
-  hint: string;
-  of: (p: MobplanPositionRow) => string | null;
-}
-
 /**
- * Кесимларнинг таърифи — `Record`, рўйхат эмас: шунда `CUT_DEFS[id]` доим
- * мавжуд бўлади ва чақирувчида «топилмаса нима» деган ҳолат умуман пайдо
- * бўлмайди.
+ * Гуруҳлар штат бўйича камайиш тартибида; `«Кўрсатилмаган»` доим охирида.
+ * Тартиб қатъий ва ҳисобланадиган — шунинг учун гуруҳларнинг ўрни ҳам,
+ * ҳалқадаги ранги ҳам барқарор.
  */
-const CUT_DEFS: Record<MobCutId, MobCutDef> = {
-  kategoriya: {
-    title: "Ходимлар тоифаси",
-    hint: "Манбадаги тоифа: АУП, ИТР, Рабочие, Служащий.",
-    of: (p) => p.kategoriya,
-  },
-  podrazdelenie: {
-    title: "Бўлинма",
-    hint: "Йирик бўлинма кесими.",
-    of: (p) => p.podrazdelenie,
-  },
-  strukturnoe: {
-    title: "Таркибий бўлим",
-    hint: "Энг тафсилотли кесим — секция ва хизматлар даражаси.",
-    of: (p) => p.strukturnoe,
-  },
-  guruh: { title: "Гуруҳ", hint: "Ходимлар гуруҳи.", of: (p) => p.guruh },
-  xizmatchiIshchi: {
-    title: "Хизматчи / ишчи",
-    hint: "Манбадаги ёзув ўзгартирилмаган.",
-    of: (p) => p.xizmatchiIshchi,
-  },
-  xodimToifasi: {
-    title: "Ходим тоифаси",
-    hint: "Манбадаги белги; битта сатрда иккита белги бирга ёзилган бўлиши мумкин.",
-    of: (p) => p.xodimToifasi,
-  },
-  malakaDarajasi: {
-    title: "Малака даражаси",
-    hint: "1 дан 7 гача.",
-    of: (p) => p.malakaDarajasi,
-  },
-};
-
-/**
- * Ҳалқада кўрсатиладиган кесимлар — алмаштиргич «Тоифа / Гуруҳ».
- * Тартиби қатъий, шунинг учун сегмент ранглари ҳам барқарор.
- */
-export const MOB_SHARE_CUTS: MobCutId[] = ["kategoriya", "guruh"];
-
-/** Тафсилот блокидаги алмаштиргич кесимлари. */
-const MOB_SWITCH_CUTS: MobCutId[] = [
-  "podrazdelenie",
-  "strukturnoe",
-  "guruh",
-  "xizmatchiIshchi",
-  "xodimToifasi",
-  "malakaDarajasi",
-];
-
-/**
- * Гуруҳлар штат бўйича камайиш тартибида; `«Кўрсатилмаган»` эса доим охирида.
- * Тартиб қатъий ва ҳисобланадиган — фильтр ёки танлов уни ўзгартирмайди,
- * шунинг учун гуруҳларнинг ўрни ҳам, ранги ҳам бир хил бўлиб қолади.
- */
-function buildCut(rows: MobplanPositionRow[], id: MobCutId, shtatAll: number): MobCut {
-  const { title, hint, of } = CUT_DEFS[id];
+function buildCut(
+  rows: MobplanPositionRow[],
+  id: string,
+  title: string,
+  of: (p: MobplanPositionRow) => string | null,
+  shtatAll: number,
+): MobCut {
   const byName = new Map<string, MobplanPositionRow[]>();
   for (const p of rows) {
     const raw = of(p);
@@ -292,28 +256,85 @@ function buildCut(rows: MobplanPositionRow[], id: MobCutId, shtatAll: number): M
     return a.name.localeCompare(b.name, "ru");
   });
 
-  return { id, title, hint, groups, filled: rows.filter((p) => of(p) !== null).length };
+  return { id, title, groups, filled: rows.filter((p) => of(p) !== null).length };
 }
 
+/* -------------------------------------------------------------------------- */
+/* ташкилий тузилма                                                           */
+/* -------------------------------------------------------------------------- */
+
 /**
- * Малака даражаси — ягона кесим, унда **табиий тартиб** штат бўйича
- * тартибдан устун: 1 дан 7 гача шкала, «Кўрсатилмаган» эса охирида. Устун
- * диаграммада шкалани катталик бўйича қайта тизиш ўқишни бузарди.
+ * Ташкилий тузилма — манбадаги **иккита** устуннинг ҳақиқий номлари.
+ *
+ * `«Подразделение»` (A) аслида тоифа даражаси (Руководство · Специалситы ·
+ * Производственный персонал), `«Структурное подразделение»` (B) эса асосан
+ * ҳақиқий бўлинма (Управление · служба КИПиА · Секция сжигания…), лекин
+ * ичида `ИТР` ва `Рабочий персонал` каби тоифа ёзувлари ҳам бор. Бу аралашув
+ * **тузатилмайди ва бирлаштирилмайди** — манбадаги ҳолат шундай; фақат
+ * экранда очиқ айтилади.
  */
-function orderByLevel(cut: MobCut): MobCut {
-  const level = (g: MobGroup): number => {
-    if (g.unknown) return Number.POSITIVE_INFINITY;
-    const n = Number(g.name);
-    return Number.isFinite(n) ? n : Number.MAX_SAFE_INTEGER;
-  };
-  return {
-    ...cut,
-    groups: [...cut.groups].sort((a, b) => {
-      const d = level(a) - level(b);
-      return d !== 0 ? d : a.name.localeCompare(b.name, "ru");
-    }),
-  };
+export interface MobOrgRow {
+  key: string;
+  /** Қайси устундан келгани — `"A"` ёки `"B"`. */
+  level: "A" | "B";
+  name: string;
+  unknown: boolean;
+  rows: number;
+  shtat: number;
+  shtatPct: number;
 }
+
+const orgRows = (cut: MobCut, level: "A" | "B"): MobOrgRow[] =>
+  cut.groups.map((g) => ({
+    key: g.key,
+    level,
+    name: g.name,
+    unknown: g.unknown,
+    rows: g.rows,
+    shtat: g.shtat,
+    shtatPct: g.shtatPct,
+  }));
+
+/* -------------------------------------------------------------------------- */
+/* ёллаш режаси                                                               */
+/* -------------------------------------------------------------------------- */
+
+export interface MobMonthRow {
+  /** `"2026-09"`. */
+  key: string;
+  /** «Сентябрь 2026». */
+  label: string;
+  /** Ўқ белгиси: «Сен». */
+  tick: string;
+  year: number;
+  hires: number;
+  /** Шу ой охиридаги жами (ўсиб борувчи). */
+  cum: number;
+  cumPct: number;
+}
+
+export interface MobQuarterRow {
+  id: string;
+  year: number;
+  /** «2025 · I чорак». */
+  label: string;
+  /** Ўқ белгиси: «2025 I» — икки йил бўлгани учун йил ташлаб кетилмайди. */
+  tick: string;
+  hires: number;
+  cum: number;
+  /** Жами режадаги улуши. */
+  pct: number;
+}
+
+export interface MobYearPlan {
+  year: number;
+  hires: number;
+  pct: number;
+  /** Шу йилдаги чораклар — босқичлар диаграммаси йил бўйича гуруҳланиши учун. */
+  quarters: MobQuarterRow[];
+}
+
+const ROMAN = ["I", "II", "III", "IV"];
 
 /* -------------------------------------------------------------------------- */
 /* лавозимлар рўйхати                                                         */
@@ -345,6 +366,8 @@ export interface MobPositionRow {
   /** Ҳақиқий Ф.И.Ш. ёки «вакант». */
   xodim: string;
   vakant: boolean;
+  /** Битта катакда иккита исм (масалан ҳайдовчилар). */
+  multiName: boolean;
   /** «Октябрь 2026 · 2 та; Декабрь 2026 · 2 та». */
   planText: string;
 }
@@ -361,52 +384,26 @@ const planText = (plan: number[], months: string[]): string =>
     .join("; ");
 
 /* -------------------------------------------------------------------------- */
-/* энг катта вакансиялар                                                      */
+/* исмлар ҳисоби                                                              */
 /* -------------------------------------------------------------------------- */
 
 /**
- * Вакансия рўйхати — **лавозим** кесимида, чунки очиқ ўринни тўлдириш айнан
- * лавозим даражасида режалаштирилади. Сони нолга тенг лавозимлар рўйхатга
- * тушмайди: улар «маълумот йўқ» эмас, шунчаки очиқ ўрни йўқ.
+ * Исм билан боғлиқ ҳисоб. Экранда очиқ кўрсатилади: банд бирлик сони билан
+ * исм ёзилган сатр сони **тенг эмас** — битта катакда иккита исм турган
+ * сатрлар бор, битта банд бирлик эса умуман исмсиз. Исм ўйлаб топилмайди ва
+ * йиғинди тўғриланмайди.
  */
-export interface MobVacancyRow {
-  id: string;
-  lavozim: string;
-  /** Бўлинма ёки «Кўрсатилмаган» — сўниқ ёзилиши учун белги билан. */
-  bolinma: MobCell;
-  shtat: number;
-  band: number;
-  vakansiya: number;
-  /** Лавозим ичидаги вакансия улуши. */
-  pct: number;
-  /** Энг катта вакансияга нисбатан узунлик, 0–100. */
-  barPct: number;
-}
-
-/* -------------------------------------------------------------------------- */
-/* банд лавозимдаги ходимлар                                                  */
-/* -------------------------------------------------------------------------- */
-
-/**
- * Ф.И.Ш. **фақат шу рўйхатда** кўринади — плитка, ҳалқа, диаграмма ва
- * сарлавҳада ишлатилмайди.
- */
-export interface MobStaffRow {
-  id: string;
-  /** Манбадаги ёзув — қайта ёзилмаган. */
-  name: string;
-  lavozim: string;
-  /** Аватар учун бош ҳарфлар. */
-  initials: string;
-  /** Битта катакда иккита исм ёзилган сатр. */
-  multi: boolean;
-}
-
-/** Бош ҳарфлар: биринчи икки сўзнинг биринчи ҳарфи. */
-function initialsOf(fio: string): string {
-  const first = fio.split(",")[0] ?? fio;
-  const parts = first.trim().split(/\s+/).filter(Boolean);
-  return parts.slice(0, 2).map((w) => w[0]?.toUpperCase() ?? "").join("") || "?";
+export interface MobNameStats {
+  /** Ф.И.Ш. ёзилган сатрлар сони. */
+  named: number;
+  /** «вакант» деб ёзилган сатрлар сони. */
+  vakant: number;
+  /** Битта катакда иккита исм бор сатрлар сони. */
+  multi: number;
+  /** Исм ёзилган сатрлардаги банд штат бирлиги. */
+  namedBand: number;
+  /** Исмсиз қолган банд штат бирлиги. */
+  bandWithoutName: number;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -438,65 +435,40 @@ const cmpSeries = (k: string, calc: number[], sheet: number[] | null): MobCheck 
 };
 
 /* -------------------------------------------------------------------------- */
-/* тўлдирилганлик                                                             */
-/* -------------------------------------------------------------------------- */
-
-export interface MobFilled {
-  k: string;
-  filled: number;
-  total: number;
-}
-
-/* -------------------------------------------------------------------------- */
 /* view-model                                                                 */
 /* -------------------------------------------------------------------------- */
 
 export interface MobVM {
-  /** Импорт санаси — «12-август 2026» ёки «—». Файл ва варақ номи чиқарилмайди. */
+  /** Импорт санаси — «26-август 2026» ёки «—». Файл ва варақ номи чиқмайди. */
   reportDate: string;
-  /** Режа горизонти: «Янв 2025 — Дек 2026». */
+  /** Режа горизонти: «Январь 2025 — Декабрь 2026». */
   horizon: string;
   totals: MobTotals;
-  months: MobMonthRow[];
-  quarters: MobQuarterRow[];
-  /** Ёллаш режасининг йиллар кесими — плиткадаги изоҳ учун. */
+  /** Ёллаш режасининг жами йиғиндиси — штат билан таққосланади. */
+  planTotal: number;
+  /** Йиллар кесими, чораклари билан. */
   years: MobYearPlan[];
-  /** 2026 йилнинг иккинчи ярмига режалаштирилган киши. */
+  /** Энг катта ёллаш режаси бор йил — плиткадаги «йил режаси». */
+  mainYear: MobYearPlan | null;
+  /** Қолган йиллар — плитка изоҳида очиқ айтилади, тушириб қолдирилмайди. */
+  otherYears: MobYearPlan[];
+  /** Асосий йилнинг иккинчи ярмига қўйилган ёллаш. */
   lateHires: number;
   lateHiresPct: number;
-  /** Режанинг биринчи ва охирги ойи (ёллаш бор ой). */
-  firstHireMonth: string;
-  lastHireMonth: string;
-  /** Ҳалқали кесимлар — «Тоифа / Гуруҳ» алмаштиргичи учун. */
-  shareCuts: MobCut[];
-  /** Хизматчи ва ишчи нисбати — иккинчи ҳалқа. */
-  ratio: MobCut;
-  /** Малака даражаси — устун диаграмма, табиий тартибда (1…7, охирида бўшлари). */
-  qualification: MobCut;
-  /** Тоифа бўйича тўлдирилганлик — горизонтал йўлаклар. */
-  fillByCat: MobCut;
-  /** Энг йирик учта бўлинма — юқоридаги плиткалар учун. */
-  divisionTop: MobGroup[];
-  /** Таркибий бўлим кесими — горизонтал диаграмма учун. */
-  structure: MobCut;
-  /** Бўлинма кесими — ташкилий тузилма учун. */
-  division: MobCut;
-  /** Банд/вакансия кесимлари — алмаштиргич орқали. */
-  cuts: MobCut[];
-  vacancies: MobVacancyRow[];
-  staff: MobStaffRow[];
+  months: MobMonthRow[];
+  quarters: MobQuarterRow[];
+  /** Ходимлар тоифаси (манбадаги «C» устуни) — ҳалқа. */
+  kategoriya: MobCut;
+  /** Таркибий бўлим (манбадаги «B» устуни) — бўлинмалар диаграммаси. */
+  strukturnoe: MobCut;
+  /** Бўлинма (манбадаги «A» устуни) — ташкилий тузилма учун. */
+  podrazdelenie: MobCut;
+  /** A ва B нинг ҳақиқий номлари, штат бирлиги билан. */
+  org: MobOrgRow[];
   positions: MobPositionRow[];
+  names: MobNameStats;
   checks: MobCheck[];
   checksAllOk: boolean;
-  filled: MobFilled[];
-  /** Ф.И.Ш. ёзилган сатрлар сони. */
-  namedRows: number;
-  /** Ўша сатрлардаги банд штат бирлиги. */
-  namedBand: number;
-  /** Исмсиз қолган банд штат бирлиги. */
-  bandWithoutName: number;
-  /** Битта катакда иккита исм бор сатрлар сони. */
-  multiNameRows: number;
 }
 
 export function mobplanVM(res: MobplanResponse): MobVM {
@@ -517,12 +489,9 @@ export function mobplanVM(res: MobplanResponse): MobVM {
     vakansiyaPct: share(vakansiya, shtat),
   };
 
-  // --- ёллаш эгри чизиғи ---------------------------------------------------
+  // --- ёллаш режаси --------------------------------------------------------
   const hires = mons.map((_, i) => sum(rows.map((p) => p.plan[i] ?? 0)));
   const planTotal = sum(hires);
-  // Ҳар бир устунга сон ёзилмайди: фақат энг йирик ойнинг бешдан бир қисмидан
-  // ортиқлари белгиланади — қолгани тултип ва жадвалда қолади.
-  const labelFrom = hires.length > 0 ? Math.max(...hires) / 5 : 0;
 
   let running = 0;
   const months: MobMonthRow[] = mons.map((key, i) => {
@@ -535,7 +504,6 @@ export function mobplanVM(res: MobplanResponse): MobVM {
       hires: hires[i],
       cum: running,
       cumPct: share(running, planTotal),
-      labelled: hires[i] >= labelFrom && hires[i] > 0,
     };
   });
 
@@ -561,55 +529,34 @@ export function mobplanVM(res: MobplanResponse): MobVM {
   }
   for (const q of quarters) q.pct = share(q.hires, planTotal);
 
-  const lateHires = sum(
-    quarters.filter((q) => q.year === 2026 && q.id >= "2026-Q3").map((q) => q.hires),
-  );
-  const hireMonths = months.filter((m) => m.hires > 0);
-
+  // Йиллар қаттиқ ёзилмайди: манба неча йилни қамраса, шунча йил чиқади.
   const years: MobYearPlan[] = [];
-  for (const m of months) {
+  for (const q of quarters) {
     const last = years[years.length - 1];
-    if (last && last.year === m.year) last.hires += m.hires;
-    else years.push({ year: m.year, hires: m.hires, pct: 0 });
+    if (last && last.year === q.year) {
+      last.hires += q.hires;
+      last.quarters.push(q);
+    } else {
+      years.push({ year: q.year, hires: q.hires, pct: 0, quarters: [q] });
+    }
   }
   for (const y of years) y.pct = share(y.hires, planTotal);
 
+  // «Йил режаси» плиткаси учун — энг катта ёллаш бор йил. Тенг бўлса кейинги
+  // йил олинади, чунки режанинг оғирлиги доим олдинга сурилади.
+  let mainYear: MobYearPlan | null = null;
+  for (const y of years) if (mainYear === null || y.hires >= mainYear.hires) mainYear = y;
+  const otherYears = mainYear === null ? [] : years.filter((y) => y.year !== mainYear!.year);
+
+  const lateHires =
+    mainYear === null
+      ? 0
+      : sum(mainYear.quarters.filter((q) => q.id.endsWith("Q3") || q.id.endsWith("Q4")).map((q) => q.hires));
+
   // --- кесимлар ------------------------------------------------------------
-  const shareCuts = MOB_SHARE_CUTS.map((id) => buildCut(rows, id, shtat));
-  const ratio = buildCut(rows, "xizmatchiIshchi", shtat);
-  const qualification = orderByLevel(buildCut(rows, "malakaDarajasi", shtat));
-  const fillByCat = buildCut(rows, "kategoriya", shtat);
-  const structure = buildCut(rows, "strukturnoe", shtat);
-  const division = buildCut(rows, "podrazdelenie", shtat);
-  const cuts = MOB_SWITCH_CUTS.map((id) => buildCut(rows, id, shtat));
-
-  // Плиткалардаги учта бўлинма қаттиқ ёзилмайди: кесим аллақачон штат бўйича
-  // тартибланган, шунинг учун «Кўрсатилмаган»сиз биринчи учтаси олинади.
-  const divisionTop = division.groups.filter((g) => !g.unknown).slice(0, 3);
-
-  // --- энг катта вакансиялар ----------------------------------------------
-  const vacancySorted = rows.filter((p) => p.vakansiya > 0).sort((a, b) => b.vakansiya - a.vakansiya);
-  const vacancyMax = vacancySorted[0]?.vakansiya ?? 0;
-  const vacancies: MobVacancyRow[] = vacancySorted.map((p) => ({
-    id: p.id,
-    lavozim: p.lavozimRu,
-    bolinma: cell(p.podrazdelenie),
-    shtat: p.shtat,
-    band: p.band,
-    vakansiya: p.vakansiya,
-    pct: share(p.vakansiya, p.shtat),
-    barPct: share(p.vakansiya, vacancyMax),
-  }));
-
-  // --- банд лавозимдаги ходимлар -------------------------------------------
-  const named = rows.filter((p) => !p.vakant);
-  const staff: MobStaffRow[] = named.map((p) => ({
-    id: p.id,
-    name: p.fio,
-    lavozim: p.lavozimRu,
-    initials: initialsOf(p.fio),
-    multi: p.fio.includes(","),
-  }));
+  const kategoriya = buildCut(rows, "kategoriya", "Ходимлар тоифаси", (p) => p.kategoriya, shtat);
+  const strukturnoe = buildCut(rows, "strukturnoe", "Таркибий бўлим", (p) => p.strukturnoe, shtat);
+  const podrazdelenie = buildCut(rows, "podrazdelenie", "Бўлинма", (p) => p.podrazdelenie, shtat);
 
   // --- лавозимлар рўйхати --------------------------------------------------
   const positions: MobPositionRow[] = rows.map((p) => ({
@@ -630,27 +577,35 @@ export function mobplanVM(res: MobplanResponse): MobVM {
     vakansiya: exact(p.vakansiya),
     xodim: p.fio,
     vakant: p.vakant,
+    multiName: !p.vakant && p.fio.includes(","),
     planText: planText(p.plan, mons),
   }));
 
+  const named = rows.filter((p) => !p.vakant);
+  const namedBand = sum(named.map((p) => p.band));
+  const names: MobNameStats = {
+    named: named.length,
+    vakant: rows.length - named.length,
+    multi: named.filter((p) => p.fio.includes(",")).length,
+    namedBand,
+    bandWithoutName: band - namedBand,
+  };
+
   // --- манба билан таққослаш ----------------------------------------------
-  // Манбанинг ўз «жами» сатри API'дан келади (`sheetTotals` / `sheetMonthly` /
-  // `sheetCumulative`). У сатрлар йиғиндисига **қўшилмайди** — бэкенд уларни
-  // `rows` дан ажратиб беради, акс ҳолда ҳар бир сон икки марта саналарди.
   const st = res.sheetTotals;
   const checks: MobCheck[] = [
     cmpTotal("Штат бирлиги", shtat, st?.shtat),
     cmpTotal("Банд", band, st?.band),
     cmpTotal("Вакансия", vakansiya, st?.vakansiya),
-    cmpTotal("Лавозим номи бирлиги", totals.nomBirligi, st?.nomBirligi),
+    cmpTotal("Единица должности", totals.nomBirligi, st?.nomBirligi),
     {
       k: "Банд + вакансия = штат",
       ok: band + vakansiya === shtat,
       detail: `${exact(band)} + ${exact(vakansiya)} = ${exact(shtat)}`,
     },
-    cmpSeries("Ойлик ёллаш", hires, res.sheetMonthly),
+    cmpSeries("Ойлик ёллаш (Набор по месяцам)", hires, res.sheetMonthly),
     cmpSeries(
-      "Ўсиб борувчи қатор",
+      "Ўсиб борувчи қатор (По возрастанию)",
       months.map((m) => m.cum),
       res.sheetCumulative,
     ),
@@ -661,54 +616,30 @@ export function mobplanVM(res: MobplanResponse): MobVM {
     },
   ];
 
-  const nullCount = (of: (p: MobplanPositionRow) => string | null): number =>
-    rows.filter((p) => of(p) !== null).length;
-
   return {
     reportDate: res.source ? dateLabel(res.source.importedAt.slice(0, 10)) : MOB_NO_VALUE,
     horizon:
-      mons.length > 0 ? `${monthLabel(mons[0])} — ${monthLabel(mons[mons.length - 1])}` : MOB_NO_VALUE,
+      mons.length > 0
+        ? `${monthLabel(mons[0])} — ${monthLabel(mons[mons.length - 1])}`
+        : MOB_NO_VALUE,
     totals,
-    months,
-    quarters,
+    planTotal,
     years,
+    mainYear,
+    otherYears,
     lateHires,
     lateHiresPct: share(lateHires, planTotal),
-    firstHireMonth: hireMonths[0]?.label ?? MOB_NO_VALUE,
-    lastHireMonth: hireMonths[hireMonths.length - 1]?.label ?? MOB_NO_VALUE,
-    shareCuts,
-    ratio,
-    qualification,
-    fillByCat,
-    divisionTop,
-    structure,
-    division,
-    cuts,
-    vacancies,
-    staff,
+    months,
+    quarters,
+    kategoriya,
+    strukturnoe,
+    podrazdelenie,
+    org: [...orgRows(podrazdelenie, "A"), ...orgRows(strukturnoe, "B")],
     positions,
+    names,
     checks,
     // «Мос эмас» фақат ҳақиқий номослик; таққослаш ўтказилмагани (`null`)
     // натижани бузмайди.
     checksAllOk: checks.every((c) => c.ok !== false),
-    filled: [
-      { k: "Бўлинма", filled: nullCount((p) => p.podrazdelenie), total: rows.length },
-      { k: "Таркибий бўлим", filled: nullCount((p) => p.strukturnoe), total: rows.length },
-      { k: "Ходимлар тоифаси", filled: nullCount((p) => p.kategoriya), total: rows.length },
-      { k: "Гуруҳ", filled: nullCount((p) => p.guruh), total: rows.length },
-      { k: "Ўзбекча номи", filled: nullCount((p) => p.lavozimUz), total: rows.length },
-      { k: "МХСК коди", filled: nullCount((p) => p.mxskKod), total: rows.length },
-      { k: "Хизматчи / ишчи", filled: nullCount((p) => p.xizmatchiIshchi), total: rows.length },
-      { k: "Ходим тоифаси", filled: nullCount((p) => p.xodimToifasi), total: rows.length },
-      { k: "Малака даражаси", filled: nullCount((p) => p.malakaDarajasi), total: rows.length },
-      { k: "Разряд", filled: nullCount((p) => p.razryad), total: rows.length },
-    ],
-    namedRows: named.length,
-    namedBand: sum(named.map((p) => p.band)),
-    bandWithoutName: band - sum(named.map((p) => p.band)),
-    multiNameRows: named.filter((p) => p.fio.includes(",")).length,
   };
 }
-
-/** Фоиз матни — бўлимнинг ҳамма жойида бир хил кўринишда. */
-export const mobPct = (p: number): string => pctTxt(p);

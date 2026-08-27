@@ -19,7 +19,8 @@ export type TabId =
   | "ing"
   | "fin"
   | "invest"
-  | "mobplan";
+  | "mobplan"
+  | "projects";
 
 export type Status = "good" | "warn" | "crit" | "mute";
 
