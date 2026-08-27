@@ -18,7 +18,8 @@ export type TabId =
   | "ogarok"
   | "ing"
   | "fin"
-  | "invest";
+  | "invest"
+  | "mobplan";
 
 export type Status = "good" | "warn" | "crit" | "mute";
 

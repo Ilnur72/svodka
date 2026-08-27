@@ -753,3 +753,85 @@ export interface DailyResponse {
   blocks: DailyBlock[];
   problems: DailyProblemDay[];
 }
+
+/* -------------------------------------------------------------------------- */
+/* /mobplan                                                                   */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * «Кадрлар режаси» — корхонанинг штат жадвали ва 24 ойлик ёллаш режаси.
+ *
+ * Бошқа бўлимлардан фарқли ўлароқ бу endpoint **параметр олмайди**: манба —
+ * битта ҳужжатнинг жорий ҳолати, вақт қатори эмас. Серверда `ValidationPipe`
+ * `forbidNonWhitelisted` билан ишлайди, шунинг учун `from`/`to` юборилса
+ * сўров `400` билан рад этилади.
+ */
+export interface MobplanSource {
+  file: string;
+  sheet: string;
+  /** `'YYYY-MM-DDTHH:mm:ss'` — вақт минтақаси офсети **йўқ** (сервер локал вақти). */
+  importedAt: string;
+}
+
+/**
+ * Битта лавозим сатри.
+ *
+ * Тасниф майдонлари `string | null`: `null` — манбада катак бўш, яъни
+ * «кўрсатилмаган». Бэкенд уни юқоридаги сатрдан тўлдирмайди ва бўш сатрга
+ * айлантирмайди — маълумот йўқлиги шу ерда сақланади.
+ *
+ * Матн қийматлари манбадаги ёзувда келади (рус ва ўзбек тили аралаш, имло
+ * хатоси билан) — қайта ёзилмайди ва таржима қилинмайди.
+ */
+export interface MobplanPositionRow {
+  /** Барқарор ички калит (`'p01'…'p78'`). Интерфейсда кўрсатилмайди. */
+  id: string;
+  /** Манба варағидаги сатр рақами. Экранда кўрсатилмайди. */
+  rowNo: number;
+  podrazdelenie: string | null;
+  strukturnoe: string | null;
+  kategoriya: string | null;
+  guruh: string | null;
+  /** Манбада ҳамма сатрда тўлдирилган. */
+  lavozimRu: string;
+  lavozimUz: string | null;
+  mxskKod: string | null;
+  xizmatchiIshchi: string | null;
+  xodimToifasi: string | null;
+  razryad: string | null;
+  malakaDarajasi: string | null;
+  nomBirligi: number;
+  shtat: number;
+  band: number;
+  vakansiya: number;
+  /** Ҳақиқий Ф.И.Ш. ёки «вакант» — иккинчиси ҳам **аниқ маълумот**. */
+  fio: string;
+  vakant: boolean;
+  /** `months` билан бир тартибда, 24 та сон. */
+  plan: number[];
+}
+
+/**
+ * Манбанинг ўз «жами» сатри. Ҳар бир майдон алоҳида `null` бўлиши мумкин —
+ * варақда ўша катак бўш бўлса. Бу «нол» эмас: таққослаш ўтказилмайди.
+ */
+export interface MobplanSheetTotals {
+  nomBirligi: number | null;
+  shtat: number | null;
+  band: number | null;
+  vakansiya: number | null;
+}
+
+export interface MobplanResponse {
+  /** Базага ҳали импорт қилинмаган бўлса `null` — бу хато эмас, ҳолат. */
+  source: MobplanSource | null;
+  /** `'2025-01' … '2026-12'`. Импорт қилинмаган базада бўш массив. */
+  months: string[];
+  /** Манбадаги тартибда. «Жами» сатрлари бу ерга **тушмайди**. */
+  rows: MobplanPositionRow[];
+  sheetTotals: MobplanSheetTotals | null;
+  /** «Набор по месяцам» сатри — `months` билан бир тартибда. */
+  sheetMonthly: number[] | null;
+  /** «По возрастанию» сатри — ўсиб борувчи. */
+  sheetCumulative: number[] | null;
+}

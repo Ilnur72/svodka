@@ -13,6 +13,7 @@ import type {
   IngichkaDailyRow,
   IngichkaMonthlyRow,
   KpiResponse,
+  MobplanResponse,
   NarastaykaRow,
   OgarokDailyRow,
   OgarokMonthlyRow,
@@ -240,3 +241,16 @@ export const getChain = (r: Range, signal?: AbortSignal): Promise<ChainResponse>
  */
 export const getDaily = (r: Range, signal?: AbortSignal): Promise<DailyResponse> =>
   unwrap(apiGet<Envelope<DailyResponse>>("/daily", { ...r }, signal));
+
+/**
+ * «Кадрлар режаси» — штат жадвали ва 24 ойлик ёллаш режаси.
+ *
+ * **Параметрсиз**: манба — битта ҳужжатнинг жорий ҳолати, вақт қатори эмас,
+ * шунинг учун юқоридаги давр танлагичи бу сўровга таъсир қилмайди. Сервер
+ * `forbidNonWhitelisted` билан ишлайди — `from`/`to` қўшилса `400` қайтади.
+ *
+ * Базага ҳали импорт қилинмаган бўлса жавоб `200` билан, лекин бўш келади
+ * (`rows: []`, `source: null`) — бу хато эмас, «маълумот киритилмаган» ҳолати.
+ */
+export const getMobplan = (signal?: AbortSignal): Promise<MobplanResponse> =>
+  unwrap(apiGet<Envelope<MobplanResponse>>("/mobplan", {}, signal));

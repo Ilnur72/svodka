@@ -3,6 +3,7 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
+  LabelList,
   ReferenceLine,
   ResponsiveContainer,
   Tooltip,
@@ -39,7 +40,48 @@ export interface ColumnsProps {
   stacked?: boolean;
   /** Нол чизиғи — манфий қиймат бор диаграммада мажбурий. */
   zeroLine?: boolean;
+  /**
+   * Устун устидаги қиймат ёрлиғи. Ҳар бир устун учун матн ёки `null`
+   * қайтарилади — `null` бўлса ёрлиқ чизилмайди. Айнан шу тарзда ёрлиқ
+   * **танлаб** қўйилади: барча устунга ёзилса диаграмма сон билан тўлиб
+   * кетади ва устунларнинг ўзи ўқилмай қолади.
+   *
+   * Берилмаса ёрлиқ умуман чизилмайди — бу мазкур компонентнинг аввалги
+   * (ва қолган барча чақирувчилардаги) хулқи.
+   */
+  valueLabel?: (seriesIndex: number, index: number) => string | null;
   ariaLabel: string;
+}
+
+interface TopLabelProps {
+  text: (index: number) => string | null;
+  color: string;
+  viewBox?: { x?: number; y?: number; width?: number; height?: number };
+  index?: number;
+}
+
+/**
+ * Устун учининг устидаги қиймат. Нол баландликдаги устунда ҳам чизилади —
+ * Recharts ёрлиқларни тўртбурчакдан алоҳида қатламда беради, шунинг учун
+ * ҳақиқий нол экранда «0» бўлиб кўринади ва йўқолиб қолмайди.
+ */
+function TopLabel({ text, color, viewBox, index }: TopLabelProps) {
+  if (index === undefined || !viewBox) return null;
+  const v = text(index);
+  if (v === null) return null;
+  const { x = 0, y = 0, width = 0 } = viewBox;
+  return (
+    <text
+      x={x + width / 2}
+      y={y - 5}
+      textAnchor="middle"
+      fill={color}
+      fontSize={11}
+      style={{ fontFamily: "var(--mono)", fontVariantNumeric: "tabular-nums" }}
+    >
+      {v}
+    </text>
+  );
 }
 
 type Datum = { x: string; full: string } & Record<string, string | number>;
@@ -62,6 +104,7 @@ export function Columns({
   vFmt,
   stacked = false,
   zeroLine = false,
+  valueLabel,
   ariaLabel,
 }: ColumnsProps) {
   const p = usePalette();
@@ -82,7 +125,14 @@ export function Columns({
   return (
     <div role="img" aria-label={ariaLabel}>
       <ResponsiveContainer width="100%" height={height}>
-        <BarChart data={data} margin={{ top: 12, right: 12, bottom: 0, left: 0 }} barGap={2}>
+        {/* Юқоридаги бўш жой қиймат ёрлиғи бор диаграммада каттароқ: энг
+            баланд устун шкаланинг тепасига тегиб турганда ёрлиқ сиғмай
+            кесилиб қоларди. Ёрлиқсиз диаграммада эса аввалгидек. */}
+        <BarChart
+          data={data}
+          margin={{ top: valueLabel ? 22 : 12, right: 12, bottom: 0, left: 0 }}
+          barGap={2}
+        >
           <CartesianGrid stroke={p.grid} strokeWidth={1} vertical={false} />
           <XAxis
             dataKey="x"
@@ -124,7 +174,15 @@ export function Columns({
               // учун бу радиус ноль чизиғида эмас, устуннинг четида қолади.
               radius={stacked && k < series.length - 1 ? 0 : [4, 4, 0, 0]}
               isAnimationActive={false}
-            />
+            >
+              {valueLabel && (
+                <LabelList
+                  content={
+                    <TopLabel text={(i) => valueLabel(k, i)} color={p["ink-2"]} />
+                  }
+                />
+              )}
+            </Bar>
           ))}
         </BarChart>
       </ResponsiveContainer>

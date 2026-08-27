@@ -18,6 +18,7 @@ import { OgarokPanel } from "./panels/OgarokPanel";
 import { IngPanel } from "./panels/IngPanel";
 import { FinPanel } from "./panels/FinPanel";
 import { InvestPanel } from "./panels/InvestPanel";
+import { MobPlanPanel } from "./panels/MobPlanPanel";
 
 /**
  * Даврлар рўйхати `/filters` дан келади. Агар ушбu endpoint серверда
@@ -89,6 +90,12 @@ function DashboardBody({ range }: { range: { min: string; max: string } }) {
       // ягона давр (январь–июнь) йилсиз, шунинг учун `props` олмайди.
       case "invest":
         return <InvestPanel />;
+      // «Кадрлар режаси» маълумотни `/mobplan` дан олади, лекин сўров
+      // параметрсиз: манба — битта ҳужжатнинг жорий ҳолати, вақт қатори эмас.
+      // Панел `props` ни бошқалар билан бир хилда олади, давр эса унга
+      // таъсир қилмайди — буни панелнинг ўзи изоҳлайди.
+      case "mobplan":
+        return <MobPlanPanel {...props} />;
       case "obzor":
       default:
         return <ObzorPanel {...props} />;
@@ -205,12 +212,13 @@ function DashboardBody({ range }: { range: { min: string; max: string } }) {
         келади. Битта умумий изоҳ у ерда нотўғри бўларди. Қолган табларнинг
         ҳаммаси айнан ўша ойлик манбадан, шунинг учун улар учун изоҳ ўринли.
 
-        «Молиявий кўрсаткичлар» ва «Инвестиция лойиҳалари» ҳам чиқарилган:
-        улар бутунлай бошқа манбалар — молиявий ҳисобот жадвали ва лойиҳалар
-        реестри, «Production Report» API'дан келмайди. Ҳар бирининг изоҳи
-        ўз бўлими ичида, сарлавҳаси остида туради.
+        «Молиявий кўрсаткичлар», «Инвестиция лойиҳалари» ва «Кадрлар режаси»
+        ҳам чиқарилган: улар бутунлай бошқа манбалар — молиявий ҳисобот жадвали,
+        лойиҳалар реестри ва корхонанинг штат режаси, «Production Report»
+        API'дан келмайди. Ҳар бирининг изоҳи ўз бўлими ичида, сарлавҳаси
+        остида туради.
       */}
-      {tab !== "obzor" && tab !== "fin" && tab !== "invest" && (
+      {tab !== "obzor" && tab !== "fin" && tab !== "invest" && tab !== "mobplan" && (
       <footer className="max-w-[120ch] px-5 pb-10 text-[11.5px] leading-[1.6] text-ink-3">
         <p>
           <b className="font-semibold text-ink-2">Манба:</b> «Production Report» API — ойлик
