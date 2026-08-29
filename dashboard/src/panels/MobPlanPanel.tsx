@@ -690,21 +690,6 @@ function MobPlanView({ vm }: { vm: MobVM }) {
           />
         </Card>
       </Section>
-
-      {/* --- 7. футер ------------------------------------------------------- */}
-      <p className="max-w-[112ch] text-[11.5px] leading-[1.6] text-ink-3">
-        <b className="font-semibold text-ink-2">Манба:</b> корхонанинг кадрлар ҳужжати — штат
-        жадвали ва ишга қабул режаси. У ишлаб чиқариш сводкаларидан келмайди, шунинг учун бўлим
-        бошқа бўлимлардаги ойлик рақамларга боғлиқ эмас; ҳисобот ҳолати —{" "}
-        <b className="font-semibold text-ink-2">{vm.reportDate}</b>.{" "}
-        <b className="font-semibold text-ink-2">Штат баланси:</b> {mobExact(t.band)} банд +{" "}
-        {mobExact(t.vakansiya)} вакансия = {mobExact(t.shtat)} штат бирлиги, ёллаш режасининг жами
-        йиғиндиси ҳам {mobExact(vm.planTotal)}. Банд бирликлар {mobExact(t.band)} та, лекин
-        Ф.И.Ш. ёзилган сатр {mobExact(vm.names.named)} та — улардан {mobExact(vm.names.multi)}{" "}
-        тасида битта катакда иккита исм турибди, шундан {mobExact(vm.names.namedBand)} та чиқади,
-        яъни яна {mobExact(vm.names.bandWithoutName)} та банд бирлик исмсиз қолган. Бу манбадаги
-        ҳолат: исм ўйлаб топилмади ва йиғинди тўғриланмади.
-      </p>
     </>
   );
 }

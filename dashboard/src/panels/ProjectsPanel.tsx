@@ -114,13 +114,6 @@ export function ProjectsPanel() {
         </div>
 
         <ProjectPassport vm={passport} />
-
-        <p className="mt-4 max-w-[110ch] text-[11.5px] leading-[1.6] text-ink-3">
-          <b className="font-semibold text-ink-2">Манба:</b> «{passport.sourceLabel}» ҳужжати.
-          Барча матн, сана ва сон ҳужжатдан ўзгартирилмасдан олинган. Ҳужжатда
-          кўрсатилмаган кўрсаткичлар (тайёрлик даражаси, лойиҳа ҳолати, муддат ҳисоби)
-          бу ерда ҳисобланмайди ва кўрсатилмайди.
-        </p>
       </>
     );
   }
@@ -198,14 +191,6 @@ export function ProjectsPanel() {
           </div>
         )}
       </Section>
-
-      <p className="max-w-[110ch] text-[11.5px] leading-[1.6] text-ink-3">
-        <b className="font-semibold text-ink-2">Манба:</b>{" "}
-        {sources.map((s) => `«${s.label}»`).join(", ")} ҳужжатлари. Маълумот «Production
-        Report» API'дан келмайди — у ҳужжатлардан кўчирилган статик манба. Лойиҳаларнинг
-        умумий қиймати бу ерда жамланмайди: ҳужжатда суммалар турли шакл ва кесимда
-        ёзилган, уларни қўшиш тахмин бўларди.
-      </p>
     </>
   );
 }

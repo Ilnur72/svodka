@@ -4,7 +4,6 @@ import { getFilters } from "./api/endpoints";
 import { useQuery } from "./lib/useQuery";
 import { monthsInRange, monthsOf, usePeriodState } from "./lib/period";
 import { periodLabel } from "./lib/format";
-import { unverifiedAreasText } from "./lib/dataQuality";
 import { TABS, useHashTab } from "./lib/useHashTab";
 import { PeriodPicker } from "./components/PeriodPicker";
 import { ErrorState, Skeleton } from "./components/states";
@@ -211,45 +210,6 @@ function DashboardBody({ range }: { range: { min: string; max: string } }) {
         </div>
       </main>
 
-      {/*
-        Манба изоҳи «Умумий кўрсаткичлар» табида кўрсатилмайди: у табда тўртта
-        сегмент бор ва уларнинг манбаи ҳар хил — паспорт, баланс ва занжир ойлик
-        «Сводки» файлларидан, «Кунлик сводка» эса бутунлай бошқа (кунлик) файлдан
-        келади. Битта умумий изоҳ у ерда нотўғри бўларди. Қолган табларнинг
-        ҳаммаси айнан ўша ойлик манбадан, шунинг учун улар учун изоҳ ўринли.
-
-        «Молиявий кўрсаткичлар», «Инвестиция лойиҳалари», «Кадрлар режаси» ва
-        «Лойиҳалар паспорти» ҳам чиқарилган: улар бутунлай бошқа манбалар —
-        молиявий ҳисобот жадвали, лойиҳалар реестри, корхонанинг штат режаси ва
-        «Топ лойиҳалар» ҳужжатлари, «Production Report» API'дан келмайди. Ҳар
-        бирининг изоҳи ўз бўлими ичида, сарлавҳаси остида туради.
-      */}
-      {tab !== "obzor" &&
-        tab !== "fin" &&
-        tab !== "invest" &&
-        tab !== "mobplan" &&
-        tab !== "projects" && (
-      <footer className="max-w-[120ch] px-5 pb-10 text-[11.5px] leading-[1.6] text-ink-3">
-        <p>
-          <b className="font-semibold text-ink-2">Манба:</b> «Production Report» API — ойлик
-          «Сводки MM-YYYY.xlsx» файлларидан импорт қилинган маълумотлар (Нарастайка,
-          Электроэнергия, Водород, цистерны, Огарок, Ингички, СГП). Классификация
-          «Справочники.xlsx» маълумотномалари асосида (цех/объект, жараён, металл).
-        </p>
-        <p>
-          Электр энергия йиғиндисидан «ЭНЦ общ.» такрорий сатри чиқарилган.
-          {unverifiedAreasText() && (
-            <>
-              {" "}
-              {unverifiedAreasText()} бўлимларида манба қийматлари текширилмагани учун сон
-              қийматлар вақтинча яширилган.
-            </>
-          )}{" "}
-          Заводга боғланмаган позициялар алоҳида гуруҳда кўрсатилади ва бирлик кесимидаги
-          йиғиндиларга қўшилмайди.
-        </p>
-      </footer>
-      )}
     </>
   );
 }
