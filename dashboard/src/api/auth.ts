@@ -1,186 +1,49 @@
-import { useSyncExternalStore } from "react";
-
 /**
- * Дашборд ўз логин экранига эга эмас: у хост илованинг саҳифасида `iframe`
- * ичида очилади ва токенни ўша хостдан олади.
+ * Кириш токени — ЯГОНА манба: `.env` (`VITE_API_TOKEN`).
  *
- * Манбалар кетма-кетлиги (биринчи топилгани ишлатилади):
+ * Илгари дашборд токенни хост иловадан оларди — iframe манзилидаги
+ * `?token=…`, ундан кейин `sessionStorage`/`localStorage`, ота-ойна
+ * орқали. Бу схема ҳозир КЕРАК ЭМАС: фойдаланувчи талабига кўра
+ * соддалаштирилди. Ҳамма ҳолат — localStorage ҳам — эсдан чиқарилди,
+ * токен бир марта `.env` (ёки `.env.local`, у устун туради) га ёзилади
+ * ва шундан ўқилади.
  *
- *   1. `?token=…` ёки `#token=…` — хост iframe манзилига қўшган бўлса.
- *      Ўқилгач манзилдан дарҳол тозаланади ва `sessionStorage` га кўчирилади,
- *      токен браузер тарихида ва «ссылкани нусхалаш» да қолиб кетмаслиги учун.
- *   2. `localStorage["tmk-token-bgs"]` — дашборд хост билан **бир origin** да
- *      бўлса, хост ёзган калит тўғридан-тўғри ўқилади.
- *   3. Ота-ойна (`window.parent`, `window.top`) нинг `localStorage` и — фақат
- *      same-origin'да ўқилади; cross-origin'да браузер тўсади, хато ютилади
- *      ва навбат кейинги манбага ўтади.
- *
- * Хост қийматни `Bearer eyJ…` кўринишида сақлаши мумкин — префикс олиб
- * ташланади, чунки `Authorization` сарлавҳасини `api/client.ts` ўзи ясайди.
+ * ⚠️ Vite барча `VITE_*` ўзгарувчиларини build вақтида bundle ичига
+ * ёзиб қўяди — `npm run dev` да ҳам, `npm run build` да ҳам. Демак бу
+ * токен деплой қилинган ҳар қандай `dist/` нусхасида очиқ матн бўлиб
+ * ётади: browser devtools орқали ёки tarmoq so'rovларини kuzatib ким
+ * ҳам бўлса топа олади. Бу қабул қилинган ҳолат — токен муддати тугаса
+ * ёки роли етарли бўлмай қолса, `.env` даги қийматни алмаштириб қайта
+ * build қилинг.
  */
-const KEY = "tmk-token-bgs";
-
-const listeners = new Set<() => void>();
-
-/**
- * Ўқилган токен кэшланади: `useSyncExternalStore` `getSnapshot` ни тез-тез
- * чақиради, у эса ҳар сафар бир хил стринг қайтариши шарт — акс ҳолда React
- * чексиз қайта рендер қилади.
- */
-let cached: string | null | undefined;
-
-function emit(): void {
-  cached = undefined;
-  listeners.forEach((l) => l());
-}
-
-/** Бегона калитлар (хостнинг бошқа ҳолати) бекорга қайта рендер қилмасин. */
-function onStorage(e: StorageEvent): void {
-  if (e.key === null || e.key === KEY) emit();
-}
-
-function subscribe(listener: () => void): () => void {
-  listeners.add(listener);
-  // Хост (бир origin'даги ота-ойна ёки бошқа таб) токенни янгиласа, `storage`
-  // ҳодисаси шу ойнага ҳам келади — кэшни бекор қилиб қайта ўқиймиз.
-  window.addEventListener("storage", onStorage);
-  return () => {
-    listeners.delete(listener);
-    if (listeners.size === 0) window.removeEventListener("storage", onStorage);
-  };
-}
-
-/** `Bearer …` префикси ва ортиқча бўшлиқлар олиб ташланади. */
-function normalize(raw: string | null | undefined): string | null {
+function readToken(): string | null {
+  const raw = import.meta.env.VITE_API_TOKEN;
   if (typeof raw !== "string") return null;
   const t = raw.trim().replace(/^Bearer\s+/i, "").trim();
   return t.length > 0 ? t : null;
 }
 
-/**
- * Хранилище thunk орқали олинади: cross-origin ота-ойнада ва cookie ўчирилган
- * браузерда `localStorage` нинг **ўзига мурожаат** `SecurityError` беради,
- * шунинг учун ўқиш ҳам, олиш ҳам битта `try` ичида туриши керак.
- */
-function read(store: () => Storage | undefined, key: string): string | null {
-  try {
-    return store()?.getItem(key) ?? null;
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Манзилдаги токенни `sessionStorage` га кўчиради ва манзилдан тозалайди.
- * Модул юкланганда **бир марта** ишлайди: буни рендер вақтида қилиб бўлмайди,
- * чунки `history.replaceState` — ён таъсир.
- *
- * Query ва hash иккови ҳам қаралади: хост қайси бирини ишлатишини билмаймиз,
- * дашборд эса hash'ни бўлимлар учун ишлатади (`#prod`) — шунинг учун
- * `#prod&token=…` шакли ҳам тўғри ажратилади ва `#prod` жойида қолади.
- */
-function bootstrapFromUrl(): void {
-  let url: URL;
-  try {
-    url = new URL(window.location.href);
-  } catch {
-    return;
-  }
-
-  const fromQuery = url.searchParams.get("token");
-  if (fromQuery) url.searchParams.delete("token");
-
-  let fromHash: string | null = null;
-  const hash = url.hash.replace(/^#/, "");
-  if (hash.includes("token=")) {
-    const params = new URLSearchParams(hash);
-    fromHash = params.get("token");
-    if (fromHash) {
-      params.delete("token");
-      // Бўлим номи (`#prod`) қиймати йўқ калит бўлиб қолади — `=` тозаланади.
-      const rest = params.toString().replace(/=(?=&|$)/g, "");
-      url.hash = rest ? `#${rest}` : "";
-    }
-  }
-
-  const token = normalize(fromQuery ?? fromHash);
-  if (!token) return;
-
-  try {
-    sessionStorage.setItem(KEY, token);
-  } catch {
-    /* приват режимда ёзиб бўлмаса ҳам қуйидаги манбалар қолади */
-  }
-  try {
-    window.history.replaceState(null, "", url.toString());
-  } catch {
-    /* манзилни ўзгартириб бўлмаса, токен фақат манзил сатрида кўринади */
-  }
-}
-
-bootstrapFromUrl();
-
-function readToken(): string | null {
-  return (
-    normalize(read(() => sessionStorage, KEY)) ??
-    normalize(read(() => localStorage, KEY)) ??
-    normalize(read(() => storageOf(window.parent), KEY)) ??
-    normalize(read(() => storageOf(window.top), KEY)) ??
-    devToken()
-  );
-}
-
-/**
- * Локал ишлаб чиқиш учун захира: `.env.local` даги `VITE_DEV_TOKEN`.
- *
- * Энг охирида турибди — хостдан ёки манзил сатридан келган ҳақиқий токен
- * ҳар доим ундан устун. Шунинг учун бу қиймат хост орқали очилганда
- * ҳеч нарсани ўзгартирмайди.
- *
- * ⚠️ ВАҚТИНЧАЛИК (2026-09-03): `import.meta.env.DEV` қоровули олиб
- * ташланди — токен энди `vite build` натижасида ҳам bundle'га тушади,
- * фойдаланувчидан сўралгани бўйича («vite buildда ишлаш керак
- * вақтинчалик»). Бу ХАВФЛИ ҲОЛАТ: `VITE_DEV_TOKEN` (editor роли,
- * 2026-09-09 гача яроқли) энди ҳар қандай `dashboard/dist/` нусхасида
- * очиқ матн сифатида ётади — уни brauzerda ko'rgan yoki tarmoq
- * so'rovlarini kuzatgan har kim topadi.
- *
- * ЭСЛАТМА — ишлатишдан олдин:
- *   · Бу build реал серверга (tmk.bgs.uz) ЖЎНАТИЛМАСИН. Фақат локал
- *     синов учун (`npm run build && npm run preview` ёки шунга ўхшаш).
- *   · Иш тугагач — `if (!import.meta.env.DEV) return null;` қаторини
- *     қайтариб, шу изоҳни аввалги ҳолатига олиб қўйинг.
- */
-function devToken(): string | null {
-  return normalize(import.meta.env.VITE_DEV_TOKEN);
-}
-
-/** Ўзи (iframe'да эмас) бўлса такрор ўқилмайди. */
-function storageOf(w: Window | null): Storage | undefined {
-  return !w || w === window ? undefined : w.localStorage;
-}
+/** Модул юкланганда бир марта ўқилади — қиймат сессия давомида ўзгармайди. */
+const TOKEN = readToken();
 
 /** Жорий токен (топилмаса `null`). */
 export function getToken(): string | null {
-  if (cached === undefined) cached = readToken();
-  return cached;
+  return TOKEN;
 }
 
 /**
- * `401` дан кейин чақирилади: кэш ва сеанс нусхаси ташланади, шунда токен
- * хостдан қайтадан ўқилади. Хостнинг `localStorage` ига тегилмайди — у калит
- * бизники эмас ва уни ўчириш хост иловасини ҳам тизимдан чиқариб юборарди.
+ * `401` дан кейин чақирилади. Илгари бу ерда хост хранилищеси
+ * тозаланарди — энди токен манбаси `.env` бўлгани учун ишлатиш вақтида
+ * ўзгартиришнинг иложи йўқ, шунинг учун ҳеч нарса қилинмайди. `401`
+ * келиши мумкин бўлган сабаблар: токен муддати тугаган ёки backend'даги
+ * рол талаби ўзгарган — иккаласи ҳам `.env` ни янгилаб қайта build
+ * қилишни талаб қилади.
  */
 export function invalidateToken(): void {
-  try {
-    sessionStorage.removeItem(KEY);
-  } catch {
-    /* игнор */
-  }
-  emit();
+  /* қасддан бўш — қаранг: изоҳ юқорида */
 }
 
-/** Токен ўзгарса интерфейс ўзи янгиланади — алоҳида редирект керак эмас. */
+/** `App.tsx` шу орқали токен борми-йўқлигини бир марта текширади. */
 export function useAuthToken(): string | null {
-  return useSyncExternalStore(subscribe, getToken, () => null);
+  return TOKEN;
 }
