@@ -40,6 +40,29 @@ function num(raw: string | null | undefined): number | null {
   return Number.isFinite(v) ? v : null;
 }
 
+/**
+ * Манба матосидаги ўнлик хоналар сони.
+ *
+ * Postgres `numeric` аниқ, лекин JS'да у сузувчи нуқтага айланади ва
+ * **қўшилганда** хатолик тўпланади: `112 679,04` ўрнига
+ * `112 679,04000000001` чиқади. Бу ўйлаб топилган аниқлик эмас, ҳисоблаш
+ * шовқини — экранда унга ўрин йўқ.
+ *
+ * Шунинг учун йиғиндилар манбанинг ўз аниқлигига қайтарилади: манбада нечта
+ * ўнлик хона бўлса, шунча. Аниқлик **қўшилмайди** ва **йўқотилмайди**.
+ */
+function decimalsOf(raw: string | null | undefined): number {
+  if (raw === null || raw === undefined) return 0;
+  const dot = String(raw).trim().indexOf(".");
+  return dot < 0 ? 0 : String(raw).trim().length - dot - 1;
+}
+
+/** Йиғиш шовқинини кесиб, қийматни `d` ўнлик хонага қайтариш. */
+function round(v: number, d: number): number {
+  const k = 10 ** d;
+  return Math.round(v * k) / k;
+}
+
 export interface GasDayPoint {
   /** `'YYYY-MM-DD'`. */
   key: string;
@@ -82,6 +105,15 @@ export function gasVM(rows: GasDayLogRow[], multiMonth: boolean): GasVM {
   const daysSeen = new Map<string, Set<string>>();
   let skipped = 0;
 
+  // Манбадаги энг узун ўнлик — барча йиғиндилар шунга қайтарилади.
+  // Ҳисоблагич жуда узун каср бермайди, лекин чегара барибир қўйилади.
+  let dec = 0;
+  for (const r of rows) {
+    const d = decimalsOf(r.tubehrdayCorrvolume);
+    if (d > dec) dec = d;
+  }
+  dec = Math.min(dec, 6);
+
   for (const r of rows) {
     const value = num(r.tubehrdayCorrvolume);
     const day = r.tubehrdayDatehrday;
@@ -111,7 +143,7 @@ export function gasVM(rows: GasDayLogRow[], multiMonth: boolean): GasVM {
       key,
       label: dateTick(key, multiMonth),
       full: dateLabel(key),
-      value,
+      value: round(value, dec),
     }));
 
   let max = 0;
@@ -124,15 +156,18 @@ export function gasVM(rows: GasDayLogRow[], multiMonth: boolean): GasVM {
   }
 
   const objects = [...byObject.values()]
-    .map((o) => ({ ...o, days: daysSeen.get(o.key)?.size ?? 0 }))
+    .map((o) => ({ ...o, total: round(o.total, dec), days: daysSeen.get(o.key)?.size ?? 0 }))
     // Номсиз нуқталар шкаланинг охирида турсин — нейтрал ранг шу ерда мантиқли.
     .sort((a, b) => Number(a.unnamed) - Number(b.unnamed) || b.total - a.total);
 
   return {
     points,
     objects,
-    total: points.reduce((a, p) => a + p.value, 0),
-    max,
+    total: round(
+      points.reduce((a, p) => a + p.value, 0),
+      dec,
+    ),
+    max: round(max, dec),
     maxKey,
     skipped,
   };
