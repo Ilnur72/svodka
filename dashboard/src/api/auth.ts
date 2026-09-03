@@ -134,15 +134,24 @@ function readToken(): string | null {
  * Локал ишлаб чиқиш учун захира: `.env.local` даги `VITE_DEV_TOKEN`.
  *
  * Энг охирида турибди — хостдан ёки манзил сатридан келган ҳақиқий токен
- * ҳар доим ундан устун. Шунинг учун бу қиймат prod хулқини ўзгартирмайди.
+ * ҳар доим ундан устун. Шунинг учун бу қиймат хост орқали очилганда
+ * ҳеч нарсани ўзгартирмайди.
  *
- * `import.meta.env.DEV` prod build'да Vite томонидан `false` га алмаштирилади,
- * шунинг учун бу шох **бутунлай олиб ташланади** ва `VITE_DEV_TOKEN` бирор
- * марта ҳам bundle ичига тушмайди. `.env.example` даги «махфий қиймат
- * ёзилмайди» қоидаси шу тарзда бузилмайди.
+ * ⚠️ ВАҚТИНЧАЛИК (2026-09-03): `import.meta.env.DEV` қоровули олиб
+ * ташланди — токен энди `vite build` натижасида ҳам bundle'га тушади,
+ * фойдаланувчидан сўралгани бўйича («vite buildда ишлаш керак
+ * вақтинчалик»). Бу ХАВФЛИ ҲОЛАТ: `VITE_DEV_TOKEN` (editor роли,
+ * 2026-09-09 гача яроқли) энди ҳар қандай `dashboard/dist/` нусхасида
+ * очиқ матн сифатида ётади — уни brauzerda ko'rgan yoki tarmoq
+ * so'rovlarini kuzatgan har kim topadi.
+ *
+ * ЭСЛАТМА — ишлатишдан олдин:
+ *   · Бу build реал серверга (tmk.bgs.uz) ЖЎНАТИЛМАСИН. Фақат локал
+ *     синов учун (`npm run build && npm run preview` ёки шунга ўхшаш).
+ *   · Иш тугагач — `if (!import.meta.env.DEV) return null;` қаторини
+ *     қайтариб, шу изоҳни аввалги ҳолатига олиб қўйинг.
  */
 function devToken(): string | null {
-  if (!import.meta.env.DEV) return null;
   return normalize(import.meta.env.VITE_DEV_TOKEN);
 }
 
