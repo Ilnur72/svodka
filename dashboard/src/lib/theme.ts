@@ -10,6 +10,8 @@ const TOKENS = [
   "s1",
   "s2",
   "s3",
+  "s4",
+  "s5",
   "ink",
   "ink-2",
   "ink-3",
@@ -34,6 +36,10 @@ const FALLBACK: Palette = {
   s1: "#2a78d6",
   s2: "#eb6834",
   s3: "#1baf7a",
+  // Yorug' mavzuda hujjatlashtirilgan qiymat yo'q — --s1 dan oq tomon
+  // hosil qilingan (index.css dagi color-mix() bilan bir xil nisbat).
+  s4: "#7faee6",
+  s5: "#b4d0f1",
   ink: "#0d1215",
   "ink-2": "#4a5560",
   "ink-3": "#7d8892",

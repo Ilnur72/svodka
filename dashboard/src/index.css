@@ -26,6 +26,12 @@
   --s1: #2a78d6;
   --s2: #eb6834;
   --s3: #1baf7a;
+  /* s4/s5 — "Dashboard ranglar dokumentatsiyasi" faqat qorong'i mavzu uchun
+     berilgan (ACCENT 4/5). Yorug' mavzuda mos qiymat yo'q, shuning uchun
+     o'ylab topilmaydi — mavjud --s1 dan color-mix() bilan hosil qilinadi,
+     xuddi ShareDonut.tsx dagi shade() naqshi kabi. */
+  --s4: color-mix(in oklab, var(--s1) 60%, white);
+  --s5: color-mix(in oklab, var(--s1) 35%, white);
   --good: #0ca30c;
   --warn: #fab219;
   --serious: #ec835a;
@@ -38,22 +44,43 @@
   --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
 }
 
+/* ---------------------------------------------------------------------------
+   Qorong'i mavzu qiymatlari — "Dashboard ranglar dokumentatsiyasi. Situatsion
+   markaz standart ranglari" (v1.0, 2026-09-03) dan olingan, hex'ma-hex:
+
+     BG-900 -> --page · BG-800 (Panel) -> --surface · BG-700 (Hover) -> --surface-2
+     BORDER -> --hair · Grid Line -> --grid · Axis Line -> --rule
+     TEXT Primary/Secondary/Disabled -> --ink/--ink-2/--ink-3
+     DANGER/WARNING/SUCCESS -> --crit/--warn/--good
+     ACCENT 1-5 -> --s1..--s5
+
+   --sunken uchun hujjatda alohida qiymat yo'q (u faqat uchta fon darajasini
+   beradi) — eng "botiq" joy sifatida BG-900 bilan bir xil qoldirildi.
+   --serious ва --good-ink/--warn-ink/--crit-ink hujjatda yo'q va kodda
+   ishlatilgan joyi mavjud kontrastni saqlab qoladi (BG-900'ga nisbatan
+   tekshirildi: 5.4:1 dan yuqori, o'zgartirish shart emas) — tegilmadi.
+--------------------------------------------------------------------------- */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
-    --page: #0a0d10;
-    --surface: #161b20;
-    --surface-2: #1c2229;
-    --sunken: #11161b;
-    --ink: #ffffff;
-    --ink-2: #b9c2cb;
-    --ink-3: #7d8892;
-    --grid: #242b32;
-    --rule: #333c44;
-    --hair: rgba(255, 255, 255, 0.1);
-    --s1: #3987e5;
-    --s2: #d95926;
-    --s3: #199e70;
+    --page: #0b1118;
+    --surface: #111a24;
+    --surface-2: #162433;
+    --sunken: #0b1118;
+    --ink: #e6edf3;
+    --ink-2: #9aa7b3;
+    --ink-3: #64748b;
+    --grid: #1f2a37;
+    --rule: #2a3646;
+    --hair: #22303d;
+    --s1: #3b82f6;
+    --s2: #60a5fa;
+    --s3: #93c5fd;
+    --s4: #bfdbfe;
+    --s5: #dbeafe;
+    --good: #22c55e;
+    --warn: #f5c542;
+    --crit: #e5484d;
     --good-ink: #33b833;
     --warn-ink: #d9a41c;
     --crit-ink: #e06060;
@@ -63,19 +90,24 @@
 
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --page: #0a0d10;
-  --surface: #161b20;
-  --surface-2: #1c2229;
-  --sunken: #11161b;
-  --ink: #ffffff;
-  --ink-2: #b9c2cb;
-  --ink-3: #7d8892;
-  --grid: #242b32;
-  --rule: #333c44;
-  --hair: rgba(255, 255, 255, 0.1);
-  --s1: #3987e5;
-  --s2: #d95926;
-  --s3: #199e70;
+  --page: #0b1118;
+  --surface: #111a24;
+  --surface-2: #162433;
+  --sunken: #0b1118;
+  --ink: #e6edf3;
+  --ink-2: #9aa7b3;
+  --ink-3: #64748b;
+  --grid: #1f2a37;
+  --rule: #2a3646;
+  --hair: #22303d;
+  --s1: #3b82f6;
+  --s2: #60a5fa;
+  --s3: #93c5fd;
+  --s4: #bfdbfe;
+  --s5: #dbeafe;
+  --good: #22c55e;
+  --warn: #f5c542;
+  --crit: #e5484d;
   --good-ink: #33b833;
   --warn-ink: #d9a41c;
   --crit-ink: #e06060;
@@ -98,6 +130,8 @@
   --color-s1: var(--s1);
   --color-s2: var(--s2);
   --color-s3: var(--s3);
+  --color-s4: var(--s4);
+  --color-s5: var(--s5);
   --color-good: var(--good);
   --color-warn: var(--warn);
   --color-serious: var(--serious);
