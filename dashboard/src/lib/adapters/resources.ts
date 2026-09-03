@@ -260,6 +260,18 @@ export interface CisternVM {
   totalDeliveries: number;
 }
 
+/**
+ * Йиғиш пайтида тўпланадиган сузувчи нуқта шовқинини кесиш.
+ *
+ * Backend ҳар қаторни аллақачон 3 хонагача яхлитлаб беради
+ * (`production-report.service.ts` → `ROUND(SUM(l.value)::numeric, 3)`),
+ * лекин фронтендда бир нечта қатор (масалан бир хил модда, турли реагент)
+ * ЙИҒИЛГАНДА JS сузувчи нуқтаси хатолик қўшади: экранда
+ * `1 349,1080000000002` каби кўринади. Йиғинди шу аниқликка қайтарилади —
+ * ортиқча хона ҚЎШИЛМАЙДИ, фақат ҳисоблаш шовқини олиб ташланади.
+ */
+const round3 = (v: number): number => Math.round(v * 1000) / 1000;
+
 export function cisternVM(
   rows: CisternRow[],
   txRows: CisternTxRow[],
@@ -293,14 +305,16 @@ export function cisternVM(
   }
 
   return {
-    positions: [...byPosition.values()].sort((a, b) => b.value - a.value),
+    positions: [...byPosition.values()]
+      .map((p) => ({ ...p, value: round3(p.value) }))
+      .sort((a, b) => b.value - a.value),
     months: [...byMonth.entries()]
       .sort((a, b) => (a[0] < b[0] ? -1 : 1))
       .map(([month, byKey]) => ({
         month,
         label: monthTick(month),
         full: monthLabel(month),
-        byKey,
+        byKey: Object.fromEntries(Object.entries(byKey).map(([k, v]) => [k, round3(v)])),
       })),
     tx: txRows.map((r, i) => ({
       key: `${r.day}#${r.time ?? ""}#${r.material ?? ""}#${i}`,
