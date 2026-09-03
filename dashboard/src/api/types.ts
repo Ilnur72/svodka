@@ -918,3 +918,102 @@ export interface GasStats {
   last_day_log: string | null;
   last_hour_log: string | null;
 }
+
+/* -------------------------------------------------------------------------- */
+/* fusion-solar — алоҳида модул, `production-report` нинг ёнида               */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Қуёш станциялари модулининг конверти.
+ *
+ * Газ модули билан **бир хил тузоқ**: контроллер хатони ўзи ушлаб, HTTP `200`
+ * билан `{ success: false, error }` қайтаради — ҳар бир ҳандлерда `catch`
+ * (`backend/src/integrations/fusion-solar/fusion-solar.controller.ts`). Демак
+ * `res.ok` муваффақиятсизликни ушлай олмайди ва `success` алоҳида текширилади.
+ *
+ * Иккинчи тузоқ фақат шу модулда бор: **`success: true` бўлса ҳам `data: null`
+ * келиши мумкин** — сервис `catch` ичида `null` қайтаради, контроллер эса уни
+ * муваффақият деб ўрайди. Шунинг учун `data` да `null` ҳам кутилади ва
+ * `unwrapSolar` уни рад этади.
+ *
+ * `GasEnvelope` билан бирлаштирилмади: иккови икки хил бэкенд модулининг
+ * контракти, бир-биридан мустақил ўзгаради ва ҳар бири ўз модулига қараб
+ * ҳужжатланган.
+ */
+export interface SolarEnvelope<T> {
+  success: boolean;
+  data?: T | null;
+  count?: number;
+  error?: string;
+}
+
+/**
+ * Қуёш станцияси (`GET fusion-solar/stations` — базадан ўқийди).
+ *
+ * ⚠️ **`decimal` устунлар мато бўлиб келади** (`capacity`, `latitude`,
+ * `longitude`): Postgres `numeric` ни TypeORM `string` сифатида қайтаради.
+ * Адаптерда аниқ текширув билан сонга айлантирилади — `Number(null)` → `0`
+ * «ўлчов йўқ» ни сохта нолга айлантириб қўярди.
+ *
+ * `stationCode` — ташқи тизимнинг техник калити (`"NE=12345678"` кўринишида).
+ * **Экранга чиқарилмайди**, фақат ички калит ва KPI билан улаш учун.
+ */
+export interface SolarStationRow {
+  id: string;
+  stationCode: string;
+  stationName: string | null;
+  address: string | null;
+  /** Ўрнатилган қувват, МВт. `decimal` → мато. */
+  capacity: string | null;
+  contactPerson: string | null;
+  contactMethod: string | null;
+  /** Тармоққа уланган сана — эркин мато, одатда `'YYYY-MM-DD'`. */
+  gridConnectionDate: string | null;
+  latitude: string | null;
+  longitude: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * Станциянинг бир кунлик ўлчови — базадан.
+ *
+ * ⚠️ Барча сон майдонлари **мато**: `decimal` устунлар ҳам, `bigint`
+ * (`collectTime`) ҳам. Ҳаммаси адаптерда текширилиб айлантирилади.
+ *
+ * Экранга чиқмайдиган майдонлар атайин типланган, лекин ишлатилмайди:
+ *  - `powerProfit` — ҳужжатда «пул бирлиги» деб турибди, **қайси валюта
+ *    экани кўрсатилмаган**. Валютасиз пул сони ўйлаб топилган маълумот
+ *    бўларди, шунинг учун чизилмайди;
+ *  - `perpowerRatio` — синхронизация коди уни умуман ёзмайди
+ *    (`fusion-solar.service.ts` даги KPI маппингида йўқ), яъни базада доим
+ *    бўш;
+ *  - `installedCapacity` — станциянинг қуввати, у `SolarStationRow.capacity`
+ *    дан олинади; кунлар бўйича қўшилса ўрнатилган қувват сунъий равишда
+ *    кўпайиб кетарди.
+ */
+export interface SolarKpiRow {
+  id: string;
+  stationCode: string;
+  /** `bigint` → мато. Экранда ишлатилмайди. */
+  collectTime: string;
+  /** ISO вақт белгиси; кун калити сифатида биринчи 10 белги олинади. */
+  collectDate: string;
+  installedCapacity: string | null;
+  /** Қуёш радиацияси, кВт·соат/м². */
+  radiationIntensity: string | null;
+  /** Назарий ишлаб чиқариш, кВт·соат. */
+  theoryPower: string | null;
+  /** Самарадорлик коэффициенти, %. */
+  performanceRatio: string | null;
+  /** Ҳақиқатда ишлаб чиқарилган энергия, кВт·соат — асосий кўрсаткич. */
+  inverterPower: string | null;
+  powerProfit: string | null;
+  perpowerRatio: string | null;
+  /** Кун бўйича камайтирилган CO₂, тонна. Кунлар бўйича **қўшилмайди**. */
+  reductionTotalCo2: string | null;
+  /** Кун бўйича тежалган кўмир, тонна. Кунлар бўйича **қўшилмайди**. */
+  reductionTotalCoal: string | null;
+  createdAt: string;
+  updatedAt: string;
+}

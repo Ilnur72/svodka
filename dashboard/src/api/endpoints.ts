@@ -1,4 +1,4 @@
-import { ApiError, apiGet, GAS_BASE } from "./client";
+import { ApiError, apiGet, GAS_BASE, SOLAR_BASE } from "./client";
 import type {
   BalanceResponse,
   ChainResponse,
@@ -25,6 +25,9 @@ import type {
   ProductionMonthlyRow,
   SalesMonthlyRow,
   SalesProductRow,
+  SolarEnvelope,
+  SolarKpiRow,
+  SolarStationRow,
   SummaryData,
   TreeData,
 } from "./types";
@@ -330,3 +333,75 @@ export const getGasDayLogs = (
  */
 export const getGasStats = (signal?: AbortSignal): Promise<GasStats> =>
   unwrapGas(apiGet<GasEnvelope<GasStats>>("/stats", {}, signal, GAS_BASE));
+
+/* -------------------------------------------------------------------------- */
+/* fusion-solar — қуёш станциялари                                            */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Қуёш модулининг конвертини очиш.
+ *
+ * `unwrapGas` билан бир хил сабабга кўра `success` текширилади (контроллер
+ * хатони HTTP `200` ичида қайтаради), устига **иккинчи текширув** бор:
+ * `data` нинг `null` бўлиши. Бу модулда сервис хатода `null` қайтаради,
+ * контроллер эса уни `success: true` билан ўраб юборади — текширилмаса
+ * панелга «маълумот йўқ» деб бўш экран чиқиб, сервер хатоси кўринмай қоларди.
+ *
+ * `unwrapGas` билан бирлаштирилмади: иккови икки хил бэкенд модулининг
+ * контракти ва бир-биридан мустақил ўзгаради; бу ерда қўшимча `null`
+ * текшируви ҳам бор.
+ */
+const unwrapSolar = async <T>(p: Promise<SolarEnvelope<T>>): Promise<T> => {
+  const body = await p;
+  if (!body.success || body.data === undefined || body.data === null) {
+    throw new ApiError(
+      body.error
+        ? `Қуёш станциялари маълумотини ўқиб бўлмади: ${body.error}`
+        : "Қуёш станциялари маълумотини ўқиб бўлмади.",
+      200,
+    );
+  }
+  return body.data;
+};
+
+/**
+ * Станциялар рўйхати — **базадан** (`getAllStations`), ташқи тизимга чиқмайди.
+ *
+ * Параметр йўқ: жавобда барча станциялар келади. Давр танлагичига ҳам боғлиқ
+ * эмас — бу справочник, вақт қатори эмас, шунинг учун панелда доимий калит
+ * билан бир марта сўралади.
+ *
+ * ⚠️ Ёндош `/station-list` **ишлатилмайди**: у ҳар сўровда ташқи тизимга
+ * жонли боради (секин ва интеграция созланмаган бўлса `503`).
+ */
+export const getSolarStations = (signal?: AbortSignal): Promise<SolarStationRow[]> =>
+  unwrapSolar(apiGet<SolarEnvelope<SolarStationRow[]>>("/stations", {}, signal, SOLAR_BASE));
+
+/**
+ * Кунлик ўлчовлар — **базадан**, сана оралиғи бўйича.
+ *
+ * ⚠️ Бу endpoint серверда **ҳали йўқ** (кутилаётган контракт бэкендга
+ * топширилган). Ҳозирча сўров `404` беради, у эса `NotAvailableError` га
+ * айланиб панелда алоҳида «бўлим серверда ҳали мавжуд эмас» ҳолати сифатида
+ * чизилади — хато сифатида эмас. Бўлим сервер тайёр бўлганда ўзи тўлади.
+ *
+ * Мавжуд `/kpi` **атайин ишлатилмаган**: у бир бошқа нарса — ташқи тизимга
+ * жонли чиқади, битта `stationCode` талаб қилади ва сана оралиғини
+ * қабул қилмайди.
+ *
+ * Йўл `db-` префикси билан: шу модулнинг ўз конвенцияси (`db-devices`,
+ * `db-device-data` — базадан ўқийдиган endpoint'лар).
+ */
+export const getSolarKpi = (
+  r: Range,
+  opts: { stationCode?: string } = {},
+  signal?: AbortSignal,
+): Promise<SolarKpiRow[]> =>
+  unwrapSolar(
+    apiGet<SolarEnvelope<SolarKpiRow[]>>(
+      "/db-kpi",
+      { startDate: r.from, endDate: r.to, stationCode: opts.stationCode },
+      signal,
+      SOLAR_BASE,
+    ),
+  );

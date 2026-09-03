@@ -13,6 +13,7 @@ export type TabId =
   | "prod"
   | "sgp"
   | "energy"
+  | "solar"
   | "h2"
   | "cist"
   | "ogarok"

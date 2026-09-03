@@ -11,6 +11,7 @@ import { ObzorPanel } from "./panels/ObzorPanel";
 import { ProdPanel } from "./panels/ProdPanel";
 import { SgpPanel } from "./panels/SgpPanel";
 import { EnergyPanel } from "./panels/EnergyPanel";
+import { SolarPanel } from "./panels/SolarPanel";
 import { H2GasPanel } from "./panels/H2GasPanel";
 import { CistPanel } from "./panels/CistPanel";
 import { OgarokPanel } from "./panels/OgarokPanel";
@@ -74,6 +75,10 @@ function DashboardBody({ range }: { range: { min: string; max: string } }) {
         return <SgpPanel {...props} />;
       case "energy":
         return <EnergyPanel {...props} />;
+      // Қуёш станциялари — алоҳида интеграция модули (станциялар справочниги
+      // ва кунлик ўлчовлар), «Электр энергия» нинг цех сводкалари эмас.
+      case "solar":
+        return <SolarPanel {...props} />;
       // «Водород ва газ» — иккита кўриниш битта таб ичида (водород сводкаси
       // ва газ ҳисоблагичлари). Алмаштиргич панелнинг ўзида.
       case "h2":

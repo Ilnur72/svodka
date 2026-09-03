@@ -27,6 +27,18 @@ const API_BASE = String(import.meta.env.VITE_API_BASE ?? "").replace(/\/+$/, "")
  */
 export const GAS_BASE = API_BASE.replace(/\/[^/]*$/, "") + "/gas-integration";
 
+/**
+ * Қуёш станциялари интеграцияси базаси.
+ *
+ * Худди газ каби — бэкендда алоҳида модул (`@Controller('fusion-solar')`),
+ * `production-report` нинг ичида эмас. Учинчи муҳит ўзгарувчиси **киритилмайди**:
+ * база айнан юқоридаги усул билан `VITE_API_BASE` дан ҳосил қилинади.
+ *
+ *   `http://localhost:8085/production-report`  → `http://localhost:8085/fusion-solar`
+ *   `https://tmk.bgs.uz/api/production-report` → `https://tmk.bgs.uz/api/fusion-solar`
+ */
+export const SOLAR_BASE = API_BASE.replace(/\/[^/]*$/, "") + "/fusion-solar";
+
 export class ApiError extends Error {
   readonly status: number;
   constructor(message: string, status: number) {
