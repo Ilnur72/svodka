@@ -1,9 +1,10 @@
 import { useMemo } from "react";
 import type { PanelProps } from "../types";
-import { getSolarKpi, getSolarStations } from "../api/endpoints";
+import { getSolarKpi, getSolarKpiSpan, getSolarStations } from "../api/endpoints";
 import { useQuery } from "../lib/useQuery";
 import { compactNum, exact, nf, periodLabel } from "../lib/format";
-import { solarKpiVM, solarStationsVM } from "../lib/adapters/solar";
+import { solarKpiVM, solarSpan, solarStationsVM } from "../lib/adapters/solar";
+import type { SolarSpan } from "../lib/adapters/solar";
 import { usePalette } from "../lib/theme";
 import { GRID } from "../components/layout";
 import { Card, Section } from "../components/Card";
@@ -39,6 +40,13 @@ import { EmptyState, Loader } from "../components/states";
  *
  * Ўлчов келмаган жойда **нол кўрсатилмайди**: нол «энергия ишлаб
  * чиқарилмади» дегани, «ўлчов келмаган» эса бутунлай бошқа нарса.
+ *
+ * Устига бўш экран **ўзини изоҳлайди**. Манбадаги ўлчовлар давр
+ * танлагичидаги ойлар билан мос тушмаслиги мумкин — шунда панел тўғри
+ * ишлаётган бўлса ҳам бўш кўринади ва «бузилибди» деб ўқилади. Шунинг учун
+ * давр бўш чиққанда қўшимча сўров ишга тушиб, тизимдаги ўлчовлар қайси
+ * саналар орасида турганини айтади. Бу сўров **фақат ўша ҳолатда**
+ * юборилади (`enabled`), одатдаги ҳолатда қўшимча трафик йўқ.
  */
 export function SolarPanel({ period, months }: PanelProps) {
   const p = usePalette();
@@ -69,13 +77,24 @@ export function SolarPanel({ period, months }: PanelProps) {
     [kpiQ.data, names, multiMonth],
   );
 
+  // Чегара сўрови даврга боғлиқ эмас (калит доимий) ва фақат танланган
+  // даврда ўлчов топилмаганда юборилади. Ёрдамчи сўров: у йиқилса ҳам панел
+  // ишлайверади, бўш ҳолат матни эса умумийроқ бўлиб қолади.
+  const noneInPeriod = kpiQ.data !== null && kpiQ.data.length === 0;
+  const spanQ = useQuery("solar-kpi-span", (s) => getSolarKpiSpan(s), {
+    enabled: noneInPeriod,
+  });
+  const span = useMemo(() => (spanQ.data ? solarSpan(spanQ.data) : null), [spanQ.data]);
+
   return (
     <>
       <Section title="Ишлаб чиқарилган электр энергия" note="кВт·соат">
         <Loader q={kpiQ} height={260} notAvailableWhat="қуёш станцияларининг кунлик ўлчовлари">
           {() => {
             if (!kpi) return null;
-            if (kpi.points.length === 0) return <SolarKpiEmpty months={months} skipped={kpi.skipped} />;
+            if (kpi.points.length === 0) {
+              return <SolarKpiEmpty months={months} skipped={kpi.skipped} span={span} />;
+            }
 
             const share = (v: number): number => (v / (kpi.total || 1)) * 100;
 
@@ -385,25 +404,57 @@ export function SolarPanel({ period, months }: PanelProps) {
  *
  * Бу ерда битта ҳам сон чизилмайди — плиткалар нол билан кўрсатилса, у
  * «энергия ишлаб чиқарилмади» деб ўқиларди.
+ *
+ * Матн `span` га қараб аниқлашади, чунки бўш экраннинг учта сабаби бор ва
+ * улар раҳбардан **учта бошқа ҳаракат** талаб қилади:
+ *  - ўлчовлар умуман юкланмаган → кутиш;
+ *  - ўлчовлар бор, лекин бошқа даврда → бошқа даврни танлаш;
+ *  - чегара ҳали аниқланмаган (сўров кетаяпти ёки йиқилди) → нейтрал матн.
  */
-function SolarKpiEmpty({ months, skipped }: { months: string[]; skipped: number }) {
+function SolarKpiEmpty({
+  months,
+  skipped,
+  span,
+}: {
+  months: string[];
+  skipped: number;
+  span: SolarSpan | null;
+}) {
+  const nothingAtAll = span !== null && span.days === 0;
+
   return (
     <>
       {skipped > 0 && (
         <Banner tone="warn">
-          <b>Ушбу даврда {nf(skipped)} та ёзув бор, лекин уларда ишлаб чиқариш кўрсаткичи
-          тўлдирилмаган.</b>{" "}
+          <b>
+            Ушбу даврда {nf(skipped)} та ёзув бор, лекин уларда ишлаб чиқариш кўрсаткичи
+            тўлдирилмаган.
+          </b>{" "}
           Шунинг учун ҳажм ҳисобланмади — бўш катак нол деб олинмайди.
         </Banner>
       )}
 
       <EmptyState
-        title="Қуёш станцияларининг ўлчовлари топилмади"
+        title="Танланган даврда қуёш станцияларининг ўлчови йўқ"
         text={
           <>
             {periodLabel(months)} даври учун станциялардан кунлик ўлчов келмаган. Бу серверда
-            бўлимнинг йўқлиги эмас: сўров муваффақиятли, жавоб бўш. Ишлаб чиқариш нол деб
-            кўрсатилмади: нол «энергия олинмаган» дегани, бу эса «ўлчов келмаган».
+            бўлимнинг йўқлиги ҳам, бўлимнинг ишламаётгани ҳам эмас: сўров муваффақиятли, жавоб
+            бўш.{" "}
+            {nothingAtAll ? (
+              "Ўлчовлар тизимга ҳали умуман юкланмаган — маълумот юклангач бўлим ўзи тўлади."
+            ) : span && span.last ? (
+              <>
+                Тизимдаги ўлчовлар <b className="font-semibold">{span.first}</b> билан{" "}
+                <b className="font-semibold">{span.last}</b> оралиғида, жами {nf(span.days)} кун
+                бўйича. Юқоридаги давр танлагичидан ўша ойларни танланг; улар рўйхатда бўлмаса,
+                ўлчовлар ҳисобот даврларидан ташқарида қолган.
+              </>
+            ) : (
+              "Бошқа даврни танлаб кўринг."
+            )}{" "}
+            Ишлаб чиқариш нол деб кўрсатилмади: нол «энергия олинмаган» дегани, бу эса «ўлчов
+            келмаган».
           </>
         }
       />

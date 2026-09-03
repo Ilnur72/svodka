@@ -367,3 +367,40 @@ export function solarKpiVM(
     skipped,
   };
 }
+
+/* -------------------------------------------------------------------------- */
+/* ўлчовлар чегараси — бўш ҳолат учун                                          */
+/* -------------------------------------------------------------------------- */
+
+export interface SolarSpan {
+  /** Тизимдаги энг биринчи ўлчов куни, ўқиладиган кўринишда. */
+  first: string | null;
+  /** Тизимдаги энг сўнгги ўлчов куни, ўқиладиган кўринишда. */
+  last: string | null;
+  /** Ўлчов келган кунлар сони (такрорсиз). */
+  days: number;
+}
+
+/**
+ * Бутун тарихдаги ўлчов кунларининг чегараси.
+ *
+ * Фақат бўш ҳолат матнини аниқлаштириш учун ишлатилади ва **ҳеч қандай
+ * кўрсаткич ҳисобламайди**: бу ердан экранга ҳажм ёки фоиз чиқмайди, фақат
+ * сана. Шу сабабли қаторнинг ўлчови тўлдирилган-тўлдирилмагани текширилмайди
+ * — саналар жадвалда бор, демак у кун тизимга тушган.
+ */
+export function solarSpan(rows: SolarKpiRow[]): SolarSpan {
+  const days = new Set<string>();
+  for (const r of rows) {
+    const d = dayOf(r.collectDate);
+    if (d) days.add(d);
+  }
+  if (days.size === 0) return { first: null, last: null, days: 0 };
+
+  const sorted = [...days].sort();
+  return {
+    first: dateLabel(sorted[0]),
+    last: dateLabel(sorted[sorted.length - 1]),
+    days: days.size,
+  };
+}
