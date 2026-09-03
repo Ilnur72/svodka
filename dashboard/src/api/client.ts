@@ -11,6 +11,22 @@ import { getToken, invalidateToken } from "./auth";
  */
 const API_BASE = String(import.meta.env.VITE_API_BASE ?? "").replace(/\/+$/, "");
 
+/**
+ * Газ интеграцияси базаси.
+ *
+ * Бэкендда газ — алоҳида модул (`@Controller('gas-integration')`), яъни
+ * `production-report` нинг **ичида эмас, ёнида** туради. Шунинг учун унга
+ * иккинчи база керак, лекин **иккинчи муҳит ўзгарувчиси киритилмайди**:
+ * база `VITE_API_BASE` дан охирги сегментни олиб ташлаб ҳосил қилинади.
+ * Шунда иккала муҳит ҳам ўз-ўзидан тўғри қолади:
+ *
+ *   `http://localhost:8085/production-report`      → `http://localhost:8085/gas-integration`
+ *   `https://tmk.bgs.uz/api/production-report`     → `https://tmk.bgs.uz/api/gas-integration`
+ *
+ * (продакшндаги `/api` префиксини nginx қўшади — бэкендда глобал префикс йўқ.)
+ */
+export const GAS_BASE = API_BASE.replace(/\/[^/]*$/, "") + "/gas-integration";
+
 export class ApiError extends Error {
   readonly status: number;
   constructor(message: string, status: number) {
@@ -46,27 +62,34 @@ export class NetworkError extends ApiError {
 
 export type QueryParams = Record<string, string | number | boolean | null | undefined>;
 
-function buildUrl(path: string, params: QueryParams): string {
+function buildUrl(base: string, path: string, params: QueryParams): string {
   const qs = new URLSearchParams();
   for (const [k, v] of Object.entries(params)) {
     if (v === undefined || v === null || v === "") continue;
     qs.set(k, String(v));
   }
   const q = qs.toString();
-  return API_BASE + path + (q ? "?" + q : "");
+  return base + path + (q ? "?" + q : "");
 }
 
+/**
+ * `base` — сўров қайси модулга кетишини белгилайди ва одатда берилмайди.
+ * Иккинчи база фақат газ интеграцияси учун (`GAS_BASE`): у бэкендда алоҳида
+ * модул. Токен қўшиш, 401/403/404 ни ажратиш ва `AbortSignal` иккала база
+ * учун ҳам шу ягона жойда қолади — параллел fetch реализацияси йўқ.
+ */
 export async function apiGet<T>(
   path: string,
   params: QueryParams = {},
   signal?: AbortSignal,
+  base: string = API_BASE,
 ): Promise<T> {
   const token = getToken();
   if (!token) throw new UnauthorizedError();
 
   let res: Response;
   try {
-    res = await fetch(buildUrl(path, params), {
+    res = await fetch(buildUrl(base, path, params), {
       headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
       signal,
     });

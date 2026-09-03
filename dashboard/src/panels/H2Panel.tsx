@@ -27,9 +27,6 @@ export function H2Panel({ period, months }: PanelProps) {
   const objQ = useQuery(`h2-obj_${key}`, (s) =>
     getHydrogen(period, { kind: "hydrogen", groupBy: "object" }, s),
   );
-  const gasQ = useQuery(`h2-gas_${key}`, (s) =>
-    getHydrogen(period, { kind: "gas", period: "monthly" }, s),
-  );
 
   const vm = useMemo(
     () => (dailyQ.data ? hydrogenVM(dailyQ.data, multiMonth) : null),
@@ -38,10 +35,6 @@ export function H2Panel({ period, months }: PanelProps) {
   const objects = useMemo(
     () => (objQ.data ? hydrogenObjects(objQ.data).filter((x) => x.total > 0) : []),
     [objQ.data],
-  );
-  const gasTotal = useMemo(
-    () => (gasQ.data ? gasQ.data.reduce((a, r) => a + (r.value ?? 0), 0) : null),
-    [gasQ.data],
   );
 
   const empty = vm !== null && vm.total === 0;
@@ -78,7 +71,10 @@ export function H2Panel({ period, months }: PanelProps) {
             </Banner>
           )}
 
-          <div className={GRID.g4}>
+          {/* Учта плитка: «Табиий газ сарфи» бу ердан олиб ташланди — газ
+              рақами энди ёндош «Газ» кўринишида, ҳисоблагич ўлчовлари
+              бўйича. Битта нарса ҳақида икки жойда икки хил сон турмайди. */}
+          <div className={GRID.g3}>
             <StatTile
               label="Водород сарфи, жами"
               value={nf(vm?.total ?? 0, 0)}
@@ -96,18 +92,6 @@ export function H2Panel({ period, months }: PanelProps) {
               value={nf(vm?.max ?? 0, 0)}
               unit="м³"
               foot={vm?.maxKey ? <Pill>{vm.maxKey}</Pill> : undefined}
-            />
-            <StatTile
-              label="Табиий газ сарфи"
-              value={gasQ.notAvailable ? "—" : nf(gasTotal ?? 0, 0)}
-              unit="м³"
-              foot={
-                gasQ.notAvailable ? (
-                  <Pill>бўлим серверда йўқ</Pill>
-                ) : (
-                  <Pill>1 ва 2-пром. майдонча</Pill>
-                )
-              }
             />
           </div>
 

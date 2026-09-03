@@ -11,7 +11,7 @@ import { ObzorPanel } from "./panels/ObzorPanel";
 import { ProdPanel } from "./panels/ProdPanel";
 import { SgpPanel } from "./panels/SgpPanel";
 import { EnergyPanel } from "./panels/EnergyPanel";
-import { H2Panel } from "./panels/H2Panel";
+import { H2GasPanel } from "./panels/H2GasPanel";
 import { CistPanel } from "./panels/CistPanel";
 import { OgarokPanel } from "./panels/OgarokPanel";
 import { IngPanel } from "./panels/IngPanel";
@@ -74,8 +74,10 @@ function DashboardBody({ range }: { range: { min: string; max: string } }) {
         return <SgpPanel {...props} />;
       case "energy":
         return <EnergyPanel {...props} />;
+      // «Водород ва газ» — иккита кўриниш битта таб ичида (водород сводкаси
+      // ва газ ҳисоблагичлари). Алмаштиргич панелнинг ўзида.
       case "h2":
-        return <H2Panel {...props} />;
+        return <H2GasPanel {...props} />;
       case "cist":
         return <CistPanel {...props} />;
       case "ogarok":

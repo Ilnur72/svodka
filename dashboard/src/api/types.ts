@@ -835,3 +835,86 @@ export interface MobplanResponse {
   /** «По возрастанию» сатри — ўсиб борувчи. */
   sheetCumulative: number[] | null;
 }
+
+/* -------------------------------------------------------------------------- */
+/* gas-integration — алоҳида модул, `production-report` нинг ёнида            */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Газ модулининг конверти `Envelope` дан бир жойда фарқ қилади: контроллер
+ * хатони ўзи ушлаб, HTTP `200` билан `{ success: false, error }` қайтаради
+ * (`backend/src/integrations/gas/gas-integration.controller.ts` — ҳар бир
+ * ҳандлерда `catch`). Яъни муваффақиятсиз жавобда `data` **умуман бўлмайди**
+ * ва `res.ok` буни ушлай олмайди. Шунинг учун `success` алоҳида текширилади —
+ * қаранг `endpoints.ts` → `unwrapGas`.
+ */
+export interface GasEnvelope<T> {
+  success: boolean;
+  data?: T;
+  total?: number;
+  error?: string;
+}
+
+/** Ўлчов нуқтаси (ASUPG «tube» объекти). */
+export interface GasObjectRow {
+  id: number;
+  /**
+   * Ташқи тизимнинг техник калити. **Экранга чиқарилмайди** — раҳбар учун
+   * маъноси йўқ. `objectName` бўш бўлса нейтрал ўрин эгаллагич ишлатилади.
+   */
+  tubeGuid: string;
+  objectName: string | null;
+  objectState: string | null;
+  syncedAt: string | null;
+  createdAt: string;
+}
+
+/**
+ * Кунлик ўлчов (`GET gas-integration/day-logs`).
+ *
+ * ⚠️ **Барча сон майдонлари `string` бўлиб келади**, `number` эмас: Postgres
+ * `numeric` устунини TypeORM мато сифатида қайтаради. Адаптерда аниқ
+ * `Number()` қилинади ва `null` алоҳида қаралади — `Number(null)` → `0`
+ * «маълумот йўқ» ни сохта нолга айлантириб қўяди.
+ *
+ * `gasObject` сўровда `leftJoinAndSelect` билан бирга келади.
+ */
+export interface GasDayLogRow {
+  id: number;
+  tubehrdayId: string;
+  /** `'YYYY-MM-DD'`. */
+  tubehrdayDatehrday: string;
+  gasObjectId: number;
+  gasObject: GasObjectRow | null;
+  tubehrdayTemperature: string | null;
+  tubehrdayDeltapressure: string | null;
+  /** Хом ҳажм. **Корреkция қилинган ҳажмнинг ўрнини боса олмайди** — бошқа ўлчов. */
+  tubehrdayVolume: string | null;
+  /** Асосий кўрсаткич: корреkция қилинган ҳажм, м³. `null` бўлса қатор ҳисобга кирмайди. */
+  tubehrdayCorrvolume: string | null;
+  tubehrdayPressure: string | null;
+  tubehrdayFloattime: string | null;
+  tubehrVolumeC: string | null;
+  tubehrCorrvolumeC: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * `GET gas-integration/stats` — импорт ҳолати.
+ *
+ * Жавобда техник хизмат майдонлари ҳам бор (`odata_base`, `objects_path`,
+ * `token_file`). Улар **атайин типланмаган**: экранда ташқи тизимнинг манзили
+ * ёки файл йўли кўринмаслиги керак, типланмаган майдонни эса тасодифан
+ * чизиб қўйиб бўлмайди.
+ */
+export interface GasStats {
+  objects: number;
+  day_logs: number;
+  day_correct_logs: number;
+  hour_logs: number;
+  moment_logs: number;
+  /** Базадаги энг сўнгги кунлик ўлчов санаси, `'YYYY-MM-DD'`. */
+  last_day_log: string | null;
+  last_hour_log: string | null;
+}

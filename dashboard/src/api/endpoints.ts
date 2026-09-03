@@ -1,4 +1,4 @@
-import { apiGet } from "./client";
+import { ApiError, apiGet, GAS_BASE } from "./client";
 import type {
   BalanceResponse,
   ChainResponse,
@@ -9,6 +9,10 @@ import type {
   ElectricityTypeRow,
   Envelope,
   FiltersData,
+  GasDayLogRow,
+  GasEnvelope,
+  GasObjectRow,
+  GasStats,
   HydrogenRow,
   IngichkaDailyRow,
   IngichkaMonthlyRow,
@@ -254,3 +258,75 @@ export const getDaily = (r: Range, signal?: AbortSignal): Promise<DailyResponse>
  */
 export const getMobplan = (signal?: AbortSignal): Promise<MobplanResponse> =>
   unwrap(apiGet<Envelope<MobplanResponse>>("/mobplan", {}, signal));
+
+/* -------------------------------------------------------------------------- */
+/* gas-integration                                                            */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Газ модулининг конвертини очиш.
+ *
+ * `unwrap` дан фарқи — `success` текширилади: бу контроллер хатони ўзи ушлаб,
+ * HTTP `200` билан `{ success: false, error }` қайтаради, `data` эса умуман
+ * келмайди (`GasEnvelope` изоҳига қаранг). Текширилмаса панелга `undefined`
+ * тушиб, «маълумот йўқ» билан «сервер хатоси» аралашиб кетарди.
+ *
+ * `ApiError` нинг статуси шу сабабли `200`: ҳақиқий HTTP статус шу — хато
+ * танада келган. Бу `NotAvailableError` (404) билан аралашмайди.
+ */
+const unwrapGas = async <T>(p: Promise<GasEnvelope<T>>): Promise<T> => {
+  const body = await p;
+  if (!body.success || body.data === undefined) {
+    throw new ApiError(
+      body.error
+        ? `Газ маълумотини ўқиб бўлмади: ${body.error}`
+        : "Газ маълумотини ўқиб бўлмади.",
+      200,
+    );
+  }
+  return body.data;
+};
+
+/**
+ * Ўлчов нуқталари справочниги.
+ *
+ * Ҳозирча экранда ишлатилмайди: кунлик ўлчовлар жавобида объект `gasObject`
+ * сифатида бирга келади, шунинг учун панелга иккинчи сўров керак эмас. Қатор
+ * шу қаватда қолдирилди — бу файл API'нинг тўлиқ типли кўзгуси
+ * (`getSalesMonthly` изоҳига қаранг).
+ */
+export const getGasObjects = (signal?: AbortSignal): Promise<GasObjectRow[]> =>
+  unwrapGas(apiGet<GasEnvelope<GasObjectRow[]>>("/objects", {}, signal, GAS_BASE));
+
+/**
+ * Кунлик газ ўлчовлари.
+ *
+ * ⚠️ Серверда `limit` **йўқ** — `from`/`to` доим берилади, акс ҳолда бутун
+ * тарих битта жавобда келади. Сана формати `YYYY-MM-DD`.
+ *
+ * `corrected: true` — корреkция жадвалидан ўқийди (`GetTubeCorrDay`).
+ * Параметр фақат `true` бўлганда юборилади: бэкенд уни `=== 'true'` деб
+ * солиштиради, `false` матни эса кераксиз шовқин бўларди.
+ */
+export const getGasDayLogs = (
+  r: Range,
+  opts: { objectId?: number; corrected?: boolean } = {},
+  signal?: AbortSignal,
+): Promise<GasDayLogRow[]> =>
+  unwrapGas(
+    apiGet<GasEnvelope<GasDayLogRow[]>>(
+      "/day-logs",
+      { ...r, objectId: opts.objectId, corrected: opts.corrected ? "true" : undefined },
+      signal,
+      GAS_BASE,
+    ),
+  );
+
+/**
+ * Импорт ҳолати — даврга боғлиқ эмас.
+ *
+ * Панелда фақат бўш ҳолатни аниқлаштириш учун: «танланган даврда ўлчов йўқ»
+ * билан «ўлчовлар тизимга ҳали умуман келмаган» бир хил экран эмас.
+ */
+export const getGasStats = (signal?: AbortSignal): Promise<GasStats> =>
+  unwrapGas(apiGet<GasEnvelope<GasStats>>("/stats", {}, signal, GAS_BASE));
