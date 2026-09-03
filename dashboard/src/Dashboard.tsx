@@ -144,7 +144,7 @@ function DashboardBody({ range }: { range: { min: string; max: string } }) {
 
       <header className="sticky top-0 z-40 border-b border-rule bg-surface shadow-card">
         <div className="flex flex-wrap items-center gap-[18px] px-5 py-3">
-          <div className="flex min-w-0 items-center gap-3">
+          <div className="flex min-w-0 items-center gap-3 hidden">
             <div
               aria-hidden="true"
               className="grid h-9 w-9 flex-none place-items-center rounded-[5px] bg-s1 font-mono text-[12px] font-bold tracking-[0.04em] text-white"
@@ -170,7 +170,7 @@ function DashboardBody({ range }: { range: { min: string; max: string } }) {
       <nav className="sticky top-[61px] z-[35] border-b border-rule bg-surface" aria-label="Бўлимлар">
         <div
           ref={tablistRef}
-          className="tabs-scroll flex gap-0.5 px-5"
+          className="tabs-scroll flex gap-0.5 px-5 hidden"
           role="tablist"
           aria-label="Бўлимлар"
           onKeyDown={onTabKeyDown}
