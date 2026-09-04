@@ -4,8 +4,8 @@ interface ImportMetaEnv {
   /** API манзили — `.env` да мажбурий. */
   readonly VITE_API_BASE: string;
   /**
-   * Кириш токени — ягона манба. `.env` ёки `.env.local` (устун) га
-   * қўйилади. Build вақтида bundle ичига ёзилади — қаранг: `auth.ts`.
+   * Захира токен (`.env` ёки `.env.local`) — фақат хост/URL/localStorage
+   * ҳеч бирида топилмаса ишлатилади. Қаранг: `auth.ts` → `devToken()`.
    */
   readonly VITE_API_TOKEN?: string;
 }
