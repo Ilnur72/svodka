@@ -170,7 +170,7 @@ function DashboardBody({ range }: { range: { min: string; max: string } }) {
       <nav className="sticky top-[61px] z-[35] border-b border-rule bg-surface" aria-label="Бўлимлар">
         <div
           ref={tablistRef}
-          className="tabs-scroll flex gap-0.5 px-5 hidden"
+          className="tabs-scroll flex gap-0.5 px-5"
           role="tablist"
           aria-label="Бўлимлар"
           onKeyDown={onTabKeyDown}
