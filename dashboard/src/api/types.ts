@@ -159,6 +159,91 @@ export interface SummaryData {
 }
 
 /* -------------------------------------------------------------------------- */
+/* /dashboard                                                                 */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * «Технologik metallar ishlab chiqarish» дашборди — металл, ой ва завод
+ * кесимида тайёр йиғма кўрсаткичлар, битта жавобда
+ * (`docs/METAL_PRODUCTION_DASHBOARD_API.md`).
+ *
+ * Бошқа `production-report` жавобларидан фарқли — бу ерда сон майдонлари
+ * **ҳақиқатан `number`**: хизмат ичида `::float` билан ҳисобланган
+ * (`production-report.service.ts` → `dashboard()`), TypeORM'нинг `numeric`
+ * матоси эмас. Шунинг учун `Number()` билан алоҳида айлантирилмайди —
+ * `gas.ts`/`solar.ts` адаптерларидаги каби текширув бу ерда керак эмас.
+ */
+export interface DashboardMonth {
+  /** `'YYYY-MM'`. */
+  key: string;
+  /**
+   * Хизматнинг ўзи берган ёрлиқ, лотин ёзувида (масалан `"May 2026"`).
+   * Экранга **чиқарилмайди** — интерфейс матни кирилл бўлиши керак, панел
+   * `key` дан `format.ts` → `monthLabel()` орқали ўзиникини қуради.
+   */
+  label: string;
+}
+
+export interface DashboardMetal {
+  /**
+   * Металл коди (`"Mo"`, `"W"`, `"Re"`, `"Co"`, `"Fe"`, `"Other"`) ёки
+   * **`null`** — маҳсулотга металл тури умуман бириктирилмаган
+   * («аниқланмаган» гуруҳ). Бэкенд бу гуруҳ учун тайёр ном бермайди —
+   * экранга чиқадиган матнни frontend танлайди (докс 4-бўлим).
+   */
+  material: string | null;
+  value: number;
+  plan: number;
+  /** Умумий ҳажмдаги улуши, % — донут учун тайёр қиймат. */
+  pct: number;
+  /** Режа бажарилиши, % (`fakt/reja×100`) — давр таққослаш эмас (3.3-бўлим). */
+  percent: number | null;
+  /** Олдинги даврга нисбатан ўзгариш, %. Ҳозирги базада кўп ҳолатда `null`. */
+  delta: number | null;
+  previous: number | null;
+  /** Ойлик қатор, `months[]` билан бир тартибда. */
+  dyn: number[];
+  planDyn: number[];
+}
+
+export interface DashboardPlant {
+  name: string;
+  /** Ойлик ҳажм, `months[]` билан бир тартибда. */
+  monthly: number[];
+  value: number;
+}
+
+export interface DashboardData {
+  period: {
+    from: string | null;
+    to: string | null;
+    /** Таққослаш учун автоматик ҳисобланган олдинги давр; `from`/`to` берилмаса `null`. */
+    previous: { from: string; to: string } | null;
+  };
+  /** Ушбу жавобдаги барча сон шу бирликда (стандарт — `"тн"`). */
+  unit: string;
+  months: DashboardMonth[];
+  total: number;
+  totalPlan: number;
+  totalPercent: number | null;
+  /** Жами ҳажмнинг олдинги даврга нисбатан ўзгариши, %. Кўп ҳолатда `null`. */
+  totalDelta: number | null;
+  previousTotal: number | null;
+  /** Металл бириктирилмаган ҳажмнинг умумий ҳажмдаги улуши, %. */
+  unknownShare: number;
+  /** Ҳажм бўйича камайиш тартибида сараланган (бэкенд томонидан). */
+  metals: DashboardMetal[];
+  /** Барча металлар йиғиндиси, ойлик. */
+  monthly: number[];
+  monthlyPlan: number[];
+  /** Ойлик кунлик ўртача ҳажм. */
+  avgDaily: number[];
+  /** Шу ойда маълумот мавжуд кунлар сони. */
+  days: number[];
+  plants: DashboardPlant[];
+}
+
+/* -------------------------------------------------------------------------- */
 /* /production/monthly, /narastayka                                           */
 /* -------------------------------------------------------------------------- */
 

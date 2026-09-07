@@ -12,6 +12,7 @@ const TOKENS = [
   "s3",
   "s4",
   "s5",
+  "s6",
   "ink",
   "ink-2",
   "ink-3",
@@ -40,6 +41,9 @@ const FALLBACK: Palette = {
   // hosil qilingan (index.css dagi color-mix() bilan bir xil nisbat).
   s4: "#7faee6",
   s5: "#b4d0f1",
+  // --s1 дан 80% қора томон color-mix() (index.css'даги ҳақиқий формула
+  // билан бир хил ниятда) — SSR/тест муҳитида CSS ҳисобланмаган ҳолат учун.
+  s6: "#12305c",
   ink: "#0d1215",
   "ink-2": "#4a5560",
   "ink-3": "#7d8892",

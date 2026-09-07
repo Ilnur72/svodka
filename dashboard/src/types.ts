@@ -11,6 +11,7 @@ import type { Period } from "./lib/period";
 export type TabId =
   | "obzor"
   | "prod"
+  | "metals"
   | "sgp"
   | "energy"
   | "solar"

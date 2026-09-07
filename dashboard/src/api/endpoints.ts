@@ -5,6 +5,7 @@ import type {
   CisternRow,
   CisternTxRow,
   DailyResponse,
+  DashboardData,
   ElectricityObjectRow,
   ElectricityTypeRow,
   Envelope,
@@ -64,6 +65,30 @@ export const getProductionTree = (
   signal?: AbortSignal,
 ): Promise<TreeData> =>
   unwrap(apiGet<Envelope<TreeData>>("/production/tree", { ...r, depth: opts.depth }, signal));
+
+/**
+ * «Технологик металлар ишлаб чиқариш» дашборди — металл, ой ва завод
+ * кесимида тайёр йиғма кўрсаткичлар, битта сўровда
+ * (`production-report/docs/METAL_PRODUCTION_DASHBOARD_API.md`).
+ *
+ * `unit`/`excludeDobycha` атайин параметрга чиқарилмаган: бэкенднинг ўз
+ * стандарт қиймати (`тн`, `true`) шу дашборд учун мўлжалланган ва уни
+ * ўзгартириш турли ўлчов бирлигини аралаштириб юбориши ёки хомашё қазиш
+ * ҳажмини (тайёр маҳсулотдан ўнлаб баробар катта) қўшиб қўйиши мумкин
+ * (докс 2.1-бўлим).
+ */
+export const getDashboard = (
+  r: Range,
+  opts: {
+    plant?: string;
+    workshop?: string;
+    material?: string;
+    category?: string;
+    process?: string;
+  } = {},
+  signal?: AbortSignal,
+): Promise<DashboardData> =>
+  unwrap(apiGet<Envelope<DashboardData>>("/dashboard", { ...r, ...opts }, signal));
 
 /**
  * Ой кесимидаги ишлаб чиқариш. Ҳозирча экранда ишлатилмайди — «Ойлик тренд»

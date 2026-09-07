@@ -32,6 +32,12 @@
      xuddi ShareDonut.tsx dagi shade() naqshi kabi. */
   --s4: color-mix(in oklab, var(--s1) 60%, white);
   --s5: color-mix(in oklab, var(--s1) 35%, white);
+  /* s6 — ҳужжатда ҳам йўқ: «Технологик металлар» дашбордида металл
+     турлари бешдан ошиши мумкин (Mo/W/Re/Co/Fe/Other — олтита), шунинг учун
+     s4/s5 дан кейинги навбатдаги поғона қўшилди — худди шу усул (--s1 дан
+     color-mix()), лекин оқ томон эмас, қора томон, токи қатор ранглари
+     аралашиб кетмасин. */
+  --s6: color-mix(in oklab, var(--s1) 80%, black);
   --good: #0ca30c;
   --warn: #fab219;
   --serious: #ec835a;
@@ -78,6 +84,7 @@
     --s3: #93c5fd;
     --s4: #bfdbfe;
     --s5: #dbeafe;
+    --s6: color-mix(in oklab, var(--s1) 80%, black);
     --good: #22c55e;
     --warn: #f5c542;
     --crit: #e5484d;
@@ -105,6 +112,7 @@
   --s3: #93c5fd;
   --s4: #bfdbfe;
   --s5: #dbeafe;
+  --s6: color-mix(in oklab, var(--s1) 80%, black);
   --good: #22c55e;
   --warn: #f5c542;
   --crit: #e5484d;
@@ -132,6 +140,7 @@
   --color-s3: var(--s3);
   --color-s4: var(--s4);
   --color-s5: var(--s5);
+  --color-s6: var(--s6);
   --color-good: var(--good);
   --color-warn: var(--warn);
   --color-serious: var(--serious);

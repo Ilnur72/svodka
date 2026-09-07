@@ -4,6 +4,10 @@ import type { TabId } from "../types";
 export const TABS: { id: TabId; label: string }[] = [
   { id: "obzor", label: "Умумий кўрсаткичлар" },
   { id: "prod", label: "Ишлаб чиқариш" },
+  // «Ишлаб чиқариш» ёнида: иккови ҳам production-report'дан, лекин бу —
+  // металл кесимида йиғма дашборд (`/dashboard`), у эса завод/цех/маҳсулот
+  // дарахти (`/production/tree`).
+  { id: "metals", label: "Технологик металлар" },
   { id: "sgp", label: "Сотиш ва қолдиқлар (СГП)" },
   { id: "energy", label: "Электр энергия" },
   // «Электр энергия» ёнида: иккови ҳам энергия, лекин манбаси бошқа —

@@ -9,6 +9,7 @@ import { PeriodPicker } from "./components/PeriodPicker";
 import { ErrorState, Skeleton } from "./components/states";
 import { ObzorPanel } from "./panels/ObzorPanel";
 import { ProdPanel } from "./panels/ProdPanel";
+import { MetalsPanel } from "./panels/MetalsPanel";
 import { SgpPanel } from "./panels/SgpPanel";
 import { EnergyPanel } from "./panels/EnergyPanel";
 import { SolarPanel } from "./panels/SolarPanel";
@@ -71,6 +72,11 @@ function DashboardBody({ range }: { range: { min: string; max: string } }) {
     switch (tab) {
       case "prod":
         return <ProdPanel {...props} />;
+      // Металл кесимида йиғма дашборд — алоҳида endpoint (`/dashboard`),
+      // «Ишлаб чиқариш» дан фарқли ўлароқ завод/цех/маҳсулот дарахтини эмас,
+      // тайёр металл × ой × завод кўрсаткичларини беради.
+      case "metals":
+        return <MetalsPanel {...props} />;
       case "sgp":
         return <SgpPanel {...props} />;
       case "energy":
