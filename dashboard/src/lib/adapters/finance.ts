@@ -1,9 +1,55 @@
 import type { Status } from "../../types";
+import type { FinanceReportDashboard } from "../../api/types";
 import { deltaTxt, exact, nf } from "../format";
-import { FIN_MONTHS, FIN_ROWS, FIN_TICKS, type FinRow, type FinRowKey } from "../finance/financeSource";
 // Ҳолат → CSS ранг токени: бу карта умумий (KPI'га хос эмас), шунинг учун
 // иккинчи нусхаси ёзилмайди — `var(--good)` каби токенлар бир жойда туради.
 import { KPI_STATUS_TOKEN as STATUS_TOKEN } from "./kpi";
+
+/**
+ * Сатр калитлари — бэкенддаги `FINANCE_REPORT_ROWS` (`finance-report.constants.ts`)
+ * билан бир хил ва бир хил тартибда. Аввал бу рўйхат ва барча қийматлар шу
+ * лойиҳада (`lib/finance/financeSource.ts`) статик турарди — энди улар
+ * `/finance-report/dashboard` дан келади, фақат калит номлари шу турда қолди:
+ * панел ва бу адаптер уларга типли равишда мурожаат қилади (`r.revenue` каби).
+ */
+export type FinRowKey =
+  | "revenue"
+  | "profit"
+  | "margin"
+  | "netCash"
+  | "assetsTotal"
+  | "assetsCurrent"
+  | "assetsNonCurrent"
+  | "liabTotal"
+  | "liabCurrent"
+  | "liabNonCurrent"
+  | "equityAndLiab"
+  | "equityTotal"
+  | "buildInProgress"
+  | "subsidiaryInvest"
+  | "fixedAssets"
+  | "otherNonCurrent"
+  | "receivables"
+  | "inventories"
+  | "cash"
+  | "otherCurrent"
+  | "charterCapital"
+  | "retainedEarnings"
+  | "otherReserves"
+  | "currentRatio"
+  | "debtToEquity"
+  | "cfOperating"
+  | "cfInvesting"
+  | "cfFinancing"
+  | "cashEquivalents";
+
+export interface FinRow {
+  key: FinRowKey;
+  /** Интерфейсда кўринадиган ном — кирилл ўзбекча. */
+  label: string;
+  /** Ойлар бўйича қиймат, `FinVM.months` тартибида. Сумма — минг сўм. */
+  values: number[];
+}
 
 /**
  * Молиявий кўрсаткичлар бўлими учун view-model.
@@ -137,9 +183,26 @@ const blnTxt = (v: number): string =>
  */
 const CHAIN_EPS = 1;
 
-export function financeVM(): FinVM {
-  const r = FIN_ROWS;
-  const n = FIN_MONTHS.length;
+/** `/finance-report/dashboard` жавобидаги қаторларни `FinRowKey` бўйича йиғади. */
+function rowsByKey(rows: FinanceReportDashboard["rows"]): Record<FinRowKey, FinRow> {
+  const map = {} as Record<FinRowKey, FinRow>;
+  for (const row of rows) {
+    const key = row.key as FinRowKey;
+    map[key] = { key, label: row.label, values: row.values };
+  }
+  return map;
+}
+
+/**
+ * @param data — `getFinanceReport()` жавоби (`api/endpoints.ts`). Панел уни
+ * `useQuery` орқали олади, бу функцияга ҳом API маълумоти эмас, шу жавоб
+ * узатилади — панел эса фақат қайтган view-model'ни кўради.
+ */
+export function financeVM(data: FinanceReportDashboard): FinVM {
+  const r = rowsByKey(data.rows);
+  const months = data.months;
+  const ticks = months.map((m) => m.slice(0, 3));
+  const n = months.length;
   const last = n - 1;
   const prev = n - 2;
 
@@ -209,7 +272,7 @@ export function financeVM(): FinVM {
 
   /* --- икки хил «пул» рақами ------------------------------------------- */
 
-  const cash: FinCashPoint[] = FIN_MONTHS.map((label, i) => ({
+  const cash: FinCashPoint[] = months.map((label, i) => ({
     label,
     balance: r.cash.values[i],
     equivalents: r.cashEquivalents.values[i],
@@ -225,15 +288,15 @@ export function financeVM(): FinVM {
     const actual = r.cashEquivalents.values[i];
     const diff = actual - expected;
     if (Math.abs(diff) > CHAIN_EPS) {
-      chainBreaks.push({ label: FIN_MONTHS[i], expected, actual, diff });
+      chainBreaks.push({ label: months[i], expected, actual, diff });
     }
   }
 
   return {
-    months: FIN_MONTHS,
-    ticks: FIN_TICKS,
-    lastMonth: FIN_MONTHS[last],
-    prevMonth: FIN_MONTHS[prev],
+    months,
+    ticks,
+    lastMonth: months[last],
+    prevMonth: months[prev],
     rows: r,
     marginPct,
     kpis,

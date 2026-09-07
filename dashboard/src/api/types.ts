@@ -1102,3 +1102,34 @@ export interface SolarKpiRow {
   createdAt: string;
   updatedAt: string;
 }
+
+/* -------------------------------------------------------------------------- */
+/* finance-report — алоҳида модул, `production-report` нинг ёнида             */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Бир молиявий кўрсаткич қатори — ойлар бўйича қиймат.
+ *
+ * `key` — `lib/adapters/finance.ts` даги `FinRowKey` билан бир хил ва бир
+ * хил тартибда келади (бэкенддаги `FINANCE_REPORT_ROWS` шу тартибни
+ * такрорлайди). Адаптер `key` бўйича `Record`га йиғади — тартибга
+ * ишонилмайди, лекин у ҳам мос.
+ */
+export interface FinanceReportRow {
+  key: string;
+  label: string;
+  /** Сумма — минг сўм; нисбат/фоиз қаторлари учун бирликсиз. `months` билан бир тартибда. */
+  values: number[];
+}
+
+/**
+ * `/finance-report/dashboard` жавоби.
+ *
+ * ⚠️ `months` да **йил йўқ** — манбада (Word/Excel ҳужжат) йил кўрсатилмаган,
+ * бэкенд ҳам уни ўйлаб топмайди. Шунинг учун бўлим давр танлагичига
+ * боғланмаган (`FinPanel.tsx`).
+ */
+export interface FinanceReportDashboard {
+  months: string[];
+  rows: FinanceReportRow[];
+}

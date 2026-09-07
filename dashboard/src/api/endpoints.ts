@@ -1,4 +1,4 @@
-import { ApiError, apiGet, GAS_BASE, SOLAR_BASE } from "./client";
+import { ApiError, apiGet, FINANCE_BASE, GAS_BASE, SOLAR_BASE } from "./client";
 import type {
   BalanceResponse,
   ChainResponse,
@@ -10,6 +10,7 @@ import type {
   ElectricityTypeRow,
   Envelope,
   FiltersData,
+  FinanceReportDashboard,
   GasDayLogRow,
   GasEnvelope,
   GasObjectRow,
@@ -451,3 +452,17 @@ export const getSolarKpiSpan = (signal?: AbortSignal): Promise<SolarKpiRow[]> =>
     {},
     signal,
   );
+
+/* -------------------------------------------------------------------------- */
+/* finance-report — алоҳида модул, `production-report` нинг ёнида             */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * «Молиявий кўрсаткичлар» бўлими учун 7 ойлик (Январь–Июль, йилсиз) манба.
+ *
+ * **Параметрсиз**: манба вақт қатори бўлса ҳам, у ҳозирча битта қатъий
+ * қамров (7 ой) — юқоридаги давр танлагичи бу ерга таъсир қилмайди, худди
+ * `getMobplan` каби.
+ */
+export const getFinanceReport = (signal?: AbortSignal): Promise<FinanceReportDashboard> =>
+  unwrap(apiGet<Envelope<FinanceReportDashboard>>("/dashboard", {}, signal, FINANCE_BASE));

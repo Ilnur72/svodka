@@ -39,6 +39,18 @@ export const GAS_BASE = API_BASE.replace(/\/[^/]*$/, "") + "/gas-integration";
  */
 export const SOLAR_BASE = API_BASE.replace(/\/[^/]*$/, "") + "/fusion-solar";
 
+/**
+ * Молиявий ҳисобот модули базаси.
+ *
+ * Худди газ ва қуёш каби — бэкендда алоҳида модул (`@Controller('finance-report')`),
+ * `production-report` нинг ичида эмас. Тўртинчи муҳит ўзгарувчиси **киритилмайди**:
+ * база юқоридаги усул билан `VITE_API_BASE` дан ҳосил қилинади.
+ *
+ *   `http://localhost:8085/production-report`  → `http://localhost:8085/finance-report`
+ *   `https://tmk.bgs.uz/api/production-report` → `https://tmk.bgs.uz/api/finance-report`
+ */
+export const FINANCE_BASE = API_BASE.replace(/\/[^/]*$/, "") + "/finance-report";
+
 export class ApiError extends Error {
   readonly status: number;
   constructor(message: string, status: number) {

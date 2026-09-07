@@ -1,12 +1,15 @@
-import { useMemo } from "react";
 import { usePalette } from "../lib/theme";
+import type { Palette } from "../lib/theme";
 import { exact, nf } from "../lib/format";
+import { getFinanceReport } from "../api/endpoints";
+import { useQuery } from "../lib/useQuery";
 import {
   finAxis,
   finCalc,
   finPctExact,
   finSum,
   financeVM,
+  type FinVM,
 } from "../lib/adapters/finance";
 import { GRID } from "../components/layout";
 import { Card, Section } from "../components/Card";
@@ -17,6 +20,7 @@ import { Columns } from "../components/Columns";
 import { TimeLine } from "../components/TimeLine";
 import { ChartLegend } from "../components/ChartLegend";
 import { TableToggle } from "../components/TableToggle";
+import { Loader } from "../components/states";
 
 /**
  * «Молиявий кўрсаткичлар» бўлими.
@@ -46,7 +50,17 @@ import { TableToggle } from "../components/TableToggle";
  */
 export function FinPanel() {
   const p = usePalette();
-  const vm = useMemo(() => financeVM(), []);
+  // Параметрсиз, давр танлагичига боғлиқ эмас (изоҳга қаранг) — калит доимий.
+  const q = useQuery("finance-report", (s) => getFinanceReport(s));
+
+  return (
+    <Loader q={q} height={320} notAvailableWhat="молиявий кўрсаткичлар бўлими">
+      {(data) => <FinContent vm={financeVM(data)} p={p} />}
+    </Loader>
+  );
+}
+
+function FinContent({ vm, p }: { vm: FinVM; p: Palette }) {
   const r = vm.rows;
 
   /** Стек диаграммада тултип сарлавҳасига жамини ҳам қўшамиз. */
