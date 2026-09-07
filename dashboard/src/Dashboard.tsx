@@ -8,6 +8,7 @@ import { TABS, useHashTab } from "./lib/useHashTab";
 import { PeriodPicker } from "./components/PeriodPicker";
 import { ErrorState, Skeleton } from "./components/states";
 import { ObzorPanel } from "./panels/ObzorPanel";
+import { CompanyPanel } from "./panels/CompanyPanel";
 import { ProdPanel } from "./panels/ProdPanel";
 import { MetalsPanel } from "./panels/MetalsPanel";
 import { SgpPanel } from "./panels/SgpPanel";
@@ -70,6 +71,11 @@ function DashboardBody({ range }: { range: { min: string; max: string } }) {
 
   function renderPanel() {
     switch (tab) {
+      // «Корхона» — бир нечта манбадан (dashboard, chain, kpi, sales,
+      // electricity, finance, mobplan, инвестиция реестри) йиғилган бир
+      // экранли кўриниш. Жорий ой — даврнинг охирги ойи.
+      case "company":
+        return <CompanyPanel {...props} />;
       case "prod":
         return <ProdPanel {...props} />;
       // Металл кесимида йиғма дашборд — алоҳида endpoint (`/dashboard`),

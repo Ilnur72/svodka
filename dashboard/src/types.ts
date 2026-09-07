@@ -9,6 +9,7 @@
 import type { Period } from "./lib/period";
 
 export type TabId =
+  | "company"
   | "obzor"
   | "prod"
   | "metals"

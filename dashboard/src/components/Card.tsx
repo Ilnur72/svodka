@@ -7,10 +7,12 @@ export interface CardProps {
   /** Explanatory paragraph under the title. */
   note?: ReactNode;
   className?: string;
+  /** Чап томондаги 3px чизиқ учун CSS ранг токени (`StatTile` билан бир хил), масалан `var(--s1)`. */
+  stripe?: string;
   children?: ReactNode;
 }
 
-export function Card({ title, sub, note, className, children }: CardProps) {
+export function Card({ title, sub, note, className, stripe, children }: CardProps) {
   return (
     <div
       className={
@@ -18,6 +20,13 @@ export function Card({ title, sub, note, className, children }: CardProps) {
         (className ? " " + className : "")
       }
     >
+      {stripe && (
+        <span
+          aria-hidden="true"
+          className="absolute top-0 bottom-0 left-0 w-[3px]"
+          style={{ background: stripe }}
+        />
+      )}
       {(title || sub) && (
         <div className="mb-0.5 flex flex-wrap items-baseline justify-between gap-2.5">
           {title && <h3 className="text-[13.5px] [font-weight:650]">{title}</h3>}

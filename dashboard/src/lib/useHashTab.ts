@@ -2,6 +2,10 @@ import { useCallback, useEffect, useState } from "react";
 import type { TabId } from "../types";
 
 export const TABS: { id: TabId; label: string }[] = [
+  // «Корхона» — бутун корхонанинг бир экранли кўриниши (хомашё базаси →
+  // қайта ишлаш → бозор). «Умумий кўрсаткичлар» билан адашмасин: у паспорт,
+  // баланс, занжир ва кунлик сводка кўринишлари; бу эса манбалар йиғмаси.
+  { id: "company", label: "Корхона" },
   { id: "obzor", label: "Умумий кўрсаткичлар" },
   { id: "prod", label: "Ишлаб чиқариш" },
   // «Ишлаб чиқариш» ёнида: иккови ҳам production-report'дан, лекин бу —
