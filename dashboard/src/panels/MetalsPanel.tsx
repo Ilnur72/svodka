@@ -98,7 +98,6 @@ export function MetalsPanel({ period, months }: PanelProps) {
     >
       {() => {
         if (!vm) return null;
-        const pctTotal = vm.metals.reduce((a, m) => a + m.pct, 0);
         const share = (v: number): number => (v / (vm.total || 1)) * 100;
 
         return (
@@ -207,7 +206,7 @@ export function MetalsPanel({ period, months }: PanelProps) {
                       value: m.pct,
                       muted: m.unnamed,
                     }))}
-                    total={pctTotal}
+                    total={vm.pctTotal}
                     centerNote="%, жами"
                     ariaLabel="Металлар бўйича ишлаб чиқариш тузилиши, фоизда."
                   />

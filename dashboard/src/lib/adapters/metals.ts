@@ -66,6 +66,16 @@ export interface DashboardVM {
   totalDelta: number | null;
   /** Металл бириктирилмаган ҳажмнинг умумий ҳажмдаги улуши, %. */
   unknownShare: number;
+  /**
+   * `metals[].pct` йиғиндиси — «тузилиши, %» донутининг марказидаги сон.
+   *
+   * Бэкенд ҳар `pct` ни алоҳида 1 хонагача яхлитлаб беради
+   * (`+((value/total)*100).toFixed(1)`), лекин уларни ЙИҒГАНДА JS сузувчи
+   * нуқтаси хатолик қўшади: назарий 100 ўрнига `99.89999999999999` каби
+   * кўринади (`gas.ts`/`resources.ts` даги худди шу синфдаги хато). Шунинг
+   * учун йиғинди ҳам бэкенднинг ўзи ишлатган аниқликка (1 хона) қайтарилади.
+   */
+  pctTotal: number;
   /** Ҳажм бўйича камайиш тартибида — бэкенддан шундай келади. */
   metals: MetalSeries[];
   /** Плиткалар учун — номи бор энг катта металлар, кўпи билан 4 та. */
@@ -77,6 +87,11 @@ export interface DashboardVM {
   /** Шу ойда маълумот мавжуд кунлар сони (`avgDaily` изоҳи учун). */
   days: number[];
   plants: PlantTotal[];
+}
+
+function round(v: number, d: number): number {
+  const k = 10 ** d;
+  return Math.round(v * k) / k;
 }
 
 export function dashboardVM(d: DashboardData): DashboardVM {
@@ -109,6 +124,10 @@ export function dashboardVM(d: DashboardData): DashboardVM {
     total: d.total,
     totalDelta: d.totalDelta,
     unknownShare: d.unknownShare,
+    pctTotal: round(
+      metals.reduce((a, m) => a + m.pct, 0),
+      1,
+    ),
     metals,
     topMetals,
     monthly: d.monthly,
