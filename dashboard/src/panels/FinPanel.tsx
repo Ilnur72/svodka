@@ -73,17 +73,6 @@ function FinContent({ vm, p }: { vm: FinVM; p: Palette }) {
 
   return (
     <>
-      <p className="mb-4 max-w-[112ch] text-[12px] leading-[1.55] text-ink-3">
-        Қамров —{" "}
-        <b className="font-semibold text-ink-2">
-          {vm.months[0]} – {vm.lastMonth}
-        </b>
-        , 7 ой. <b className="font-semibold text-ink-2">Йил манбада кўрсатилмаган</b>, шунинг
-        учун бу ерда ҳам ёзилмайди ва бўлим юқоридаги давр танлагичига боғланмаган — у бу
-        ердаги рақамларни ўзгартирмайди. Суммалар манбада минг сўмда: диаграмма ўқида ўқилиши
-        учун млрд сўмга келтирилган, тултип ва жадвалда эса манбадаги аниқ қиймат туради.
-      </p>
-
       {/* --- плиткалар ---------------------------------------------------- */}
       <div className={GRID.g4}>
         {vm.kpis.map((k) => (
@@ -543,21 +532,6 @@ function FinContent({ vm, p }: { vm: FinVM; p: Palette }) {
                 },
               ]}
             />
-
-            {vm.chainBreaks.length > 0 && (
-              <p className="mt-2.5 text-[11.5px] leading-[1.45] text-ink-3">
-                Қолдиқ занжири — олдинги ой қолдиғи + шу ойнинг соф оқими —{" "}
-                {vm.chainBreaks[0].label} ойигача аниқ мос келади. Кейин мос келмайди (минг сўмда):{" "}
-                {vm.chainBreaks.map((b, i) => (
-                  <span key={b.label}>
-                    {i > 0 && "; "}
-                    <b className="font-semibold text-ink-2">{b.label}</b> — кутилган{" "}
-                    {finCalc(b.expected)}, манбада {finCalc(b.actual)}, фарқ {finCalc(b.diff)}
-                  </span>
-                ))}
-                . Фарқ ҳисоблаб тўғриланмаган ва сунъий қатор қўшилмаган — манбадаги ҳолат шундай.
-              </p>
-            )}
 
             <TableToggle
               caption="Ойлар бўйича пул қолдиғи ва иккита кўрсаткич фарқи"

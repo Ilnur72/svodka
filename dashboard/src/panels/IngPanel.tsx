@@ -176,11 +176,6 @@ export function IngPanel({ period, months }: PanelProps) {
                         vName="Йўқотилган соат"
                         vFmt={(v) => nf(v, 1) + " с"}
                       />
-                      <p className="mt-2.5 text-[11.5px] leading-normal text-ink-3">
-                        Фабрика рақами изоҳ матнидан аниқланади («2ф-ка», «фаб-1»,
-                        «на всех 3-х фабриках»). Рақам ёзилмаган ёзувлар
-                        «Аниқланмаган» гуруҳига тушади.
-                      </p>
                     </Card>
                   </div>
                 )}

@@ -3,7 +3,6 @@ import type { PanelProps } from "../types";
 import { getElectricityByObject } from "../api/endpoints";
 import { useQuery } from "../lib/useQuery";
 import { nf, periodLabel } from "../lib/format";
-import { ENERGY_SUBTOTAL_NOTE } from "../lib/dataQuality";
 import {
   EXTERNAL_TYPE,
   energyObjects,
@@ -15,14 +14,11 @@ import { GRID } from "../components/layout";
 import { Card, Section } from "../components/Card";
 import { StatTile } from "../components/StatTile";
 import { Pill } from "../components/Pill";
-import { Banner } from "../components/Banner";
 import { ElectricityTrendCard } from "../components/ElectricityTrendCard";
 import { BarsH } from "../components/BarsH";
 import { ShareBar } from "../components/ShareBar";
 import { TableToggle } from "../components/TableToggle";
 import { Loader, Skeleton } from "../components/states";
-
-const kwh = (v: number) => nf(v, 0) + " кВт·с";
 
 export function EnergyPanel({ period, months }: PanelProps) {
   const key = `${period.from}_${period.to}`;
@@ -66,14 +62,6 @@ export function EnergyPanel({ period, months }: PanelProps) {
 
   return (
     <>
-      {trend && trend.excluded > 0 && (
-        <Banner tone="info">
-          <b>Такрорий ҳисоб тузатилди.</b> {ENERGY_SUBTOTAL_NOTE} Ушбу давр учун йиғиндидан{" "}
-          {kwh(trend.excluded)} чиқарилди — хом жавобдаги {kwh(trend.total + trend.excluded)} ўрнига{" "}
-          <b>{kwh(trend.total)}</b>.
-        </Banner>
-      )}
-
       <Loader q={trendQ} height={120} notAvailableWhat="/electricity">
         {() =>
           trend && (
@@ -143,9 +131,6 @@ export function EnergyPanel({ period, months }: PanelProps) {
                       { name: "Ташқи истеъмолчилар", value: trend.externalTotal, color: "var(--s2)" },
                     ]}
                   />
-                  <p className="mt-3 text-[11.5px] leading-[1.45] text-ink-3">
-                    {ENERGY_SUBTOTAL_NOTE}
-                  </p>
                 </Card>
               </Section>
             </>

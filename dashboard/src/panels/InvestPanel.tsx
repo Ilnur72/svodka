@@ -433,11 +433,6 @@ function PassportView({ pp, risksAllSame }: { pp: InvestPassport; risksAllSame: 
           </div>
         </div>
 
-        <p className="mt-3.5 max-w-[100ch] text-[11.5px] leading-[1.45] text-ink-3">
-          Иккита ҳалқа — иккита мустақил ўлчов, улар қўшилмайди ва ўртачаси олинмайди. Манфий
-          фарқ иш пулдан олдинда кетганини билдиради. Ҳалқанинг ёйи 0–100 оралиғида, сон эса
-          доим тўлиқ ёзилади.
-        </p>
       </Card>
 
       <div className={GRID.g4}>
@@ -604,16 +599,6 @@ export function InvestPanel() {
         />
       </div>
 
-      <p className="mb-3 max-w-[112ch] text-[12px] leading-[1.55] text-ink-3">
-        Реестрда <b className="font-semibold text-ink-2">{t.count} та лойиҳа</b>. Барча сумма —{" "}
-        <b className="font-semibold text-ink-2">{USD}</b>. Ўзлаштирилган маблағ январь–июнь
-        оралиғи учун берилган, лекин{" "}
-        <b className="font-semibold text-ink-2">йил манбада кўрсатилмаган</b>, шунинг учун бу
-        ерда ҳам ёзилмайди ва бўлим юқоридаги давр танлагичига боғланмаган — у бу ердаги
-        рақамларни ўзгартирмайди. Бўлим маълумоти ишлаб чиқариш сводкаларидан эмас, алоҳида
-        лойиҳалар реестридан келади.
-      </p>
-
       {view === "passport" && (
         <>
           <div className="mb-4">
@@ -632,18 +617,6 @@ export function InvestPanel() {
 
       {view === "compare" && (
         <>
-          <p className="mb-4 max-w-[112ch] text-[12px] leading-[1.55] text-ink-3">
-            <b className="font-semibold text-ink-2">Барча лойиҳаларда бир хил:</b>{" "}
-            {vm.constants.map((c, i) => (
-              <span key={c.k}>
-                {i > 0 && " · "}
-                {c.k} — {c.v}
-              </span>
-            ))}
-            . Бу майдонлар лойиҳаларни бир-биридан ажратмайди, шунинг учун улар кесим ёки фильтр
-            сифатида берилмаган; ҳар бир лойиҳанинг тўлиқ рўйхатида эса ўз ўрнида турибди.
-          </p>
-
           {/* --- плиткалар ---------------------------------------------------- */}
           <div className={GRID.g4}>
             <StatTile

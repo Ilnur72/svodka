@@ -229,12 +229,12 @@ function KpiTile({
 }
 
 /** Манбаси умуман йўқ кўрсаткич — аниқ матн, бўш жой эмас. */
-function NoSourceTile({ label, unit, note }: { label: string; unit: string; note: string }) {
+function NoSourceTile({ label, unit, note }: { label: string; unit: string; note?: string }) {
   return (
     <StatTile
       label={`${label}, ${unit}`}
       value={<Muted>{NO_DATA}</Muted>}
-      foot={<p className="basis-full text-[11px] leading-[1.45] text-ink-3">{note}</p>}
+      foot={note ? <p className="basis-full text-[11px] leading-[1.45] text-ink-3">{note}</p> : undefined}
     />
   );
 }
@@ -590,14 +590,6 @@ export function CompanyPanel({ period, months }: PanelProps) {
 
   return (
     <>
-      <p className="mb-4 max-w-[118ch] text-[12px] leading-[1.55] text-ink-3">
-        Жорий ой — давр танлагичидаги охирги ой:{" "}
-        <b className="font-semibold text-ink-2">{monthLabel(cur)}</b>; ўзгариш ундан бир ой олдингисига
-        нисбатан. Барча сонлар манбадан, ҳисобланган фақат ўзгариш фоизи ва реестр йиғиндиси.
-        Манбада йўқ кўрсаткич «{NO_DATA}» деб туради — нол билан ҳам, тахмин билан ҳам тўлдирилмаган.
-        Тушум (йилсиз молиявий ҳисобот) ва қурилаётган лойиҳалар (реестр) давр танлагичига боғланмаган.
-      </p>
-
       {/* --- 1. корхона плиткалари ------------------------------------------ */}
       <div className={GRID.g4}>
         <KpiTile label="Жами ходимлар" unit="киши" state={staffState} tile={staffTile} />
@@ -624,12 +616,10 @@ export function CompanyPanel({ period, months }: PanelProps) {
         <NoSourceTile
           label="Сув истеъмоли"
           unit="м³"
-          note="Манба йўқ: сув ҳисоблагичлари ишлаб чиқариш ҳисоботига уланмаган."
         />
         <NoSourceTile
           label="CO₂ чиқиндиси"
           unit="т"
-          note="Манба йўқ: эмиссия ҳисоби ҳеч қайси тизимда юритилмайди."
         />
       </div>
 
@@ -637,7 +627,6 @@ export function CompanyPanel({ period, months }: PanelProps) {
       <Section
         className="mt-5"
         title="Хомашё базаси → Қайта ишлаш → Бозор"
-        note="ҳар бир устунда: жами · фаолиятдаги объектлар · қурилаётган объектлар"
       >
         <div className={GRID.g3}>
           {/* ── Хомашё базаси ─────────────────────────────────────────────── */}
@@ -658,7 +647,7 @@ export function CompanyPanel({ period, months }: PanelProps) {
                     <div className={GRID.g2}>
                       <RowTile r={chain.sites[0].primary[0]} stripe={S1} label="Хомашё (руда)" />
                       <RowTile r={chain.concentrate} stripe={S1} label="Гравиконцентрат" />
-                      <NoDataTile label="Ходимлар" note="кон/участка бўйича сон манбада йўқ" />
+                      <NoDataTile label="Ходимлар" />
                     </div>
                     <SubHead title="Фаолиятдаги объектлар" right={<Pill>{chain.sites.length} та</Pill>} />
                     <div className={GRID.g2}>
@@ -735,10 +724,6 @@ export function CompanyPanel({ period, months }: PanelProps) {
                         )}
                         {workshop1Staff}
                       </div>
-                      <p className="mt-2 text-[11px] leading-[1.4] text-ink-3">
-                        Металл кесими (тоннада) — ўша ойдаги тайёр маҳсулот; ўзгариш — бэкенд ҳисоблаган
-                        олдинги ойга нисбатан фарқ.
-                      </p>
                       <KeyValueList
                         rows={[
                           ...production.metals.map((m) => ({
@@ -784,9 +769,6 @@ export function CompanyPanel({ period, months }: PanelProps) {
                         <WorkshopCard key={w.key} w={w} token={S2} />
                       ))}
                     </div>
-                    <p className="text-[11px] leading-[1.4] text-ink-3">
-                      Ҳар бир цехнинг занжирдаги асосий чиқиши — ўз бирлигида, цехлар орасида қўшилмайди.
-                    </p>
                   </>
                 )
               }
@@ -831,15 +813,15 @@ export function CompanyPanel({ period, months }: PanelProps) {
                             : [],
                         }}
                       />
-                      <NoDataTile label="Сотув суммаси" note="СГП фақат натурада — сумма/валюта кесими йўқ" />
-                      <NoDataTile label="Ходимлар" note="сотув бўлими бўйича сон манбада йўқ" />
+                      <NoDataTile label="Сотув суммаси" />
+                      <NoDataTile label="Ходимлар" />
                     </div>
-                    <p className="text-[11px] leading-[1.4] text-ink-3">
-                      Реализация — ой ичидаги оқим, қолдиқ — ой охиридаги ҳолат; иккиси қўшилмайди. Фақат
-                      тонна оиласи.
-                      {(sales.stock.warn || sales.realization.warn) &&
-                        " ⚠ Бирлиги шубҳали маҳсулотлар йиғиндига базадаги ҳолича кирган — тафсилоти «Сотиш ва қолдиқлар (СГП)» бўлимида."}
-                    </p>
+                    {(sales.stock.warn || sales.realization.warn) && (
+                      <p className="text-[11px] leading-[1.4] text-ink-3">
+                        ⚠ Бирлиги шубҳали маҳсулотлар йиғиндига базадаги ҳолича кирган — тафсилоти
+                        «Сотиш ва қолдиқлар (СГП)» бўлимида.
+                      </p>
+                    )}
                   </>
                 )
               }
@@ -851,10 +833,6 @@ export function CompanyPanel({ period, months }: PanelProps) {
                 <Metric icon="money" label="Контрагентлар ва сотув суммаси" value={null} />
                 <Metric icon="person" label="Ходимлар" value={null} />
               </div>
-              <p className="mt-2 text-[11.5px] leading-[1.45] text-ink-3">
-                СГП фақат маҳсулот номи ва натурадаги ҳажмни беради — бўлим/контрагент кесими манбада
-                сақланмайди.
-              </p>
             </Card>
             <PlannedBlock
               items={[]}

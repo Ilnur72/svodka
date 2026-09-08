@@ -630,7 +630,7 @@ export function companyStaff(
           vakansiya: st.vakansiya === null ? null : exact(st.vakansiya),
         };
 
-  const notes: string[] = ["бутун корхона бўйича сон ҳеч қайси манбада йўқ"];
+  const notes: string[] = [];
   if (workshop1) notes.push(`1 цех: ${workshop1.value} киши (${workshop1.month})`);
   if (chemicals) {
     notes.push(
@@ -834,10 +834,7 @@ export function companyRevenue(fin: FinanceReportDashboard): CompanyTile {
       `Тушум — ойлар бўйича: ` +
       fin.months.map((m, i) => `${m} ${spark[i] === null ? "—" : exact(spark[i])} минг сўм`).join("; "),
     token: last === null ? "var(--rule)" : tokenOf(delta),
-    notes: [
-      last === null ? "" : `манбада ${exact(last)} минг сўм`,
-      "йил манбада кўрсатилмаган — давр танлагичига боғланмаган",
-    ].filter(Boolean),
+    notes: [last === null ? "" : `манбада ${exact(last)} минг сўм`].filter(Boolean),
   });
 }
 

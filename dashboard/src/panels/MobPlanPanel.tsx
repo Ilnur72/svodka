@@ -263,22 +263,6 @@ function MobPlanView({ vm }: { vm: MobVM }) {
         </div>
       </div>
 
-      <p className="mb-4 max-w-[112ch] text-[12px] leading-[1.55] text-ink-3">
-        Жами <b className="font-semibold text-ink-2">{mobExact(t.shtat)} та</b> штат бирлиги,
-        шундан <b className="font-semibold text-ink-2">{mobExact(t.band)} таси</b> банд (
-        {mobPct(t.bandPct)}), <b className="font-semibold text-ink-2">{mobExact(t.vakansiya)} таси</b>{" "}
-        очиқ ({mobPct(t.vakansiyaPct)}). Бу — орқада қолиш эмас, режанинг ўз тузилиши:
-        {mainYear && (
-          <>
-            {" "}
-            <b className="font-semibold text-ink-2">{mobExact(vm.lateHires)} та</b> ишга қабул (жами
-            режанинг {mobPct(vm.lateHiresPct)}) {mainYear.year} йилнинг иккинчи ярмига қўйилган.
-          </>
-        )}{" "}
-        Шу сабабли бу бўлимда режа бажарилиши баҳоланмайди ва ҳолат ранглари ишлатилмайди.
-        Юқоридаги давр танлагичи бу ердаги рақамларни ўзгартирмайди — манба ойлик сводка эмас.
-      </p>
-
       {/* --- 1. олтита плитка ---------------------------------------------- */}
       <div className={GRID.g6}>
         <KpiTile
