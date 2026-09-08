@@ -179,7 +179,7 @@ function DashboardBody({ range }: { range: { min: string; max: string } }) {
         </div>
       </header>
 
-      <nav className="sticky top-[61px] z-[35] border-b border-rule bg-surface" aria-label="Бўлимлар">
+      <nav className="sticky top-[61px] z-[35] border-b border-rule bg-surface hidden" aria-label="Бўлимлар">
         <div
           ref={tablistRef}
           className="tabs-scroll flex gap-0.5 px-5"
