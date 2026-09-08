@@ -22,6 +22,7 @@ import { FinPanel } from "./panels/FinPanel";
 import { InvestPanel } from "./panels/InvestPanel";
 import { MobPlanPanel } from "./panels/MobPlanPanel";
 import { ProjectsPanel } from "./panels/ProjectsPanel";
+import { GeologyPanel } from "./panels/GeologyPanel";
 
 /**
  * Даврлар рўйхати `/filters` дан келади. Агар ушбu endpoint серверда
@@ -120,6 +121,12 @@ function DashboardBody({ range }: { range: { min: string; max: string } }) {
       // юқоридаги давр танлагичи унга таъсир қилмайди.
       case "projects":
         return <ProjectsPanel />;
+      // «Геология лойиҳалари» — алоҳида бэкенд модули (`geology-projects`),
+      // манбаси Геология бошқармасининг 14.04.2026 ҳолатидаги тақдимоти.
+      // Битта ҳужжатнинг қотирилган ҳолати, вақт қатори эмас — шунинг учун
+      // панел `props` олмайди ва давр танлагичи унга таъсир қилмайди.
+      case "geology":
+        return <GeologyPanel />;
       case "obzor":
       default:
         return <ObzorPanel {...props} />;
@@ -179,7 +186,7 @@ function DashboardBody({ range }: { range: { min: string; max: string } }) {
         </div>
       </header>
 
-      <nav className="sticky top-[61px] z-[35] border-b border-rule bg-surface hidden" aria-label="Бўлимлар">
+      <nav className="sticky top-[61px] z-[35] border-b border-rule bg-surface " aria-label="Бўлимлар">
         <div
           ref={tablistRef}
           className="tabs-scroll flex gap-0.5 px-5"

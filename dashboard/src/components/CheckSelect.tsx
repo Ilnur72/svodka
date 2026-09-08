@@ -72,7 +72,10 @@ export function CheckSelect<T extends string>({
       <div
         role="group"
         aria-label={label}
-        className="absolute top-[calc(100%+4px)] left-0 z-30 min-w-[190px] rounded-[6px] border border-rule bg-surface p-1 shadow-card"
+        /* Рўйхат узун бўлиши мумкин (геологиядаги металл — 38 та вариант),
+           шунинг учун баландлик чекланган ва ичида ўз ғилдираги бор. Қисқа
+           рўйхатда бу ҳеч нарсани ўзгартирмайди. */
+        className="absolute top-[calc(100%+4px)] left-0 z-30 max-h-[min(380px,60vh)] min-w-[190px] overflow-y-auto rounded-[6px] border border-rule bg-surface p-1 shadow-card"
       >
         {options.map((o) => (
           <label

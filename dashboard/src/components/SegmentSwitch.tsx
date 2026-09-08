@@ -1,8 +1,14 @@
-import { useId, useRef, type KeyboardEvent } from "react";
+import { useId, useRef, type KeyboardEvent, type ReactNode } from "react";
 
 export interface SegmentOption<T extends string> {
   id: T;
   label: string;
+  /**
+   * Ёрлиқ ёнидаги белги. **Ёрлиқни алмаштирмайди** — фақат ёнида туради:
+   * ёлғиз иконка нимани англатишини фойдаланувчи тахмин қилиши керак
+   * бўларди. `aria-hidden` билан чизилади, маънони матн беради.
+   */
+  icon?: ReactNode;
   /** Танлов остидаги қисқа изоҳ — нима учун бу кўриниш кераклиги. */
   hint?: string;
 }
@@ -76,12 +82,17 @@ export function SegmentSwitch<T extends string>({
               tabIndex={on ? 0 : -1}
               onClick={() => onChange(o.id)}
               className={
-                "cursor-pointer rounded-[5px] px-3.5 py-[7px] text-[13px] whitespace-nowrap " +
+                "inline-flex cursor-pointer items-center gap-1.5 rounded-[5px] px-3.5 py-[7px] text-[13px] whitespace-nowrap " +
                 (on
                   ? "bg-s1 text-white [font-weight:650]"
                   : "font-medium text-ink-2 hover:text-ink")
               }
             >
+              {o.icon && (
+                <span aria-hidden="true" className="flex-none">
+                  {o.icon}
+                </span>
+              )}
               {o.label}
             </button>
           );

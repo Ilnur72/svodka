@@ -1133,3 +1133,154 @@ export interface FinanceReportDashboard {
   months: string[];
   rows: FinanceReportRow[];
 }
+
+/* -------------------------------------------------------------------------- */
+/* geology-projects — алоҳида модул, `production-report` нинг ёнида           */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Бу блок бэкенддаги `src/modules/geology-projects/geology-projects.types.ts`
+ * нинг айнан кўзгуси. Умумий қоида: манбада катак тўлдирилмаган бўлса
+ * майдон `null` келади — **нол эмас**. Шунинг учун адаптер ҳам, панел ҳам
+ * `null` ни нолга айлантирмайди.
+ */
+
+/** Лойиҳа бўйича битта иш (режа ёки бажарилган). Барча майдон мажбурий. */
+export interface GeologyWorkRow {
+  id: number;
+  projectNo: number;
+  groupName: string;
+  groupNo: number;
+  shortName: string;
+  work: string;
+  /** Муддат манбадаги матн кўринишида, масалан «июнь 2026». */
+  deadlineText: string;
+  year: number;
+  /** 1–12 */
+  month: number;
+  /** `Режа` | `Бажарилди` */
+  status: string;
+  sortOrder: number;
+}
+
+/** 2026 йил иш ҳажмлари — атиги 15 лойиҳада мавжуд. */
+export interface GeologyVolumeRow {
+  id: number;
+  projectNo: number;
+  groupName: string;
+  groupNo: number;
+  shortName: string;
+  drillPlan: number | null;
+  drillDone: number | null;
+  samplePlan: number | null;
+  sampleDone: number | null;
+  trenchPlan: number | null;
+  trenchDone: number | null;
+  labPlan: number | null;
+  budgetMlnUsd2026: number | null;
+  /**
+   * Фоизни **бэкенд** ҳисоблайди (1 хона). Режа йўқ/0 ёки бажарилгани
+   * кўрсатилмаган бўлса `null` — фронтда қайта ҳисобланмайди.
+   */
+  drillPercent: number | null;
+  samplePercent: number | null;
+  trenchPercent: number | null;
+}
+
+export interface GeologyProjectRow {
+  id: number;
+  projectNo: number;
+  /** `Шакллантирилаётган` | `Бошқарилаётган` */
+  groupName: string;
+  groupNo: number;
+  name: string;
+  shortName: string;
+  /** `Конлар` | `Техноген` | `Бошқа` */
+  category: string;
+  direction: string;
+  region: string | null;
+  district: string | null;
+  mineral: string;
+  metals: string | null;
+  oreReserve: string | null;
+  metalReserve: string | null;
+  costMlnUsd: number | null;
+  funding: string | null;
+  endYear: number | null;
+  partner: string | null;
+  plan2026: string | null;
+  done2026: string | null;
+  result: string | null;
+  note: string | null;
+  /** Манба тақдимотидаги слайд рақами — **экранда кўрсатилмайди**. */
+  slideNo: number | null;
+  /** Иш кўрсатилмаган лойиҳада бўш массив (10 та лойиҳа). */
+  works: GeologyWorkRow[];
+  /** Ҳажм кўрсатилмаган лойиҳада `null` (31 та лойиҳа). */
+  volume: GeologyVolumeRow | null;
+}
+
+/** Кесим қатори. `key: null` — манбада қиймат кўрсатилмаган лойиҳалар. */
+export interface GeologyCountItem {
+  key: string | null;
+  count: number;
+}
+
+export interface GeologyYearCountItem {
+  year: number | null;
+  count: number;
+}
+
+export interface GeologySummary {
+  totalProjects: number;
+  byGroup: GeologyCountItem[];
+  byCategory: GeologyCountItem[];
+  byDirection: GeologyCountItem[];
+  byRegion: GeologyCountItem[];
+  byEndYear: GeologyYearCountItem[];
+  cost: {
+    totalMlnUsd: number;
+    projectsWithCost: number;
+    projectsWithoutCost: number;
+  };
+  works: {
+    total: number;
+    projectsWithWorks: number;
+    byStatus: GeologyCountItem[];
+    byYear: GeologyYearCountItem[];
+  };
+  /**
+   * ⚠️ `trenchDone: 0` — «канава бўйича ҳеч ким ҳисобот бермаган» дегани,
+   * «ноль бажарилган» эмас. Фарқни `*DoneReported` ажратади: нечта лойиҳа
+   * шу кўрсаткич бўйича ҳақиқий қиймат бергани. `*DoneReported === 0` бўлса
+   * тегишли фоиз `null` келади ва экранда «0%» деб кўрсатилмайди.
+   */
+  volumes2026: {
+    projectsWithVolumes: number;
+    drillPlan: number;
+    drillDone: number;
+    drillDoneReported: number;
+    samplePlan: number;
+    sampleDone: number;
+    sampleDoneReported: number;
+    trenchPlan: number;
+    trenchDone: number;
+    trenchDoneReported: number;
+    labPlan: number;
+    budgetMlnUsd: number;
+    drillPercent: number | null;
+    samplePercent: number | null;
+    trenchPercent: number | null;
+  };
+}
+
+/** `/geology-projects/dashboard` жавоби — панел учун ҳаммаси битта сўровда. */
+export interface GeologyDashboard {
+  projects: GeologyProjectRow[];
+  summary: GeologySummary;
+  meta: {
+    source: string;
+    /** ISO сана, масалан `"2026-04-14"`. */
+    asOf: string;
+  };
+}

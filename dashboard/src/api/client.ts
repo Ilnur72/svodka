@@ -51,6 +51,19 @@ export const SOLAR_BASE = API_BASE.replace(/\/[^/]*$/, "") + "/fusion-solar";
  */
 export const FINANCE_BASE = API_BASE.replace(/\/[^/]*$/, "") + "/finance-report";
 
+/**
+ * Геология лойиҳалари модули базаси.
+ *
+ * Худди газ, қуёш ва молия каби — бэкендда алоҳида модул
+ * (`@Controller('geology-projects')`), `production-report` нинг ичида эмас.
+ * Бешинчи муҳит ўзгарувчиси **киритилмайди**: база юқоридаги усул билан
+ * `VITE_API_BASE` дан ҳосил қилинади.
+ *
+ *   `http://localhost:8085/production-report`  → `http://localhost:8085/geology-projects`
+ *   `https://tmk.bgs.uz/api/production-report` → `https://tmk.bgs.uz/api/geology-projects`
+ */
+export const GEOLOGY_BASE = API_BASE.replace(/\/[^/]*$/, "") + "/geology-projects";
+
 export class ApiError extends Error {
   readonly status: number;
   constructor(message: string, status: number) {

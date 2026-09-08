@@ -46,6 +46,10 @@
   --warn-ink: #8a6000;
   --crit-ink: #b02c2c;
   --shadow: 0 1px 2px rgba(13, 18, 21, 0.05), 0 8px 24px -16px rgba(13, 18, 21, 0.18);
+  /* Modal orqa fon pardasi. Perde har ikkala mavzuda ham QORONG'I bo'ladi:
+     u palitra rangi emas, ostidagi sahifani susaytiruvchi qatlam. --ink dan
+     color-mix() bilan olinsa qorong'i mavzuda oqargan parda chiqardi. */
+  --scrim: rgba(13, 18, 21, 0.45);
   --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
 }
@@ -92,6 +96,7 @@
     --warn-ink: #d9a41c;
     --crit-ink: #e06060;
     --shadow: 0 1px 2px rgba(0, 0, 0, 0.35), 0 8px 24px -16px rgba(0, 0, 0, 0.6);
+    --scrim: rgba(0, 0, 0, 0.66);
   }
 }
 
@@ -120,6 +125,7 @@
   --warn-ink: #d9a41c;
   --crit-ink: #e06060;
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.35), 0 8px 24px -16px rgba(0, 0, 0, 0.6);
+  --scrim: rgba(0, 0, 0, 0.66);
 }
 
 /* `inline` keeps the generated utilities pointing at the live custom property,

@@ -1,4 +1,4 @@
-import { ApiError, apiGet, FINANCE_BASE, GAS_BASE, SOLAR_BASE } from "./client";
+import { ApiError, apiGet, FINANCE_BASE, GAS_BASE, GEOLOGY_BASE, SOLAR_BASE } from "./client";
 import type {
   BalanceResponse,
   ChainResponse,
@@ -15,6 +15,7 @@ import type {
   GasEnvelope,
   GasObjectRow,
   GasStats,
+  GeologyDashboard,
   HydrogenRow,
   IngichkaDailyRow,
   IngichkaMonthlyRow,
@@ -466,3 +467,22 @@ export const getSolarKpiSpan = (signal?: AbortSignal): Promise<SolarKpiRow[]> =>
  */
 export const getFinanceReport = (signal?: AbortSignal): Promise<FinanceReportDashboard> =>
   unwrap(apiGet<Envelope<FinanceReportDashboard>>("/dashboard", {}, signal, FINANCE_BASE));
+
+/* -------------------------------------------------------------------------- */
+/* geology-projects — алоҳида модул, `production-report` нинг ёнида           */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * «Геология лойиҳалари» бўлими учун ягона манба: лойиҳалар, кесимлар ва
+ * манба ҳужжати ҳақидаги маълумот битта сўровда келади.
+ *
+ * **Параметрсиз**: манба — 14.04.2026 ҳолатидаги битта тақдимот, вақт қатори
+ * эмас. Шунинг учун юқоридаги давр танлагичи бу бўлимга таъсир қилмайди —
+ * худди `getFinanceReport` ва `getMobplan` каби.
+ *
+ * Ёндош `GET /geology-projects` (ишларсиз ва ҳажмларсиз енгил рўйхат)
+ * **атайин ишлатилмайди**: панелга ишлар ва ҳажмлар ҳам керак, иккита сўров
+ * эса шу битта жавобнинг қисми бўларди.
+ */
+export const getGeologyDashboard = (signal?: AbortSignal): Promise<GeologyDashboard> =>
+  unwrap(apiGet<Envelope<GeologyDashboard>>("/dashboard", {}, signal, GEOLOGY_BASE));
