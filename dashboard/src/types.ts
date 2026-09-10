@@ -22,9 +22,11 @@ export type TabId =
   | "ing"
   | "fin"
   | "invest"
+  | "schedule"
   | "mobplan"
   | "projects"
-  | "geology";
+  | "geology"
+  | "tex";
 
 export type Status = "good" | "warn" | "crit" | "mute";
 

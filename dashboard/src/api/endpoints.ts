@@ -1,4 +1,12 @@
-import { ApiError, apiGet, FINANCE_BASE, GAS_BASE, GEOLOGY_BASE, SOLAR_BASE } from "./client";
+import {
+  ApiError,
+  apiGet,
+  FINANCE_BASE,
+  GAS_BASE,
+  GEOLOGY_BASE,
+  SCHEDULE_BASE,
+  SOLAR_BASE,
+} from "./client";
 import type {
   BalanceResponse,
   ChainResponse,
@@ -26,6 +34,7 @@ import type {
   OgarokMonthlyRow,
   PagedEnvelope,
   ProductionMonthlyRow,
+  ProjectScheduleDashboard,
   SalesMonthlyRow,
   SalesProductRow,
   SolarEnvelope,
@@ -486,3 +495,24 @@ export const getFinanceReport = (signal?: AbortSignal): Promise<FinanceReportDas
  */
 export const getGeologyDashboard = (signal?: AbortSignal): Promise<GeologyDashboard> =>
   unwrap(apiGet<Envelope<GeologyDashboard>>("/dashboard", {}, signal, GEOLOGY_BASE));
+
+/* -------------------------------------------------------------------------- */
+/* project-schedule — алоҳида модул, `production-report` нинг ёнида            */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * «Лойиҳа графиклари» бўлими учун ягона манба: 5 та лойиҳа ўз ишлари
+ * (`tasks`), молиялаштириш жадвали (`finance`) ва ҳисобланган кўрсаткичлари
+ * (`stats`) билан, устига `summary` ва `meta` — ҳаммаси битта сўровда.
+ *
+ * **Параметрсиз**: манба — 5 та Gantt-график xlsx файли, кунлик cron билан
+ * қайта импорт қилинади. Вақт қатори эмас, шунинг учун юқоридаги давр
+ * танлагичи бу бўлимга таъсир қилмайди (`getGeologyDashboard` каби).
+ *
+ * Ёндош `GET /project-schedule` (ишларсиз енгил рўйхат) ва
+ * `GET /project-schedule/:key/tasks` **атайин ишлатилмайди**: панелга ҳам
+ * рўйхат, ҳам ишлар, ҳам молия керак — улар шу битта жавобнинг қисми.
+ * Жавоб ҳажми ~290 КБ, бу иккита сўровга бўлишни оқламайди.
+ */
+export const getProjectSchedule = (signal?: AbortSignal): Promise<ProjectScheduleDashboard> =>
+  unwrap(apiGet<Envelope<ProjectScheduleDashboard>>("/dashboard", {}, signal, SCHEDULE_BASE));

@@ -64,6 +64,19 @@ export const FINANCE_BASE = API_BASE.replace(/\/[^/]*$/, "") + "/finance-report"
  */
 export const GEOLOGY_BASE = API_BASE.replace(/\/[^/]*$/, "") + "/geology-projects";
 
+/**
+ * Лойиҳа графиклари модули базаси.
+ *
+ * Худди юқоридагилар каби — бэкендда алоҳида модул
+ * (`@Controller('project-schedule')`), `production-report` нинг ичида эмас.
+ * Олтинчи муҳит ўзгарувчиси **киритилмайди**: база ўша усул билан
+ * `VITE_API_BASE` дан ҳосил қилинади.
+ *
+ *   `http://localhost:8085/production-report`  → `http://localhost:8085/project-schedule`
+ *   `https://tmk.bgs.uz/api/production-report` → `https://tmk.bgs.uz/api/project-schedule`
+ */
+export const SCHEDULE_BASE = API_BASE.replace(/\/[^/]*$/, "") + "/project-schedule";
+
 export class ApiError extends Error {
   readonly status: number;
   constructor(message: string, status: number) {

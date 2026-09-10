@@ -1284,3 +1284,144 @@ export interface GeologyDashboard {
     asOf: string;
   };
 }
+
+/* -------------------------------------------------------------------------- */
+/* project-schedule — лойиҳа графиклари (Gantt)                                */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Бу блок бэкенддаги `src/modules/project-schedule/project-schedule.types.ts`
+ * нинг айнан кўзгуси.
+ *
+ * ⚠️ Иккита қоида бутун блок бўйлаб амал қилади:
+ *  1. `progress`, `avgProgress`, `sourceProgress`, `financePercent` — **улуш
+ *     0…1**, фоиз эмас. Экранга чиқаришда 100 га кўпайтирилади (адаптерда).
+ *  2. Манбада катак тўлдирилмаган бўлса майдон `null` келади — **нол эмас**.
+ */
+
+/** Қатор тури: манбадаги иерархия шу билан тикланади. */
+export type ProjectScheduleTaskKind = "root" | "group" | "task";
+
+export interface ProjectScheduleTaskRow {
+  id: number;
+  kind: ProjectScheduleTaskKind;
+  taskNo: number | null;
+  name: string;
+  responsible: string | null;
+  /** `YYYY-MM-DD` */
+  planStart: string | null;
+  planEnd: string | null;
+  durationDays: number | null;
+  /** УЛУШ 0…1 (фоиз эмас) */
+  progress: number | null;
+  /** Манбада «Исключить = ДА» — ҳисобга кирмайдиган қатор. */
+  excluded: boolean;
+  note: string | null;
+  actualEnd: string | null;
+  /**
+   * Манбадаги «Фарқ» устуни. **Иккита турли маънога эга**:
+   *  - `actualEnd` бор бўлса — `planEnd − actualEnd`, яъни муддатдан неча кун
+   *    олдин (мусбат) ёки кеч (манфий) якунлангани;
+   *  - `actualEnd` йўқ бўлса — Excel'даги тирик `TODAY()` формуласи қолдиғи,
+   *    яъни оддийгина `planEnd − бугун`. Бу «кечикди» дегани эмас.
+   *
+   * Шунинг учун адаптер уни фақат `actualEnd` билан бирга ўқийди.
+   */
+  diffDays: number | null;
+  /** «Молиявий ҳолати» устуни ($). */
+  amount: number | null;
+  /** Юқоридаги босқич номи (`kind: "task"` учун — ўз босқичи). */
+  parentName: string | null;
+  sortOrder: number;
+  /** Бэкенд ҳисоблайди: `planEnd` ўтган ва `progress < 1` (фақат `kind: "task"`). */
+  isOverdue: boolean;
+  /** Бэкенд ҳисоблайди: `planEnd` яқин 30 кун ичида ва `progress < 1`. */
+  isDueSoon: boolean;
+}
+
+export interface ProjectScheduleFinanceRow {
+  id: number;
+  category: string;
+  totalAmount: number | null;
+  paidAmount: number | null;
+  /**
+   * `true` — тоифа эмас, «қолган сумма» қатори. Йиғиндига **кирмайди**
+   * (бэкенд уни `financeTotal` дан аллақачон чиқарган).
+   */
+  isTotal: boolean;
+  sortOrder: number;
+}
+
+/** Битта лойиҳанинг **ишлардан ҳисобланган** кўрсаткичлари. */
+export interface ProjectScheduleStats {
+  taskCount: number;
+  groupCount: number;
+  completedCount: number;
+  inProgressCount: number;
+  notStartedCount: number;
+  /** 0…1; иш бўлмаса `null`. */
+  avgProgress: number | null;
+  overdueCount: number;
+  dueSoonCount: number;
+  planStart: string | null;
+  planEnd: string | null;
+  /** `planEnd` гача қолган кун; ўтиб кетган бўлса манфий. */
+  daysLeft: number | null;
+  taskAmountTotal: number;
+  /** Молия жадвали, `isTotal` қаторисиз ($). */
+  financeTotal: number | null;
+  financePaid: number | null;
+  /** 0…1 */
+  financePercent: number | null;
+}
+
+export interface ProjectScheduleRow {
+  id: number;
+  key: string;
+  title: string;
+  sourceFile: string;
+  sourceSheet: string;
+  totalCostUsd: number | null;
+  /** Манбадаги илдиз қатор фоизи (0…1) — ҳисобланган `avgProgress` эмас. */
+  sourceProgress: number | null;
+  deadlineDate: string | null;
+  totalDays: number | null;
+  remainingDays: number | null;
+  importedAt: string | null;
+  stats: ProjectScheduleStats;
+  tasks: ProjectScheduleTaskRow[];
+  finance: ProjectScheduleFinanceRow[];
+}
+
+export interface ProjectScheduleSummary {
+  projectCount: number;
+  taskCount: number;
+  completedCount: number;
+  inProgressCount: number;
+  notStartedCount: number;
+  /** Барча ишлар бўйича ўртача (лойиҳалар ўртачаси ЭМАС), 0…1. */
+  avgProgress: number | null;
+  overdueCount: number;
+  dueSoonCount: number;
+  totalCostUsd: number;
+  financeTotal: number;
+  financePaid: number;
+  financePercent: number | null;
+  planStart: string | null;
+  planEnd: string | null;
+  nextDeadlines: { key: string; title: string; planEnd: string; daysLeft: number }[];
+}
+
+/** `/project-schedule/dashboard` жавоби — панел учун ҳаммаси битта сўровда. */
+export interface ProjectScheduleDashboard {
+  projects: ProjectScheduleRow[];
+  summary: ProjectScheduleSummary;
+  meta: {
+    /** Ҳисоб-китоб қайси кунга нисбатан қилингани (`YYYY-MM-DD`). */
+    today: string;
+    /** `dueSoon` ойнаси, кун. */
+    dueSoonDays: number;
+    /** Энг сўнгги импорт вақти (ISO); ҳеч қачон импорт қилинмаган бўлса `null`. */
+    lastImportedAt: string | null;
+  };
+}

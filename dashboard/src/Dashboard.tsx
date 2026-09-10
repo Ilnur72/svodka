@@ -20,9 +20,11 @@ import { OgarokPanel } from "./panels/OgarokPanel";
 import { IngPanel } from "./panels/IngPanel";
 import { FinPanel } from "./panels/FinPanel";
 import { InvestPanel } from "./panels/InvestPanel";
+import { SchedulePanel } from "./panels/SchedulePanel";
 import { MobPlanPanel } from "./panels/MobPlanPanel";
 import { ProjectsPanel } from "./panels/ProjectsPanel";
 import { GeologyPanel } from "./panels/GeologyPanel";
+import { TexPanel } from "./panels/TexPanel";
 
 /**
  * Даврлар рўйхати `/filters` дан келади. Агар ушбu endpoint серверда
@@ -110,6 +112,13 @@ function DashboardBody({ range }: { range: { min: string; max: string } }) {
       // ягона давр (январь–июнь) йилсиз, шунинг учун `props` олмайди.
       case "invest":
         return <InvestPanel />;
+      // «Лойиҳа графиклари» — алоҳида бэкенд модули (`project-schedule`),
+      // манбаси 5 та Gantt-график xlsx файли, кунлик cron билан қайта
+      // импорт қилинади. Вақт қатори эмас — ҳар бир лойиҳанинг ўз режа
+      // даври бор, шунинг учун панел `props` олмайди ва юқоридаги давр
+      // танлагичи унга таъсир қилмайди.
+      case "schedule":
+        return <SchedulePanel />;
       // «Кадрлар режаси» маълумотни `/mobplan` дан олади, лекин сўров
       // параметрсиз: манба — битта ҳужжатнинг жорий ҳолати, вақт қатори эмас.
       // Панел `props` ни бошқалар билан бир хилда олади, давр эса унга
@@ -127,6 +136,11 @@ function DashboardBody({ range }: { range: { min: string; max: string } }) {
       // панел `props` олмайди ва давр танлагичи унга таъсир қилмайди.
       case "geology":
         return <GeologyPanel />;
+      // «Технологик жараён» — тузилма «Баланс (2).pptx» тақдимотидан
+      // (қотирилган), қиймат эса `/chain` дан. Шунинг учун панел `props`
+      // олади: юқоридаги давр танлагичининг охирги ойи кўрсатилади.
+      case "tex":
+        return <TexPanel {...props} />;
       case "obzor":
       default:
         return <ObzorPanel {...props} />;
