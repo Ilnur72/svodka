@@ -5,7 +5,7 @@ import type {
   GeologyVolumeRow,
   GeologyYearCountItem,
 } from "../../api/types";
-import { M_UZ } from "../format";
+import { M_UZ, exact } from "../format";
 
 /**
  * «Геология лойиҳалари» — `/geology-projects/dashboard` жавобидан панел
@@ -77,6 +77,8 @@ const groupKeyOf = (name: string): GeoGroupKey =>
 export interface GeoWork {
   id: number;
   work: string;
+  /** Муддат йили — иш режасини йиллар бўйича гуруҳлаш учун. */
+  year: number;
   /** «Июнь 2026» — `year`/`month` дан кирилл ёрлиқ. */
   deadline: string;
   /** `Бажарилди` бўлса `true` — карточкада яшил белги. */
@@ -418,6 +420,7 @@ function projectOf(p: GeologyProjectRow): GeoProject {
     .map((w) => ({
       id: w.id,
       work: w.work,
+      year: w.year,
       deadline: deadlineOf(w.year, w.month),
       done: w.status === "Бажарилди",
       status: w.status,
@@ -691,6 +694,203 @@ export function geoVolumeTotals(projects: GeoProject[]): GeoVolumeTotals {
       3,
     ),
   };
+}
+
+/* -------------------------------------------------------------------------- */
+/* тафсилот саҳифаси — паспорт, плиткалар, иш режаси                          */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Тафсилот саҳифасидаги «ёрлиқ: қиймат» қатори — қиймати тайёр матн.
+ *
+ * Қаторлар шу ерда, адаптерда йиғилади: панел қайси майдон қаерда туришини
+ * эмас, фақат **тайёр рўйхатни** билади. Шунинг учун манбада янги устун
+ * пайдо бўлса ёки ёрлиқ ўзгарса — фақат шу файл тегилади.
+ */
+export interface GeoFactRow {
+  key: string;
+  label: string;
+  value: string;
+}
+
+/**
+ * Бўш қатор рўйхатга **умуман тушмайди**.
+ *
+ * 46 лойиҳанинг ҳар бирида 8–12 та майдон тўлдирилмаган (ҳамкор — 14/46,
+ * молиялаш — 8/46, туман — 29/46). Уларни «маълумот йўқ» билан тўлдириш
+ * паспортни ўн иккита бўш қатордан иборат рўйхатга айлантирарди: экранда
+ * шовқин кўпаяди, ўқиладиган маълумот эса ўшандай қолади.
+ */
+const factsOf = (
+  items: [key: string, label: string, value: string | number | null][],
+): GeoFactRow[] => {
+  const out: GeoFactRow[] = [];
+  for (const [key, label, value] of items) {
+    if (value === null) continue;
+    const t = String(value).trim();
+    if (t === "" || NO_VALUE.has(t)) continue;
+    out.push({ key, label, value: t });
+  }
+  return out;
+};
+
+/**
+ * 1-блок «Лойиҳа паспорти» — маъмурий қисм: лойиҳа қандай аталади, қаерда,
+ * ким билан, қанча маблағга ва қачонгача.
+ *
+ * Фойдали қазилма, элементлар ва захира матнлари бу ерда **йўқ** — улар
+ * 3-блокда («Геологик маълумотлар»), чунки бир хил матнни икки жойда
+ * кўрсатиш саҳифани узайтиради, янги маълумот эса бермайди.
+ */
+export const geoPassportRows = (p: GeoProject): GeoFactRow[] =>
+  factsOf([
+    ["no", "Лойиҳа рақами", `№ ${p.no}`],
+    ["group", "Лойиҳа ҳолати", p.group],
+    ["category", "Лойиҳа тури", p.category],
+    ["direction", "Йўналиш", p.direction],
+    ["region", "Жойлашуви", p.region],
+    ["district", "Маъмурий ҳудуд", p.district],
+    ["partner", "Ҳамкор ташкилот", p.partner],
+    ["funding", "Молиялаштириш", p.funding],
+    ["cost", "Умумий қиймати", p.cost === null ? null : `${exact(p.cost)} млн $`],
+    // Ёрлиқ бўлимнинг қолган жойлари билан бир хил («Тугаш йили» — рўйхат
+    // карточкасида ҳам, харитадаги модалда ҳам шундай), макапдаги узунроқ
+    // «Режалаштирилган якун» эмас: битта нарса икки хил аталмайди.
+    ["endYear", "Тугаш йили", p.endYear],
+  ]);
+
+/**
+ * Паспортнинг узун матнлари — 100–180 белги, шунинг учун улар «ёрлиқ: қиймат»
+ * устунида эмас, бутун кенглик бўйлаб алоҳида чиқади.
+ */
+export const geoPassportTexts = (p: GeoProject): GeoFactRow[] =>
+  factsOf([
+    ["plan2026", "2026 йил режаси", p.plan2026],
+    ["done2026", "2026 йилда бажарилгани", p.done2026],
+    ["note", "Изоҳ", p.note],
+  ]);
+
+/**
+ * 3-блок «Геологик маълумотлар» — манбада **ҳақиқатан бор** геологик мазмун.
+ *
+ * Макапдаги қатламлар жадвали, тарқалиш ҳалқаси ва элементлар бўйича таҳлил
+ * натижалари сонли кўринишда мавжуд эмас: захира иккита эркин матн бўлиб
+ * ёзилган («1,73 млн т → 2,5 млн т (JORC)»), шунинг учун улар матн ҳолида,
+ * манбадагидек кўрсатилади.
+ */
+export const geoGeologyRows = (p: GeoProject): GeoFactRow[] =>
+  factsOf([
+    ["mineral", "Фойдали қазилма", p.mineral],
+    ["metals", "Асосий элементлар", p.metals],
+    ["oreReserve", "Кутилаётган захира", p.oreReserve],
+    ["metalReserve", "Металл захираси", p.metalReserve],
+  ]);
+
+/**
+ * 2-блокдаги битта плитка.
+ *
+ * Фоиз бу ерда **ҳисобланмайди** — `GeoVolumeMetric.pct` бэкенддан келади ва
+ * 100 дан юқори бўлса ҳам кесилмайди (Лолабулоқ — бурғилаш 440%).
+ */
+export interface GeoKpi {
+  key: string;
+  label: string;
+  /** Асосий сон — `exact()`, яъни манбадагидек, яхлитланмаган. */
+  value: string;
+  unit: string | null;
+  /** Соннинг маъноси: «2026 режа» / «2026 бажарилган». */
+  scope: string;
+  /** Плитка остидаги қатор; `null` бўлса қатор чизилмайди. */
+  note: string | null;
+  /** Режа бор, бажарилгани кўрсатилмаган — бу «0%» эмас. */
+  noReport: boolean;
+  /** Ҳажмга оид бўлмаган плиткада (лаборатория, бюджет) `null`. */
+  pct: number | null;
+  over: boolean;
+}
+
+/**
+ * 2-блокнинг плиткалари — фақат 2026 иш ҳажми бўйича.
+ *
+ * Лойиҳа қиймати ва тугаш йили бу ерда **йўқ**: улар паспортда туради ва
+ * иш ҳажми эмас. Ҳажм умуман кўрсатилмаган 31 та лойиҳада рўйхат бўш
+ * қайтади — панел ўрнига битта қатор ёзув чизади.
+ */
+export function geoKpis(p: GeoProject): GeoKpi[] {
+  if (p.volume === null) return [];
+  const out: GeoKpi[] = [];
+
+  for (const m of geoFilledMetrics(p.volume)) {
+    // Режаси кўрсатилмаган, лекин бажарилгани бор кўрсаткич (ҳозирги
+    // маълумотда учрамайди) — плиткада бажарилган сон туради, акс ҳолда
+    // «—» дан бошқа нарса кўринмасди.
+    const planned = m.plan !== null;
+    out.push({
+      key: m.key,
+      label: m.label,
+      value: exact(planned ? m.plan : m.done),
+      unit: m.unit,
+      scope: planned ? "2026 режа" : "2026 бажарилган",
+      note: planned && m.done !== null ? `бажарилди ${exact(m.done)} ${m.unit}` : null,
+      noReport: m.noReport,
+      pct: m.pct,
+      over: m.over,
+    });
+  }
+
+  if (p.volume.labPlan !== null) {
+    out.push({
+      key: "lab",
+      label: "Лаборатория таҳлили",
+      value: exact(p.volume.labPlan),
+      unit: "дона",
+      scope: "2026 режа",
+      // Манбада лаборатория бўйича бажарилган сон устуни умуман йўқ —
+      // шунинг учун бу плиткада фоиз йўқ ва бунинг сабаби очиқ ёзилади.
+      note: "бажарилгани манбада йўқ",
+      noReport: false,
+      pct: null,
+      over: false,
+    });
+  }
+
+  if (p.volume.budget !== null) {
+    out.push({
+      key: "budget",
+      label: "2026 бюджет",
+      value: exact(p.volume.budget),
+      unit: "млн $",
+      scope: "2026 режа",
+      note: null,
+      noReport: false,
+      pct: null,
+      over: false,
+    });
+  }
+
+  return out;
+}
+
+/** Иш режасининг йиллар кесими — 3-блокдаги қисқа сарҳисоб учун. */
+export interface GeoWorkYear {
+  year: number;
+  total: number;
+  done: number;
+}
+
+/**
+ * Ишлар йил бўйича: манбада муддат 2025 дан 2032 гача тарқалган, шунинг учун
+ * жадвал устидаги қатор «қайси йилга нечта иш» саволига жавоб беради.
+ */
+export function geoWorkYears(works: GeoWork[]): GeoWorkYear[] {
+  const map = new Map<number, GeoWorkYear>();
+  for (const w of works) {
+    const row = map.get(w.year) ?? { year: w.year, total: 0, done: 0 };
+    row.total += 1;
+    if (w.done) row.done += 1;
+    map.set(w.year, row);
+  }
+  return [...map.values()].sort((a, b) => a.year - b.year);
 }
 
 /** Танланган ҳажм кўрсаткичи бўйича режаси бор лойиҳалар — камаювчи тартибда. */
