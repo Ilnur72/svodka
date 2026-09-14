@@ -288,21 +288,6 @@ function ExportTargetsBody({ data }: { data: ExportTargetsDashboard }) {
     });
   }
 
-  /* --- манба билан солиштириш ------------------------------------------ */
-  const checkRows: Row[] = v.periods.map((p) => ({
-    key: p.key,
-    cells: [
-      p.head,
-      p.total === null ? <Dash /> : exact(p.total),
-      p.sourceTotal === null ? <Dash /> : exact(p.sourceTotal),
-      p.gap === null ? (
-        <span className="text-ink-3">мос</span>
-      ) : (
-        <b className="font-semibold text-warn-ink">{exact(p.gap)}</b>
-      ),
-    ],
-  }));
-
   return (
     <>
       {/* --- 1. плиткалар --------------------------------------------------- */}
@@ -498,32 +483,6 @@ function ExportTargetsBody({ data }: { data: ExportTargetsDashboard }) {
         </Card>
       </Section>
 
-      {/* --- 5. манба билан солиштириш --------------------------------------- */}
-      <Section title="Манба билан солиштириш" note="ҳисобланган жами ва манбадаги «ЖАМИ»">
-        <Card
-          title="Даврлар бўйича текшириш"
-          sub={
-            v.gaps.length === 0
-              ? `${v.periods.length} / ${v.periods.length} мос`
-              : `${v.gaps.length} та фарқ`
-          }
-          note="«Ҳисобланган» — маҳсулот қаторларининг йиғиндиси, «Манбадаги ЖАМИ» — файлдаги тайёр қатор. Иккиси атайин алоҳида сақланади: манба янгиланганда номувофиқлик жимгина йўқолиб кетмаслиги керак."
-        >
-          <DataTable
-            cols={[
-              { t: "Давр" },
-              { t: `Ҳисобланган, ${VALUE_UNIT}`, num: true },
-              { t: `Манбадаги ЖАМИ, ${VALUE_UNIT}`, num: true },
-              { t: "Фарқ", num: true },
-            ]}
-            rows={checkRows}
-            caption="Ҳисобланган жами ва манбадаги ЖАМИ қаторини солиштириш"
-          />
-          <p className="mt-2.5 border-t border-grid pt-2.5 text-[11.5px] leading-[1.5] text-ink-3">
-            Манба: {v.source}
-          </p>
-        </Card>
-      </Section>
     </>
   );
 }

@@ -75,19 +75,6 @@ export const KIND_LABEL: Record<ExportTargetPeriodKind, string> = {
 /** Матрица калити — маҳсулот қатори + давр устуни. */
 const cellKey = (rowNo: number, periodKey: string): string => `${rowNo}||${periodKey}`;
 
-/**
- * Йиғинди, лекин «биронта қиймат йўқ» ҳолати нолдан ажратилади: бирорта ҳам
- * сон бўлмаса `null` қайтади. Бэкенддаги `sumOrNull` билан бир хил мантиқ —
- * «0 минг $» билан «кўрсатилмаган» экранда бир хил кўринмаслиги учун.
- */
-function sumOrNull(values: Array<number | null>): number | null {
-  const nums = values.filter((v): v is number => v !== null);
-  if (nums.length === 0) return null;
-  // Сузувчи нуқта шовқини йиғилиб кетмасин (0.1+0.2) — устун `numeric(14,4)`
-  // бўлгани учун бэкенддагидек 4 каср хонада қотирилади.
-  return Number(nums.reduce((s, v) => s + v, 0).toFixed(4));
-}
-
 /* -------------------------------------------------------------------------- */
 /* view-model                                                                 */
 /* -------------------------------------------------------------------------- */
@@ -420,17 +407,3 @@ export function exportMatrix(v: ExportTargetsView, metric: ExportMetric): Export
   };
 }
 
-/**
- * Ҳисобланган жами ҳақиқатан ҳам маҳсулот қаторларининг йиғиндисими —
- * панелдаги «ЖАМИ» қатори ишончли эканини бир марта текширади.
- *
- * Бэкенд уни ўзи ҳисоблайди, шунинг учун бу ерда фақат назорат: фарқ чиқса
- * у ҳам `gaps` каби яширилмайди. Қайтарилгани — мос келмаган даврлар.
- */
-export function exportTotalsCheck(v: ExportTargetsView): ExportPeriod[] {
-  return v.periods.filter((p, i) => {
-    const recomputed = sumOrNull(v.products.map((pr) => pr.cells[i]?.value ?? null));
-    if (recomputed === null || p.total === null) return recomputed !== p.total;
-    return Math.abs(recomputed - p.total) >= 0.001;
-  });
-}
