@@ -1425,3 +1425,173 @@ export interface ProjectScheduleDashboard {
     lastImportedAt: string | null;
   };
 }
+
+/* -------------------------------------------------------------------------- */
+/* invest-deck — «Инв. лойиҳалар 2026-2030» тақдимоти                          */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Бу блок бэкенддаги `src/modules/invest-deck/invest-deck.types.ts` нинг
+ * айнан кўзгуси.
+ *
+ * ⚠️ Учта қоида бутун блок бўйлаб амал қилади:
+ *
+ *  1. Манбада катак тўлдирилмаган бўлса майдон `null` келади — **нол эмас**.
+ *     88 лойиҳадан IRR фақат 34 тасида, NPV 33, ROI 34, йиллар жадвали эса
+ *     37 тасида бор. Бу маълумот сифати муаммоси эмас, манбанинг ўз ҳолати.
+ *
+ *  2. `kind: "branch"` қатори — лойиҳа ЭМАС, технопарк филиали бўйича
+ *     **йиғма** слайд: ундаги молия жадвали ўша филиалдаги лойиҳаларнинг
+ *     суммаси. `production-report` даги `isTotal` билан айнан бир хил мантиқ —
+ *     шунинг учун у ҳеч қандай йиғиндига қўшилмайди ва лойиҳалар рўйхатига
+ *     аралаштирилмайди. Бэкенд `totals`/`byCluster`/`byFinanceSource` ни
+ *     ҳисоблашда уни аллақачон чиқариб ташлаган.
+ *
+ *  3. Пул бирлиги ҳамма жойда битта — **млн АҚШ доллари** (`...MlnUsd`).
+ *     Матнли жуфти (`...Text`) манбадаги ёзувни айнан сақлайди.
+ */
+
+/** `project` — битта лойиҳа слайди; `branch` — филиал бўйича йиғма слайд. */
+export type InvestDeckKind = "project" | "branch";
+
+/**
+ * Молиялаштириш манбаининг каноник калити.
+ *
+ * Манбада битта манба турлича ёзилган («Хамкор»/«Ҳамкор», «ЎзТМК АЖ»/«ЎзТМК»),
+ * шунинг учун йиғинди ёрлиқ бўйича эмас, шу калит бўйича ҳисобланади. Асл
+ * ёзув `label` да қолади.
+ */
+export type InvestDeckSourceKey =
+  | "uztmk"
+  | "uzttj"
+  | "credit"
+  | "attracted"
+  | "partner"
+  | "other";
+
+/** Рўйхат учун қисқа шакл — болалар массивларисиз, фақат сонлари билан. */
+export interface InvestDeckProjectRow {
+  id: number;
+  /** Тақдимотдаги слайд рақами — тафсилот endpoint'ининг калити ва deep-link. */
+  slideNo: number;
+  kind: InvestDeckKind;
+  title: string;
+  /** Манбадаги ёзув — БОШ ҲАРФЛАРДА («ВОЛЬФРАМ КЛАСТЕРИ»). */
+  clusterName: string;
+  /** «филиали» сўзисиз: «Чирчиқ», «Оҳангарон». Филиали йўқ кластерда `null`. */
+  clusterBranch: string | null;
+  financeTotalText: string | null;
+  financeTotalMlnUsd: number | null;
+  irrText: string | null;
+  irrPercent: number | null;
+  npvText: string | null;
+  npvMlnUsd: number | null;
+  roiText: string | null;
+  roiYears: number | null;
+  sortOrder: number;
+  /** Слайдда қайси блок БОР эканини билиш учун — `0` = блок умуман йўқ. */
+  counts: {
+    works: number;
+    finance: number;
+    kpis: number;
+    yearValues: number;
+  };
+}
+
+export interface InvestDeckWorkRow {
+  id: number;
+  sortOrder: number;
+  task: string;
+  /** Муддат манбадаги матн кўринишида; кўрсатилмаган бўлса `null`. */
+  term: string | null;
+}
+
+export interface InvestDeckFinanceRow {
+  id: number;
+  sortOrder: number;
+  /** Манбадаги асл ёзув. Гуруҳлаш учун эмас — фақат кўрсатиш учун. */
+  label: string;
+  sourceKey: InvestDeckSourceKey;
+  valueText: string | null;
+  valueMlnUsd: number | null;
+}
+
+export interface InvestDeckKpiRow {
+  id: number;
+  /** Манбадаги тартиб рақами — жадвал шу бўйича сараланган. */
+  no: number;
+  label: string;
+  valueText: string;
+}
+
+/**
+ * «Йиллар» жадвалининг битта катаги — **узун (long) шаклда**.
+ *
+ * ⚠️ `year` — СОН ЭМАС, САТР: манбада оралиқ ҳам учрайди («2029-2030»).
+ * Бўш катак умуман келмайди (импорт уни ёзмайди), шунинг учун бурилган
+ * жадвалда тешиклар бўлади — улар нолга айлантирилмайди.
+ */
+export interface InvestDeckYearValueRow {
+  id: number;
+  metric: string;
+  year: string;
+  valueText: string;
+  valueNum: number | null;
+  sortOrder: number;
+}
+
+/** `GET /invest-deck/:slideNo` жавоби — тўлиқ тафсилот. */
+export interface InvestDeckProjectDetail extends InvestDeckProjectRow {
+  works: InvestDeckWorkRow[];
+  /** «Жами:» қатори бу ерда ЙЎҚ — у `financeTotalText`/`...MlnUsd` да. */
+  finance: InvestDeckFinanceRow[];
+  kpis: InvestDeckKpiRow[];
+  years: InvestDeckYearValueRow[];
+  /** Энг яқин мавжуд слайдлар — бўшлиқларни ҳисобга олади. */
+  neighbors: { prev: number | null; next: number | null };
+}
+
+/** Кластер (+филиал) кесими. Битта кластер бир нечта қаторда бўлиши мумкин. */
+export interface InvestDeckClusterStat {
+  name: string;
+  branch: string | null;
+  /** Шу қатордаги лойиҳалар сони (`kind: "project"` бўйича). */
+  projects: number;
+  /** Биронта лойиҳада ҳам сон бўлмаса `null` — нол эмас. */
+  financeMlnUsd: number | null;
+}
+
+/**
+ * Молиялаштириш манбаси кесими.
+ *
+ * Рўйхат ДОИМ тўлиқ (олтита калит) ва доим бир хил тартибда келади — манба
+ * базада учрамаса ҳам `count: 0` билан қайтади. Шунинг учун `count === 0`
+ * бўлган қаторни чизмаслик қарори фронтда қабул қилинади.
+ */
+export interface InvestDeckSourceStat {
+  sourceKey: InvestDeckSourceKey;
+  label: string;
+  totalMlnUsd: number | null;
+  /** Шу манба учраган молия қаторлари сони. */
+  count: number;
+}
+
+/** `/invest-deck/dashboard` жавоби — панел учун ҳаммаси битта сўровда. */
+export interface InvestDeckDashboard {
+  totals: {
+    /** Фақат `kind: "project"` — филиал йиғмалари кирмайди. */
+    projects: number;
+    /** Турли `clusterName` сони (филиал бўйича бўлинмайди). */
+    clusters: number;
+    financeTotalMlnUsd: number | null;
+  };
+  byCluster: InvestDeckClusterStat[];
+  byFinanceSource: InvestDeckSourceStat[];
+  /** Лойиҳалар ҲАМ, филиал йиғмалари ҲАМ — ажратиш `kind` бўйича. */
+  projects: InvestDeckProjectRow[];
+  meta: {
+    source: string;
+    /** ISO сана, масалан `"2026-08-03"`. */
+    asOf: string;
+  };
+}

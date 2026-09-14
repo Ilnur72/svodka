@@ -4,6 +4,7 @@ import {
   FINANCE_BASE,
   GAS_BASE,
   GEOLOGY_BASE,
+  INVEST_DECK_BASE,
   SCHEDULE_BASE,
   SOLAR_BASE,
 } from "./client";
@@ -27,6 +28,8 @@ import type {
   HydrogenRow,
   IngichkaDailyRow,
   IngichkaMonthlyRow,
+  InvestDeckDashboard,
+  InvestDeckProjectDetail,
   KpiResponse,
   MobplanResponse,
   NarastaykaRow,
@@ -516,3 +519,44 @@ export const getGeologyDashboard = (signal?: AbortSignal): Promise<GeologyDashbo
  */
 export const getProjectSchedule = (signal?: AbortSignal): Promise<ProjectScheduleDashboard> =>
   unwrap(apiGet<Envelope<ProjectScheduleDashboard>>("/dashboard", {}, signal, SCHEDULE_BASE));
+
+/* -------------------------------------------------------------------------- */
+/* invest-deck — алоҳида модул, `production-report` нинг ёнида                 */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * «Инвестиция дастури 2026–2030» бўлимининг рўйхат кўриниши учун ягона манба:
+ * йиғиндилар, кластер кесими, молия манбалари кесими ва 92 та слайднинг
+ * қисқа шакли — ҳаммаси битта сўровда (~42 КБ).
+ *
+ * **Параметрсиз**: манба — 03.08.2026 ҳолатидаги битта тақдимот, вақт қатори
+ * эмас. Шунинг учун юқоридаги давр танлагичи бу бўлимга таъсир қилмайди —
+ * худди `getGeologyDashboard` ва `getProjectSchedule` каби.
+ *
+ * Ёндош `GET /invest-deck` (`?cluster=` фильтри билан енгил рўйхат) **атайин
+ * ишлатилмайди**: у шу жавобнинг `projects` қисмининг такрори, кластер
+ * фильтри эса рўйхат тайёр бўлгач фронтда бир зумда ишлайди — ҳар фильтр
+ * босилганда серверга чиқиш ортиқча кутиш бўларди.
+ */
+export const getInvestDeckDashboard = (signal?: AbortSignal): Promise<InvestDeckDashboard> =>
+  unwrap(apiGet<Envelope<InvestDeckDashboard>>("/dashboard", {}, signal, INVEST_DECK_BASE));
+
+/**
+ * Битта слайднинг тўлиқ тафсилоти: ишлар, молия жадвали, KPI, йиллар ва
+ * `neighbors` (олдинги/кейинги мавжуд слайд).
+ *
+ * Алоҳида сўров, чунки бу тўрттала болалар жадвали 92 слайд бўйича биргаликда
+ * дашборд жавобини бир неча баробар оғирлаштирарди, очиладигани эса ҳар сафар
+ * биттаси.
+ *
+ * `slideNo` — дашборддаги `projects[].slideNo`. Мавжуд бўлмаган рақамда сервер
+ * `404` беради, шунинг учун панел уни **чақиришдан олдин** ўзидаги рўйхат
+ * бўйича текширади (`deckBySlide`) — эскирган ҳавола хатога айланмайди.
+ */
+export const getInvestDeckProject = (
+  slideNo: number,
+  signal?: AbortSignal,
+): Promise<InvestDeckProjectDetail> =>
+  unwrap(
+    apiGet<Envelope<InvestDeckProjectDetail>>(`/${slideNo}`, {}, signal, INVEST_DECK_BASE),
+  );

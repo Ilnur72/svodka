@@ -77,6 +77,19 @@ export const GEOLOGY_BASE = API_BASE.replace(/\/[^/]*$/, "") + "/geology-project
  */
 export const SCHEDULE_BASE = API_BASE.replace(/\/[^/]*$/, "") + "/project-schedule";
 
+/**
+ * «Инв. лойиҳалар 2026-2030» тақдимоти модулининг базаси.
+ *
+ * Худди юқоридагилар каби — бэкендда алоҳида модул
+ * (`@Controller('invest-deck')`), `production-report` нинг ичида эмас.
+ * Еттинчи муҳит ўзгарувчиси **киритилмайди**: база ўша усул билан
+ * `VITE_API_BASE` дан ҳосил қилинади.
+ *
+ *   `http://localhost:8085/production-report`  → `http://localhost:8085/invest-deck`
+ *   `https://tmk.bgs.uz/api/production-report` → `https://tmk.bgs.uz/api/invest-deck`
+ */
+export const INVEST_DECK_BASE = API_BASE.replace(/\/[^/]*$/, "") + "/invest-deck";
+
 export class ApiError extends Error {
   readonly status: number;
   constructor(message: string, status: number) {
