@@ -1595,3 +1595,92 @@ export interface InvestDeckDashboard {
     asOf: string;
   };
 }
+
+/* -------------------------------------------------------------------------- */
+/* export-targets — «Экспортнинг мақсадли кўрсаткичлари 2024-2030»             */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Бу блок бэкенддаги `src/modules/export-targets/export-targets.types.ts`
+ * нинг айнан кўзгуси. Манба — `1.1 Рынок - экспорт 2024-2030.xlsx`,
+ * «экспорт» варағи: 8 маҳсулот × 8 давр = 64 катак.
+ *
+ * ⚠️ Учта қоида бутун блок бўйлаб амал қилади:
+ *
+ *  1. **2026 йил ИККИ МАРТА учрайди** ва бу хато эмас: `2026-actual`
+ *     (январь–август, яъни ҚИСМАН йил) ва `2026-forecast` (тўлиқ йил
+ *     прогнози). Шунинг учун даврнинг табиий калити йилнинг ўзи эмас,
+ *     `periodKey` = йил + тур. Иккисини битта 2026 устунига йиғиш —
+ *     икки марта ҳисоблаш; ёнма-ён вақт қаторига қўйиш эса сохта «ўсиш»
+ *     кўрсатади. `kind` ва `note` айнан шуни ажратиш учун келади.
+ *
+ *  2. **`null` — нол ЭМАС.** 64 катакдан 42 таси тўлган, 22 таси бўш.
+ *     2024 йилда фақат молибден, 2025 ва 2026 да вольфрам/молибден/рений
+ *     бўйича маълумот бор. Бўш катакни нол деб чизиш «экспорт бор эди,
+ *     кейин тушди» деган ёлғон манзара берарди.
+ *
+ *  3. **`volume` ни маҳсулотлар бўйлаб ҚЎШИБ БЎЛМАЙДИ** — ўлчов бирлиги
+ *     маҳсулотга боғлиқ (`тонна` / `млн дона` / `минг тонна`). Фақат
+ *     `valueThousandUsd` (минг АҚШ доллари) йиғиндиси маънога эга.
+ */
+
+/** `actual` — «(амалда)», рўй берган экспорт; `forecast` — «(прогноз)», мақсад. */
+export type ExportTargetPeriodKind = "actual" | "forecast";
+
+export interface ExportTargetPeriod {
+  /** `2024-actual`, `2026-actual`, `2026-forecast`, … — `values[]` шу калит билан боғланади. */
+  periodKey: string;
+  year: number;
+  kind: ExportTargetPeriodKind;
+  /** Манбадаги матн: «2026 йил (амалда)». */
+  label: string;
+  /** «Январь-Август» — давр ҚИСМАН йил эканини айтади; бошқаларда `null`. */
+  note: string | null;
+  sortOrder: number;
+  /**
+   * Маҳсулот қаторларидан ҲИСОБЛАНГАН йиғинди (минг АҚШ доллари).
+   * Биронта маҳсулотда ҳам қиймат бўлмаса `null` — нол эмас.
+   *
+   * ⚠️ Бу `sourceTotals[]` даги манба йиғиндисидан ФАРҚ қилиши мумкин;
+   * иккаласи атайин алоҳида қайтарилади.
+   */
+  totalValueThousandUsd: number | null;
+}
+
+export interface ExportTargetProduct {
+  /** Манбадаги «Т/р» (1…8) — `values[]` шу рақам билан боғланади. */
+  rowNo: number;
+  name: string;
+  /** «тонна» / «млн дона» / «минг тонна». */
+  unit: string | null;
+  sortOrder: number;
+}
+
+export interface ExportTargetValue {
+  rowNo: number;
+  periodKey: string;
+  /** ⚠️ `null` = маълумот ЙЎҚ, экспорт ноль эмас. */
+  volume: number | null;
+  valueThousandUsd: number | null;
+}
+
+/** Манбадаги «ЖАМИ» қатори — ҳисобланган йиғинди билан солиштириш учун. */
+export interface ExportTargetSourceTotal {
+  periodKey: string;
+  valueThousandUsd: number | null;
+}
+
+/** `GET /export-targets/dashboard` жавоби — панел учун ҳаммаси битта сўровда. */
+export interface ExportTargetsDashboard {
+  /** Ҳужжат сарлавҳаси (манбадаги A1 катаги). */
+  title: string;
+  periods: ExportTargetPeriod[];
+  products: ExportTargetProduct[];
+  /** `products × periods` ТЎЛИҚ тўри — бўш катаклар ҳам `null` билан келади. */
+  values: ExportTargetValue[];
+  sourceTotals: ExportTargetSourceTotal[];
+  meta: {
+    /** Импорт қилинган файл номи. */
+    source: string;
+  };
+}

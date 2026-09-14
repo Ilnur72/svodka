@@ -1,6 +1,7 @@
 import {
   ApiError,
   apiGet,
+  EXPORT_TARGETS_BASE,
   FINANCE_BASE,
   GAS_BASE,
   GEOLOGY_BASE,
@@ -18,6 +19,7 @@ import type {
   ElectricityObjectRow,
   ElectricityTypeRow,
   Envelope,
+  ExportTargetsDashboard,
   FiltersData,
   FinanceReportDashboard,
   GasDayLogRow,
@@ -559,4 +561,24 @@ export const getInvestDeckProject = (
 ): Promise<InvestDeckProjectDetail> =>
   unwrap(
     apiGet<Envelope<InvestDeckProjectDetail>>(`/${slideNo}`, {}, signal, INVEST_DECK_BASE),
+  );
+
+/* -------------------------------------------------------------------------- */
+/* export-targets — алоҳида модул, `production-report` нинг ёнида              */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * «Экспортнинг мақсадли кўрсаткичлари 2024-2030» бўлимининг ягона манбаси:
+ * сарлавҳа, 8 давр, 8 маҳсулот, 64 катаклик тўлиқ тўр ва манбадаги «ЖАМИ»
+ * қатори — ҳаммаси битта сўровда (~7 КБ).
+ *
+ * **Параметрсиз**: жадвал 8×8, шунинг учун бэкендда саҳифалаш ҳам, фильтр ҳам
+ * йўқ — панел бутун тўрни бир марта олади ва ўзи кесади. Манба — битта
+ * ҳужжатнинг қотирилган ҳолати (2024–2030 йиллар), ой кесимидаги вақт қатори
+ * эмас; шунинг учун юқоридаги давр танлагичи бу бўлимга таъсир қилмайди —
+ * худди `getInvestDeckDashboard` ва `getGeologyDashboard` каби.
+ */
+export const getExportTargets = (signal?: AbortSignal): Promise<ExportTargetsDashboard> =>
+  unwrap(
+    apiGet<Envelope<ExportTargetsDashboard>>("/dashboard", {}, signal, EXPORT_TARGETS_BASE),
   );

@@ -90,6 +90,19 @@ export const SCHEDULE_BASE = API_BASE.replace(/\/[^/]*$/, "") + "/project-schedu
  */
 export const INVEST_DECK_BASE = API_BASE.replace(/\/[^/]*$/, "") + "/invest-deck";
 
+/**
+ * «Экспортнинг мақсадли кўрсаткичлари 2024-2030» модулининг базаси.
+ *
+ * Худди юқоридагилар каби — бэкендда алоҳида модул
+ * (`@Controller('export-targets')`), `production-report` нинг ичида эмас.
+ * Саккизинчи муҳит ўзгарувчиси **киритилмайди**: база ўша усул билан
+ * `VITE_API_BASE` дан ҳосил қилинади.
+ *
+ *   `http://localhost:8085/production-report`  → `http://localhost:8085/export-targets`
+ *   `https://tmk.bgs.uz/api/production-report` → `https://tmk.bgs.uz/api/export-targets`
+ */
+export const EXPORT_TARGETS_BASE = API_BASE.replace(/\/[^/]*$/, "") + "/export-targets";
+
 export class ApiError extends Error {
   readonly status: number;
   constructor(message: string, status: number) {

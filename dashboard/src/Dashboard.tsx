@@ -21,6 +21,7 @@ import { IngPanel } from "./panels/IngPanel";
 import { FinPanel } from "./panels/FinPanel";
 import { InvestPanel } from "./panels/InvestPanel";
 import { InvestDeckPanel } from "./panels/InvestDeckPanel";
+import { ExportTargetsPanel } from "./panels/ExportTargetsPanel";
 import { SchedulePanel } from "./panels/SchedulePanel";
 import { MobPlanPanel } from "./panels/MobPlanPanel";
 import { ProjectsPanel } from "./panels/ProjectsPanel";
@@ -119,6 +120,14 @@ function DashboardBody({ range }: { range: { min: string; max: string } }) {
       // панел `props` олмайди ва давр танлагичи унга таъсир қилмайди.
       case "investdeck":
         return <InvestDeckPanel />;
+      // «Экспорт кўрсаткичлари 2024–2030» — алоҳида бэкенд модули
+      // (`export-targets`), манбаси «1.1 Рынок - экспорт 2024-2030.xlsx».
+      // Битта ҳужжатнинг қотирилган ҳолати, ой кесимидаги вақт қатори эмас —
+      // шунинг учун панел `props` олмайди ва давр танлагичи унга таъсир
+      // қилмайди. Бўлим ичидаги давр (2024…2030) панелнинг ўз танлови ва у
+      // манзилнинг иккинчи сегментида сақланади.
+      case "exporttargets":
+        return <ExportTargetsPanel />;
       // «Лойиҳа графиклари» — алоҳида бэкенд модули (`project-schedule`),
       // манбаси 5 та Gantt-график xlsx файли, кунлик cron билан қайта
       // импорт қилинади. Вақт қатори эмас — ҳар бир лойиҳанинг ўз режа
