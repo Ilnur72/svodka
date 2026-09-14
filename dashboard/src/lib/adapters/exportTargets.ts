@@ -1,4 +1,5 @@
 import type {
+  ExportTargetGeography,
   ExportTargetPeriodKind,
   ExportTargetsDashboard,
   ExportTargetValue,
@@ -148,6 +149,133 @@ export interface ExportDualYear {
   donePct: number | null;
 }
 
+/* -------------------------------------------------------------------------- */
+/* экспорт географияси                                                        */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Битта давлат чипи. «Янги» белгиси АДАПТЕРДА қўйилади — панел фақат чизади.
+ */
+export interface ExportGeoCountry {
+  /** Русча номи — манбадаги ёзувича, таржима қилинмайди. */
+  name: string;
+  /** Олдинги йил рўйхатида йўқ эди, яъни шу йили қўшилган. */
+  isNew: boolean;
+}
+
+/** Битта йилнинг географияси — давлатлар ва олдинги йилдан фарқи. */
+export interface ExportGeoYear {
+  year: number;
+  /** Бэкенддан келган сон (`countries.length`) — бу ерда қайта ҳисобланмайди. */
+  count: number;
+  /** Манбадаги тартибда; ҳар бирида «янги» белгиси бор. */
+  countries: ExportGeoCountry[];
+  /** Шу йили қўшилганлар — олдинги йил рўйхатида бўлмаганлари. */
+  added: string[];
+  /**
+   * Олдинги йилда бор эди, бу йил рўйхатида ЙЎҚ.
+   *
+   * Ҳозирги маълумотда бундай ҳолат йўқ (2024 ⊂ 2025 ⊂ 2026), лекин у
+   * жимгина ташлаб кетилмайди: акс ҳолда сон камайган йилда экранда
+   * тушунтирилмаган «−2» пайдо бўларди.
+   */
+  dropped: string[];
+  /** Олдинги йилдаги сон; рўйхатдаги биринчи йилда `null`. */
+  prevCount: number | null;
+  /** `count − prevCount`; биринчи йилда `null` (ўсиш «0» эмас, номаълум). */
+  delta: number | null;
+}
+
+/**
+ * Бўлимнинг тайёр кўриниши.
+ *
+ * ⚠️ `years` да фақат МАЪЛУМОТИ БОР йиллар бўлади. Даврлар рўйхатида бор-у
+ * географияси берилмаган йиллар (2027–2030) `missingYears` га тушади ва
+ * экранда «маълумот берилмаган» деб ёзилади — «0 та давлат» деб эмас.
+ */
+export interface ExportGeographyView {
+  years: ExportGeoYear[];
+  /** Энг эски йил — «қаердан бошланган». */
+  first: ExportGeoYear | null;
+  /** Энг сўнгги йил — «ҳозир қаерда». */
+  last: ExportGeoYear | null;
+  /** `last.count − first.count`; бир йилдан кам бўлса `null`. */
+  growth: number | null;
+  /**
+   * Барча йиллар бўйлаб УЧРАГАН давлатлар сони (бирлашма).
+   *
+   * Ҳеч ким рўйхатдан тушмаган бўлса `last.count` га тенг. Ундан катта
+   * бўлиши — баъзи давлат кейинги йилларда йўқолганини билдиради.
+   */
+  everCount: number;
+  /** `periods` да бор, лекин географияси берилмаган йиллар — ўсиш тартибида. */
+  missingYears: number[];
+}
+
+/**
+ * Географияни йиллар занжирига айлантиради.
+ *
+ * «Янги давлат» олдинги КАЛЕНДАР йилга эмас, рўйхатдаги олдинги ёзувга
+ * нисбатан ҳисобланади: манбада йиллар узилиши мумкин (масалан 2024 дан
+ * кейин 2026), шунда `year - 1` ни излаш ҳамма давлатни «янги» деб
+ * белгилаб қўярди.
+ *
+ * Тартиб бу ерда ҳам очиқ таъминланади: «янги» белгиси тартибга тўғридан-
+ * тўғри боғлиқ ва нотўғри тартибда у жимгина тескари чиқарди.
+ */
+function buildGeography(
+  rows: ExportTargetGeography[],
+  periodYears: number[],
+): ExportGeographyView {
+  const sorted = [...rows].sort((a, b) => a.year - b.year);
+
+  const ever = new Set<string>();
+  const years: ExportGeoYear[] = [];
+  let prev: ExportTargetGeography | null = null;
+
+  for (const g of sorted) {
+    const prevSet = new Set(prev?.countries ?? []);
+    const nowSet = new Set(g.countries);
+
+    // Рўйхатдаги биринчи йилда ҳеч нарса «қўшилган» эмас: у бошланғич ҳолат,
+    // ўсиш эмас. Шунинг учун `isNew` фақат олдинги ёзув бор бўлсагина қўйилади.
+    const countries: ExportGeoCountry[] = g.countries.map((name) => ({
+      name,
+      isNew: prev !== null && !prevSet.has(name),
+    }));
+
+    for (const c of g.countries) ever.add(c);
+
+    years.push({
+      year: g.year,
+      count: g.count,
+      countries,
+      added: countries.filter((c) => c.isNew).map((c) => c.name),
+      dropped: prev === null ? [] : prev.countries.filter((c) => !nowSet.has(c)),
+      prevCount: prev === null ? null : prev.count,
+      delta: prev === null ? null : g.count - prev.count,
+    });
+    prev = g;
+  }
+
+  const first = years.length > 0 ? years[0] : null;
+  const last = years.length > 0 ? years[years.length - 1] : null;
+
+  // Географияси берилмаган йиллар даврлар рўйхатидан олинади: «нима йўқ»
+  // деган саволга жавоб фақат «нима бор» билан солиштирилганда чиқади.
+  const known = new Set(years.map((y) => y.year));
+  const missingYears = [...new Set(periodYears)].filter((y) => !known.has(y)).sort((a, b) => a - b);
+
+  return {
+    years,
+    first,
+    last,
+    growth: first === null || last === null || first === last ? null : last.count - first.count,
+    everCount: ever.size,
+    missingYears,
+  };
+}
+
 export interface ExportTargetsView {
   /** Ҳужжат сарлавҳаси — манбадан, ўзгартирилмайди. */
   title: string;
@@ -166,6 +294,14 @@ export interface ExportTargetsView {
   gaps: ExportPeriod[];
   /** Тўрнинг тўлиқлиги: нечта катакда қиймат бор. */
   cells: { filled: number; total: number };
+  /**
+   * Экспорт географияси — АЛОҲИДА бўлим.
+   *
+   * Атайин `periods` га боғланмаган: у йил кесимида, даврлар эса
+   * йил + тур кесимида. 2026 йил даврларда икки марта учрайди, географияда
+   * бир марта — уларни `year` бўйича улаш рўйхатни икки марта чиқарарди.
+   */
+  geography: ExportGeographyView;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -280,6 +416,9 @@ export function exportTargetsView(d: ExportTargetsDashboard): ExportTargetsView 
     dualYears,
     gaps: periods.filter((p) => p.gap !== null),
     cells: { filled: flat.filter((c) => c.value !== null).length, total: flat.length },
+    // Даврларнинг йиллари — «географияси берилмаган йиллар» рўйхати учун.
+    // Такрорланган йил (2026 икки марта) `buildGeography` ичида тозаланади.
+    geography: buildGeography(d.geography ?? [], periods.map((p) => p.year)),
   };
 }
 

@@ -14,6 +14,9 @@ import {
   NO_DATA,
   VALUE_UNIT,
   type ExportDualYear,
+  type ExportGeoCountry,
+  type ExportGeographyView,
+  type ExportGeoYear,
   type ExportMetric,
   type ExportSlice,
 } from "../lib/adapters/exportTargets";
@@ -38,9 +41,9 @@ import { EmptyState, Loader } from "../components/states";
  *     тўрнинг тўлиқлиги.
  *  2. Қиймат динамикаси: даврлар бўйича жами + 2026 йилнинг иккита ёзуви
  *     алоҳида карточкада.
- *  3. Маҳсулотлар кесими: битта давр танланади, ичида рейтинг ва аниқ сонлар.
- *  4. Тўлиқ жадвал: маҳсулот × давр, қиймат/ҳажм алмаштиргичи билан.
- *  5. Манба билан солиштириш: ҳисобланган жами ва манбадаги «ЖАМИ».
+ *  3. Экспорт географияси: йиллар бўйича давлатлар сони ва рўйхати.
+ *  4. Маҳсулотлар кесими: битта давр танланади, ичида рейтинг ва аниқ сонлар.
+ *  5. Тўлиқ жадвал: маҳсулот × давр, қиймат/ҳажм алмаштиргичи билан.
  *
  * Танланган давр манзилда сақланади (`#exporttargets/2030-forecast`) —
  * шунинг учун аниқ бир йилга ҳавола бериш мумкин. Ёзув `replace` билан
@@ -69,6 +72,21 @@ import { EmptyState, Loader } from "../components/states";
  * шунинг учун ҳажм бўйича диаграмма ҳам, устунлар бўйича ЖАМИ ҳам йўқ —
  * ҳажм фақат жадвалда, ҳар бир қатор ўз бирлиги ёнида. Диаграммаларда
  * ягона қўшса бўладиган ўлчов ишлатилади: минг АҚШ доллари.
+ *
+ * ═══ География даврга эмас, ЙИЛга боғланган ═════════════════════════════
+ *
+ * Географии бошқа манбадан келади ва йил кесимида берилган. Уни даврлар
+ * билан улаб бўлмайди: 2026 йил даврлар рўйхатида ИККИ марта
+ * (`2026-actual` ва `2026-forecast`), географияда эса БИР марта — `year`
+ * бўйича улаш ўша битта рўйхатни экранда икки марта чиқарарди. Шунинг учун
+ * бўлим давр алмаштиргичига ҳам, `periods` га ҳам боғланмаган: у мустақил
+ * туради ва ўз ўлчови (давлатлар сони, та) билан алоҳида карточкада
+ * чизилади — қиймат диаграммалари билан битта шкалага қўйилмайди.
+ *
+ * 2027–2030 учун географияси УМУМАН берилмаган (бўш рўйхат эмас — ёзувнинг
+ * ўзи йўқ). Улар «0 та давлат» деб кўрсатилмайди: бу «у йили экспорт
+ * бўлмайди» деган ёлғон хулоса берарди. Экранда очиқ «берилмаган» деб
+ * ёзилади — қиймат бўйича прогноз эса ўз бўлимида жойида қолади.
  */
 
 const LBL = "text-[11.5px] font-medium tracking-[0.02em] text-ink-3";
@@ -141,6 +159,230 @@ function DualYearCard({ d }: { d: ExportDualYear }) {
         </p>
       )}
     </Card>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* экспорт географияси                                                        */
+/* -------------------------------------------------------------------------- */
+
+/** Ишорали бутун сон: «+7» / «−2». Фақат ўзгариш кўрсаткичлари учун. */
+const signed = (v: number): string => (v >= 0 ? "+" : "−") + nf(Math.abs(v));
+
+/**
+ * Давлат чипи — `GroupChip`/`ClusterChip` билан бир хил кўринишда, чунки
+ * иккаласи ҳам «ном» чипи.
+ *
+ * Ранг ёлғиз белги эмас: янги давлатда «янги» ёзуви ҳам ёнида туради, шунинг
+ * учун ранг кўринмаган ҳолатда ҳам маъно йўқолмайди. Номлар манбадагидек
+ * русча қолади — таржима қилинмайди.
+ */
+function CountryChip({ c }: { c: ExportGeoCountry }) {
+  return (
+    <span
+      className={
+        "inline-flex max-w-full items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-semibold text-ink-2 " +
+        (c.isNew
+          ? "border-[color-mix(in_srgb,var(--good)_30%,transparent)] bg-[color-mix(in_srgb,var(--good)_10%,transparent)]"
+          : "border-hair bg-surface-2")
+      }
+    >
+      <i
+        aria-hidden="true"
+        className="h-2 w-2 flex-none rounded-full"
+        style={{ background: c.isNew ? "var(--good)" : "var(--s1)" }}
+      />
+      <span className="truncate">{c.name}</span>
+      {c.isNew && <span className="flex-none font-normal text-good-ink">янги</span>}
+    </span>
+  );
+}
+
+/**
+ * Битта йилнинг географияси: давлатлар рўйхати ва олдинги йилдан фарқи.
+ *
+ * Фарқ ҳар доим ёзилади — қўшилганлар ҳам, рўйхатдан чиққанлар ҳам. Акс
+ * ҳолда сон камайган йилда экранда тушунтирилмаган рақам қоларди.
+ */
+function GeoYearCard({ y }: { y: ExportGeoYear }) {
+  return (
+    <Card
+      title={`${y.year} йил`}
+      sub={`${nf(y.count)} та давлат`}
+      stripe={y.delta !== null && y.delta > 0 ? "var(--good)" : "var(--s1)"}
+    >
+      <div className="flex flex-wrap gap-1.5">
+        {y.countries.map((c) => (
+          <CountryChip key={c.name} c={c} />
+        ))}
+      </div>
+
+      <div className="mt-2.5 border-t border-grid pt-2.5 text-[11.5px] leading-[1.5] text-ink-3">
+        {y.prevCount === null ? (
+          // Биринчи йилда ҳеч нарса «қўшилган» эмас: бу ўсиш эмас, бошланғич
+          // ҳолат. Шунинг учун бу ердаги биронта чип «янги» деб белгиланмайди.
+          <>Рўйхатдаги биринчи йил: ундан олдинги ёзув йўқ, шунинг учун бу рўйхат ўсиш эмас, бошланғич ҳолат.</>
+        ) : (
+          <>
+            Олдинги йилда <b className="font-semibold text-ink-2">{nf(y.prevCount)}</b> та эди
+            {y.delta !== null && y.delta !== 0 && (
+              <>
+                {" "}
+                (<b className="font-mono font-semibold text-ink-2">{signed(y.delta)}</b>)
+              </>
+            )}
+            .
+            {y.added.length > 0 && (
+              <>
+                {" "}
+                Шу йили қўшилган:{" "}
+                <b className="font-semibold text-ink-2">{y.added.join(", ")}</b>.
+              </>
+            )}
+            {y.dropped.length > 0 && (
+              <>
+                {" "}
+                Рўйхатдан чиққан:{" "}
+                <b className="font-semibold text-ink-2">{y.dropped.join(", ")}</b>.
+              </>
+            )}
+          </>
+        )}
+      </div>
+    </Card>
+  );
+}
+
+/**
+ * «Экспорт географияси» бўлими.
+ *
+ * Бўлим `periods` га боғланмаган (юқоридаги изоҳга қаранг) ва ўз ўлчови —
+ * давлатлар сони — билан алоҳида чизилади.
+ */
+function GeographySection({ g }: { g: ExportGeographyView }) {
+  const pal = usePalette();
+  const { first, last } = g;
+
+  if (first === null || last === null) {
+    return (
+      <Section title="Экспорт географияси">
+        <EmptyState
+          title="Экспорт географияси берилмаган"
+          text="Биронта йил учун ҳам давлатлар рўйхати киритилмаган."
+        />
+      </Section>
+    );
+  }
+
+  const rows: BarRow[] = g.years.map((y) => ({
+    label: `${y.year} йил`,
+    v: y.count,
+    color: pal.s1,
+    extra: [
+      "Шу йили қўшилган",
+      // Биринчи йилда «0 та» деб ёзиш нотўғри бўларди: у ерда қўшилиш
+      // ҳисобланмайди, солиштириш учун олдинги ёзувнинг ўзи йўқ.
+      y.prevCount === null ? "олдинги йил йўқ" : `${nf(y.added.length)} та`,
+    ] as [string, string],
+  }));
+
+  // Битта йил қолганда «2026–2026» деб ёзиш маъносиз — ўша йилнинг ўзи ёзилади.
+  const range = first.year === last.year ? `${first.year}` : `${first.year}–${last.year}`;
+
+  // Ўсиш плиткасининг чизиғи ишорага эргашади: камайган йилда яшил чизиқ
+  // сонга зид сигнал берарди.
+  const growthStripe =
+    g.growth === null || g.growth === 0
+      ? "var(--s1)"
+      : g.growth > 0
+        ? "var(--good)"
+        : "var(--crit)";
+
+  return (
+    <Section title="Экспорт географияси" note={`${g.years.length} йил · ${range}`}>
+      {g.missingYears.length > 0 && (
+        <Banner tone="info">
+          {g.missingYears.join(", ")} йиллари учун экспорт географияси{" "}
+          <b>берилмаган</b> — бу рўйхатда улар умуман йўқ. Шунинг учун улар «0 та давлат»
+          деб кўрсатилмайди: маълумот йўқлиги «у йили экспорт бўлмайди» дегани эмас. Ўша
+          йилларнинг қиймат бўйича прогнози юқоридаги бўлимларда ўз ўрнида турибди.
+        </Banner>
+      )}
+
+      <div className={GRID.g3}>
+        <StatTile
+          label={`${last.year} йил — экспорт давлатлари`}
+          value={nf(last.count)}
+          unit="та"
+          stripe="var(--s1)"
+          foot={
+            <>
+              {last.added.length > 0 && (
+                <Pill status="good">{signed(last.added.length)} та янги</Pill>
+              )}
+              {/* Бирлашма охирги йилдан катта бўлса — кимдир рўйхатдан тушган;
+                  бу жимгина ўтиб кетмаслиги керак. */}
+              {g.everCount > last.count && (
+                <Pill status="warn">йиллар бўйлаб жами {nf(g.everCount)} та учраган</Pill>
+              )}
+            </>
+          }
+        />
+        <StatTile
+          // Битта йил бўлса «2026 йилдан ўсиш» деб ёзиб, ёнига «2 → 2» қўйиш
+          // йўлдан урарди: ўсиш нол эмас, солиштириш учун иккинчи йил йўқ.
+          label={g.growth === null ? "Йиллар бўйича ўсиш" : `${first.year} йилдан ўсиш`}
+          value={g.growth === null ? NO_DATA : signed(g.growth)}
+          unit={g.growth === null ? undefined : "та"}
+          stripe={growthStripe}
+          foot={
+            g.growth === null ? (
+              <Pill>солиштириш учун иккинчи йил йўқ</Pill>
+            ) : (
+              <Pill>
+                {nf(first.count)} → {nf(last.count)} та
+              </Pill>
+            )
+          }
+        />
+        <StatTile
+          label="Географияси маълум йиллар"
+          value={nf(g.years.length)}
+          unit="йил"
+          stripe="var(--s2)"
+          foot={
+            <>
+              <Pill>{range}</Pill>
+              {g.missingYears.length > 0 && (
+                <Pill status="warn">{nf(g.missingYears.length)} йил учун берилмаган</Pill>
+              )}
+            </>
+          }
+        />
+      </div>
+
+      <Card
+        className="mt-3"
+        title="Йиллар бўйича давлатлар сони"
+        sub="та"
+        note="Ўлчов — давлатлар сони, шунинг учун бу диаграмма қиймат (минг $) диаграммалари билан битта шкалага қўйилмаган. Рўйхатда фақат географияси маълум йиллар бор."
+      >
+        <BarsH
+          rows={rows}
+          vName="Давлатлар сони, та"
+          vFmt={nf}
+          rowH={34}
+          padR={88}
+          ariaLabel="Экспорт қилинган давлатлар сонининг йиллар бўйича ўсиши"
+        />
+      </Card>
+
+      <div className={GRID.g3 + " mt-3"}>
+        {g.years.map((y) => (
+          <GeoYearCard key={y.year} y={y} />
+        ))}
+      </div>
+    </Section>
   );
 }
 
@@ -391,7 +633,10 @@ function ExportTargetsBody({ data }: { data: ExportTargetsDashboard }) {
         </div>
       </Section>
 
-      {/* --- 3. маҳсулотлар кесими ------------------------------------------ */}
+      {/* --- 3. экспорт географияси ------------------------------------------ */}
+      <GeographySection g={v.geography} />
+
+      {/* --- 4. маҳсулотлар кесими ------------------------------------------ */}
       <Section title="Маҳсулотлар кесими">
         <div className="mb-3 flex flex-wrap items-start gap-2.5">
           <span className={LBL + " pt-2"}>Давр</span>
@@ -448,7 +693,7 @@ function ExportTargetsBody({ data }: { data: ExportTargetsDashboard }) {
         </div>
       </Section>
 
-      {/* --- 4. тўлиқ жадвал ------------------------------------------------- */}
+      {/* --- 5. тўлиқ жадвал ------------------------------------------------- */}
       <Section
         title="Тўлиқ жадвал"
         note={`${v.products.length} маҳсулот × ${v.periods.length} давр`}
