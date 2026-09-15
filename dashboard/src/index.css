@@ -50,6 +50,17 @@
      u palitra rangi emas, ostidagi sahifani susaytiruvchi qatlam. --ink dan
      color-mix() bilan olinsa qorong'i mavzuda oqargan parda chiqardi. */
   --scrim: rgba(13, 18, 21, 0.45);
+  /* Инвестиция лойиҳалари харитасидаги маркер рангаларининг токенлари.
+     Улар палитра ранги ЭМАС — `public/marker/marker-<ном>.png` файлларининг
+     ўзидан олинган: ҳар бир файлдаги энг тўйинган пиксел намуна қилинган.
+     Шунинг учун иккала мавзуда ҳам бир хил: маркер расми ўзгармайди, унинг
+     ёнидаги легенда белгиси эса доим ўша расм билан бир хил кўринишда
+     туриши керак. Матн ранги сифатида ишлатилмайди (ёруғ фонда контрасти
+     етмайди) — фақат кичик белги (swatch) сифатида, ёнида доим ёзув бор. */
+  --mk-cyan: #0cc6e0;
+  --mk-gold: #e0990c;
+  --mk-purple: #760ce0;
+  --mk-turquoise: #0ce0ad;
   --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
 }
@@ -291,4 +302,142 @@
 /* `CheckSelect` — браузернинг ўз учбурчак маркери ўрнига ўзимизники. */
 summary::-webkit-details-marker {
   display: none;
+}
+
+/* ---------------------------------------------------------------------------
+   «Лойиҳалар харитаси» (MapLibre).
+
+   Бу блокдаги синфлар DOM'да React'дан ТАШҚАРИДА ясалади: маркер элементи
+   `panels/investMap/MapCanvas.tsx` да `document.createElement` билан
+   тузилади, чунки MapLibre маркерга тайёр HTML элемент кутади. Шунинг учун
+   уларнинг кўриниши узун утилита сатри сифатида JS ичида эмас, айнан шу
+   ерда — юқоридаги жадвал сарлавҳалари билан бир хил ёндашув.
+
+   Ўлчам (эни/баландлиги) бу ерда ЁЗИЛМАЙДИ: у TS'даги `MARKER_H` ва
+   маркер PNG'нинг нисбатидан ҳисобланиб, инлайн стил билан қўйилади —
+   битта сон иккита жойда турмаслиги учун.
+--------------------------------------------------------------------------- */
+@keyframes map-pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.map-pop {
+  position: relative;
+  animation: map-pop-in 0.22s ease-out both;
+}
+
+.map-pin {
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+.map-pin--edit {
+  cursor: move;
+}
+.map-pin__icon {
+  display: block;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  transition:
+    transform 0.18s ease,
+    opacity 0.18s ease;
+}
+.map-pin:hover .map-pin__icon,
+.map-pin--on .map-pin__icon {
+  transform: scale(1.12);
+}
+/* Танланмаган маркерлар сусаяди, лекин ЁРЛИҚ сусаймайди: карточка очиқ
+   турганда ҳам қайси нуқта қайси лойиҳа экани ўқилиши керак. */
+.map-pin--dim .map-pin__icon {
+  opacity: 0.45;
+}
+.map-pin__label {
+  position: absolute;
+  /* `--pin-dy` — манбадаги жадвалдан келадиган вертикал силжиш: ёнма-ён
+     турган иккита ёрлиқ бир хил баландликда бўлса кесишарди. */
+  top: calc(14px + var(--pin-dy, 0px));
+  display: flex;
+  align-items: center;
+  max-width: 170px;
+  overflow: hidden;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  pointer-events: none;
+}
+.map-pin[data-side="right"] .map-pin__label {
+  left: 42px;
+}
+/* Чап томондаги ёрлиқда рангли чизиқ ўнг четга ўтади — у доим кристаллга
+   қараб туриши керак, шунда ёрлиқ ва маркер бир-бирига боғланади. */
+.map-pin[data-side="left"] .map-pin__label {
+  right: 42px;
+  flex-direction: row-reverse;
+}
+.map-pin__bar {
+  flex: none;
+  width: 3px;
+  height: 17px;
+  border-radius: 1px;
+}
+.map-pin__text {
+  min-width: 0;
+  overflow: hidden;
+  padding: 3px 8px;
+  color: var(--ink);
+  font-size: 11.5px;
+  font-weight: 650;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* MapLibre'нинг ўз ойна безаги олиб ташланади — карточканинг ўз ромкаси,
+   фони ва сояси бор. Учбурчак «дум» ҳам керак эмас: карточка катта ва
+   лангар маркернинг ўзи. */
+.map-pop-wrap .maplibregl-popup-content {
+  padding: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+}
+.map-pop-wrap .maplibregl-popup-tip {
+  display: none;
+}
+
+/* Хаританинг ўзи карточкани ТЎЛИҚ эгаллайди.
+   MapLibre ўз стилида `.maplibregl-map { position: relative }` деб ёзади, у эса
+   контейнернинг Tailwind `absolute inset-0` синфини БЕКОР ҚИЛАДИ: Tailwind 4
+   да utility'лар `@layer` ичида, кутубхона CSS'и эса қатламсиз — қатламсиз
+   қоида доим устун туради. Натижада баландлик контентдан ҳисобланиб `0px`
+   бўлиб қоларди: харита биронта плитка ҳам сўрамасди ва экранда «Харита
+   юкланмоқда...» ёзуви қотиб қоларди.
+   Шунинг учун қоида шу ерда, қатламсиз ва юқорироқ аниқлик билан (0,2,0 >
+   0,1,0) қайтарилади. Уни ўчириш = харитани йўқотиш. */
+.map-shell .maplibregl-map {
+  position: absolute;
+  inset: 0;
+}
+
+/* Аттрибуция лицензия талаби — ЯШИРИЛМАЙДИ. Фақат дашбордга мос ихчам
+   кўринишга келтирилади. */
+.map-shell .maplibregl-ctrl-attrib {
+  background: color-mix(in srgb, var(--surface) 84%, transparent);
+  font-size: 9.5px;
+}
+.map-shell .maplibregl-ctrl-attrib-inner,
+.map-shell .maplibregl-ctrl-attrib a {
+  color: var(--ink-2);
+}
+.map-shell .maplibregl-ctrl-attrib-button {
+  background-color: color-mix(in srgb, var(--ink) 55%, transparent);
 }
