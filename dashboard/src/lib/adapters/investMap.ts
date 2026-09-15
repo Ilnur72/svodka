@@ -1,6 +1,5 @@
 import { pctTxt } from "../format";
 import {
-  INVEST_FIELD_LABEL,
   INVEST_PROJECTS,
   type InvestProject,
 } from "../invest/investSource";
@@ -69,15 +68,13 @@ export interface InvestMapPin {
   labelSide: InvestLabelSide;
   /** Ёрлиқнинг вертикал силжиши, экран пикселида. */
   labelDy: number;
-  /**
-   * Маркер расмининг экрандаги силжиши, пикселда. Геодезик лангарга
-   * тегмайди — фақат чизилиш ўрнини кўчиради.
-   */
-  offset: [number, number];
   /** Маркер силжитилган бўлса — сабаби, акс ҳолда `null`. */
   nudge: string | null;
-  /** `public/invest/<id>.jpg` — файл бўлмаса карточка плашка кўрсатади. */
-  img: { src: string; alt: string };
+  /**
+   * Объект тури (`Завод`, `Геология-қидирув ишлари`) — карточка устидаги
+   * кичик сарлавҳа. Лойиҳа тури (`kind`) билан адашмасин: у — иш тури.
+   */
+  objectKind: string;
   /** Карточкадаги қаторлар — реестрдаги ёрлиқ ва қиймат билан. */
   rows: InvestField[];
 }
@@ -123,23 +120,36 @@ export interface InvestMapVM {
 const field = (k: string, v: string, num: boolean): InvestField => ({ k, v, num });
 
 /**
- * Карточкадаги қаторлар. Ёрлиқлар реестрдан (`INVEST_FIELD_LABEL`) олинади —
- * қисқартирилмайди ва қайта ёзилмайди, шунда «Инвестиция лойиҳалари»
- * бўлимидаги худди шу қатор билан бир хил ўқилади.
+ * Карточкадаги қаторлар.
  *
- * Муддат — ягона истисно: реестрда у иккита катакда (бошланиш ва тугаш),
- * карточкада эса битта қаторда кўрсатилади. Иккала қиймат ҳам манбадагидек,
- * ўзгартирилмасдан ёнма-ён ёзилади.
+ * ⚠️ Ёрлиқлар бу ерда ҚИСҚА ёзилган, реестрдаги тўлиқ ёзувдан фарқли.
+ * Сабаби ўлчов: карточканинг эни 320 px (харита устида турганиучун ундан
+ * катта бўлолмайди), реестрдаги «Ўзлаштирилган маблағ (январь–июнь)» каби
+ * ёрлиқ эса қаторга сиғмай, «…» билан кесилиб қоларди — яъни ҳарфма-ҳарф
+ * сақлашга уриниш натижада маълумотни ЙЎҚОТАРДИ.
+ *
+ * Тўлиқ ёзув йўқолмайди: у «Инвестиция лойиҳалари» бўлимида, паспорт
+ * карточкасида турибди — бу ердаги «Батафсил →» ҳаволаси ўша бўлимни очади.
+ * Қийматлар эса ўзгартирилмайди: улар `adapters/invest.ts` даги битта
+ * форматлаш қоидасидан ўтади, шунда битта сон иккита бўлимда иккита хил
+ * кўринишда чиқмайди.
+ *
+ * Муддат — реестрда иккита катакда (бошланиш ва тугаш), карточкада битта
+ * қаторда. Иккала қиймат ҳам манбадагидек, ўзгартирилмасдан ёнма-ён.
+ *
+ * Лойиҳа тури (`kind`) бу рўйхатда ЙЎҚ: у карточканинг юқори ўнг бурчагидаги
+ * белгида, маркер рангида кўрсатилади — жадвалда такрорланиши ортиқча.
  */
 function rowsOf(p: InvestProject): InvestField[] {
   return [
-    field(INVEST_FIELD_LABEL.totalCost, `${investExact(p.totalCost)} ${USD}`, true),
-    field(INVEST_FIELD_LABEL.disbursed, `${investExact(p.disbursed)} ${USD}`, true),
+    field("Умумий қиймати", `${investExact(p.totalCost)} ${USD}`, true),
+    field("Ўзлаштирилган", `${investExact(p.disbursed)} ${USD}`, true),
     // Фоиз — ҳисобланган қиймат (манбада улуш турибди), шунинг учун `exact()`
     // эмас, доим `pctTxt()`: бўлимнинг қолган жойидаги фоизлар билан бир хил.
-    field(INVEST_FIELD_LABEL.progressShare, pctTxt(p.progressShare * 100), true),
-    field(INVEST_FIELD_LABEL.jobs, `${investExact(p.jobs)} та`, true),
+    field("Бажарилиш", pctTxt(p.progressShare * 100), true),
+    field("Иш ўринлари", `${investExact(p.jobs)} та`, true),
     field("Муддат", `${p.startYear} – ${p.endYear}`, false),
+    field("Ҳудуд", p.region, false),
   ];
 }
 
@@ -173,14 +183,8 @@ export function investMapVM(): InvestMapVM {
       home: { lon: point.lon, lat: point.lat },
       labelSide: point.label,
       labelDy: point.labelDy,
-      offset: point.offset,
       nudge: point.nudge,
-      img: {
-        // Файл номи қоидаси «Инвестиция лойиҳалари» бўлими билан бир хил —
-        // битта лойиҳанинг сурати иккита бўлимда битта файлдан олинади.
-        src: `${base}invest/${p.id}.jpg`,
-        alt: `${p.name} — лойиҳа майдонининг сурати`,
-      },
+      objectKind: p.objectKind,
       rows: rowsOf(p),
     });
   }

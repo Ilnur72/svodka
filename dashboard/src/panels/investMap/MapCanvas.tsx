@@ -35,7 +35,6 @@ import {
   INVEST_MAP_STYLE,
 } from "../../lib/invest/investMapStyle";
 import { nf } from "../../lib/format";
-import { Pill } from "../../components/Pill";
 
 
 /**
@@ -102,7 +101,7 @@ const STORAGE_KEY = "tmk-investmap-lnglat-v1";
  * Маркернинг экрандаги баландлиги, px. MapLibre маркерлари яқинлаштиришда
  * ўлчамини ўзгартирмайди, шунинг учун тескари масштаб ҳисоби керак эмас.
  */
-const MARKER_H = 90;
+const MARKER_H = 74;
 
 /** Карточканинг эни, px. Баландлиги матндан келиб чиқади. */
 const CARD_W = 320;
@@ -228,6 +227,9 @@ function buildPinElement(pin: InvestMapPin, markerW: number, anchorY: number): H
   // Ёрлиқнинг вертикал силжиши CSS'га шу орқали берилади — ўлчам ва ўрин
   // манбадаги жадвалдан келади, CSS'да қотирилган сон турмайди.
   el.style.setProperty("--pin-dy", `${pin.labelDy}px`);
+  // Лойиҳа тури ранги — ёрлиқнинг чизиғи ҲАМ, ҳошияси ҲАМ шундан олади,
+  // шунда ёрлиқ ўз кристаллига боғланиб туради.
+  el.style.setProperty("--pin-color", pin.token);
 
   const img = document.createElement("img");
   img.className = "map-pin__icon";
@@ -267,90 +269,83 @@ function buildPinElement(pin: InvestMapPin, markerW: number, anchorY: number): H
  * build пайтида билиб бўлмайди (у бандлга кирмайди), шунинг учун қарор
  * браузерда қабул қилинади ва сингани расм иконкаси ҳеч қачон кўринмайди.
  */
-function PinCard({ pin, onClose }: { pin: InvestMapPin; onClose: () => void }) {
-  const [st, setSt] = useState<"load" | "ok" | "fail">("load");
+/**
+ * Маркер босилганда очиладиган карточка.
+ *
+ * ═══ Нега дашборд карточкасидан бошқача ═════════════════════════════════
+ *
+ * Бу карточка ХАРИТА устида, тунги сунъий йўлдош расмида туради — саҳифа
+ * фонида эмас. Шунинг учун у дашборднинг оқ/кулранг карточка услубига
+ * эмас, хаританинг ўзига мослаштирилган: қорага яқин ярим шаффоф фон,
+ * оқ сарлавҳа, олтин рангдаги қийматлар. Ранглар мавзу токенларидан
+ * ОЛИНМАЙДИ (улар ёруғ мавзуда карточкани оқартириб қўярди) — улар
+ * `index.css` даги `.map-pop*` синфларида, харита учун алоҳида ёзилган.
+ *
+ * ═══ Тузилма ════════════════════════════════════════════════════════════
+ *
+ *   · юқори ўнг бурчакдаги белги — лойиҳа тури (`kind`), маркер рангида;
+ *   · кичик сарлавҳа — объект тури (`Завод`, `Геология-қидирув ишлари`);
+ *   · катта сарлавҳа — реестрдаги тўлиқ ном;
+ *   · жадвал — ҳар қаторда рангли чизиқ, ёрлиқ ва қиймат.
+ *
+ * Қатор чизиқларининг ранги МАЪНО ТАШИМАЙДИ: у фақат кўз қаторни
+ * адаштирмаслиги учун. Шунинг учун ранглар рўйхати қаторлар сонига
+ * боғланмаган — етмаса айланиб қайтадан бошланади.
+ */
+const ROW_BARS = ["#f5c542", "#38bdf8", "#a855f7", "#34d399", "#818cf8", "#fb923c"];
 
+function PinCard({ pin, onClose }: { pin: InvestMapPin; onClose: () => void }) {
   return (
     <div
       role="dialog"
       aria-label={pin.name}
-      style={{ width: CARD_W }}
-      className="map-pop overflow-hidden rounded-card border border-rule bg-surface text-left shadow-card"
+      style={{ width: CARD_W, ["--pop-accent" as string]: pin.token }}
+      className="map-pop"
     >
-      <div className="relative aspect-[16/8] w-full overflow-hidden bg-sunken">
-        {st !== "fail" && (
-          <img
-            src={pin.img.src}
-            alt={pin.img.alt}
-            loading="lazy"
-            draggable={false}
-            onLoad={() => setSt("ok")}
-            onError={() => setSt("fail")}
-            className={"h-full w-full object-cover" + (st === "ok" ? "" : " opacity-0")}
-          />
-        )}
-        {st === "fail" && (
-          <div className="absolute inset-0 grid place-items-center px-4 text-center text-[11.5px] text-ink-3">
-            Лойиҳа майдонининг сурати ҳали қўйилмаган
-          </div>
-        )}
-      </div>
+      {/* Ранг ёлғиз маъно ташувчи эмас: белгида турнинг НОМИ ёзилади. */}
+      <span className="map-pop__badge">{pin.kind}</span>
 
       <button
         type="button"
         onClick={onClose}
         aria-label="Карточкани ёпиш"
-        className="absolute top-1.5 right-1.5 grid h-6 w-6 cursor-pointer place-items-center rounded-[4px] border border-hair bg-surface text-ink-2 hover:text-ink"
+        className="map-pop__close"
       >
-        <Icon name="close" size={13} />
+        <Icon name="close" size={15} />
       </button>
 
-      <div className="px-3 pt-2.5 pb-3">
-        <h4 className="text-[13.5px] leading-[1.3] [font-weight:650]">{pin.name}</h4>
-        <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
-          <span className="text-[11.5px] text-ink-3">{pin.region}</span>
-          <Pill>тахминий жой</Pill>
-        </div>
+      <div className="map-pop__head">
+        {/* Реестрда объект тури билан лойиҳа тури баъзан БИР ХИЛ ёзилган
+            («Геология-қидирув ишлари» иккисида ҳам). Ўшанда кичик сарлавҳа
+            юқоридаги белгини сўзма-сўз такрорларди — шунинг учун фарқ
+            бўлмаса кўрсатилмайди. */}
+        {pin.objectKind !== pin.kind && (
+          <span className="map-pop__eyebrow">{pin.objectKind}</span>
+        )}
+        <h4 className="map-pop__title">{pin.name}</h4>
+      </div>
 
-        <dl className="mt-2.5 grid grid-cols-2 gap-x-3 gap-y-2 border-t border-grid pt-2.5">
-          {pin.rows.map((r) => (
-            <div key={r.k} className="min-w-0">
-              <dt className="text-[10.5px] leading-[1.3] text-ink-3">{r.k}</dt>
-              <dd
-                className={
-                  "mt-0.5 text-[12.5px] leading-[1.3]" + (r.num ? " font-mono tabular-nums" : "")
-                }
-              >
-                {r.v}
-              </dd>
-            </div>
-          ))}
-        </dl>
-
-        <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 border-t border-grid pt-2">
-          {/* Ранг ёлғиз маъно ташувчи эмас: белги ёнида доим турнинг номи
-              ёзилади — маркер ранги ҳам худди шу турни билдиради. */}
-          <span className="inline-flex min-w-0 items-center gap-1.5 text-[11.5px] text-ink-2">
+      <dl className="map-pop__rows">
+        {pin.rows.map((r, i) => (
+          <div key={r.k} className="map-pop__row">
             <i
               aria-hidden="true"
-              className="h-2.5 w-2.5 flex-none rounded-full"
-              style={{ background: pin.token }}
+              className="map-pop__bar"
+              style={{ background: ROW_BARS[i % ROW_BARS.length] }}
             />
-            <span className="min-w-0 truncate">{pin.kind}</span>
-          </span>
-          {/* Реестрдаги қолган ўттизта майдон «Инвестиция лойиҳалари»
-              бўлимида — ҳавола ўша табни очади. */}
-          <a
-            href="#invest"
-            className="flex-none rounded-[5px] bg-s1 px-2.5 py-[5px] text-[11.5px] [font-weight:650] text-white"
-          >
-            Батафсил →
-          </a>
-        </div>
+            <dt className="map-pop__key">{r.k}</dt>
+            <dd className={"map-pop__val" + (r.num ? " tabular-nums" : "")}>{r.v}</dd>
+          </div>
+        ))}
+      </dl>
 
-        {pin.nudge !== null && (
-          <p className="mt-2 text-[10.5px] leading-[1.4] text-ink-3">{pin.nudge}</p>
-        )}
+      <div className="map-pop__foot">
+        {/* Координата тахминий — буни карточкада ҳам айтиб туриш керак. */}
+        <span className="map-pop__hint">жой — туман даражасида тахмин</span>
+        {/* Реестрдаги қолган ўттизта майдон «Инвестиция лойиҳалари» бўлимида. */}
+        <a href="#invest" className="map-pop__link">
+          Батафсил →
+        </a>
       </div>
     </div>
   );
@@ -435,14 +430,17 @@ export function MapCanvas({ vm, selected, onSelect, focusNonce }: MapCanvasProps
 
       const marker = new Marker({
         element: el,
-        // Иккита силжишнинг йиғиндиси:
-        //   1) лангар — расм пастидаги ёруғ ҳалқа: элемент пастки қирраси
-        //      нуқтадан 16% пастга сурилади, шунда ҳалқа маркази айнан
-        //      координата устида туради;
-        //   2) `pin.offset` — устма-уст тушган маркерларни ажратиш учун
-        //      манбада берилган экран силжиши (координатага тегмайди).
+        // Ягона силжиш — лангар: расм пастидаги ёруғ ҳалқа элемент пастки
+        // қиррасидан 16% юқорида, шунинг учун элемент шунча пастга сурилади
+        // ва ҳалқа маркази айнан координата устида туради.
+        //
+        // Бошқа ҳеч қандай пиксел силжиш ЙЎҚ ва қўшилмайди: пиксел силжиш
+        // зум билан ўзгармайди, географик масофалар эса ўзгаради — натижада
+        // маркер зум пайтида ўз нуқтасига нисбатан «сузиб» кетарди. Устма-уст
+        // тушадиган жуфтликлар шу сабабли МАНБАДА, координата даражасида
+        // ажратилган (қаранг: `investMapSource.ts`).
         anchor: "bottom",
-        offset: [pin.offset[0], MARKER_H * (1 - vm.markerAnchorY) + pin.offset[1]],
+        offset: [0, MARKER_H * (1 - vm.markerAnchorY)],
       })
         .setLngLat([pin.home.lon, pin.home.lat])
         .addTo(map);

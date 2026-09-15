@@ -1,4 +1,4 @@
-import type { LngLatBoundsLike, MapOptions } from "maplibre-gl";
+import type { FilterSpecification, LngLatBoundsLike, MapOptions } from "maplibre-gl";
 
 /**
  * «Лойиҳалар харитаси» — MapLibre стили ва бошланғич кўриниши.
@@ -50,6 +50,21 @@ const DEM_TILES = "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{
 /** Вектор маълумот — OpenFreeMap (OpenMapTiles сxемаси, калит талаб қилмайди). */
 const VECTOR_URL = "https://tiles.openfreemap.org/planet";
 
+/**
+ * Ўзбекистоннинг OpenMapTiles'даги коди (ISO 3166-1 alpha-3). Чегара
+ * қатламидаги `adm0_l`/`adm0_r` айнан шу шаклда келади — маълумотдан
+ * ўқиб текширилган (қўшнилар: `KAZ`, `KGZ`, `TJK`, `TKM`, `AFG`).
+ */
+const UZ = "UZB";
+
+/** Чегаранинг ҳеч бўлмаса бир томони Ўзбекистон бўлган бўлаклар. */
+const UZ_BORDER: FilterSpecification = [
+  "all",
+  ["<=", "admin_level", 2],
+  ["!=", "maritime", 1],
+  ["any", ["==", "adm0_l", UZ], ["==", "adm0_r", UZ]],
+];
+
 export const INVEST_MAP_STYLE: StyleSpec = {
   version: 8,
   glyphs: "https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf",
@@ -68,20 +83,13 @@ export const INVEST_MAP_STYLE: StyleSpec = {
     // 3D terrain») — иккови DEM плиткасидан бошқа-бошқа нарса кутади.
     // Плиткалар манзили бир хил, шунинг учун иккинчиси браузер кэшидан
     // келади: тармоққа қўшимча юк деярли йўқ.
-    dem: {
-      type: "raster-dem",
-      tiles: [DEM_TILES],
-      tileSize: 256,
-      maxzoom: 12,
-      encoding: "terrarium",
-      attribution: "AWS Terrain Tiles",
-    },
     "dem-hill": {
       type: "raster-dem",
       tiles: [DEM_TILES],
       tileSize: 256,
       maxzoom: 12,
       encoding: "terrarium",
+      attribution: "AWS Terrain Tiles",
     },
   },
   layers: [
@@ -186,29 +194,87 @@ export const INVEST_MAP_STYLE: StyleSpec = {
         "line-dasharray": [3, 2],
       },
     },
+    /* ═══ Чегаралар: Ўзбекистон ва қолганлар ═══════════════════════════
+       Бўлимнинг мавзуси — Ўзбекистондаги лойиҳалар, шунинг учун айнан унинг
+       чегараси ажралиб туриши керак. Барча давлат чегараси бир хил ёрқин
+       бўлса, экранда Қозоғистон, Туркманистон ва Тожикистон чегаралари ҳам
+       худди шундай кўзга ташланиб, мамлакат контури йўқолиб кетади.
+
+       Ажратиш `adm0_l`/`adm0_r` бўйича — чегаранинг икки томонидаги давлат
+       коди (OpenMapTiles сxемаси, ISO3: `UZB`, `KAZ`, `KGZ`…). Ном бўйича
+       эмас: ном ўнлаб тилда келади ва ишончсиз.
+
+       Ўзбекистон чегараси УЧТА қатламдан: кенг сўнган ҳало, ундан тор ёрқин
+       ҳало ва тиниқ оқ ўзак. Битта чизиқ билан бу кўриниш чиқмайди — у ё
+       ингичка бўлиб йўқолади, ё қалинлашиб плиткани босиб қўяди.
+
+       ⚠️ `line-blur` УЧАЛАСИДА ҲАМ НОЛ — атайин. Рельеф (`terrain`) ёқилганда
+       MapLibre чизиқни 3D юзага ёпиштиради, `line-blur` эса ҳар бир қисқа
+       сегментда алоҳида ҳисобланади: тоғли жойда чегара «чақмоқ» каби
+       сачраган нурларга айланиб қоларди (Зарафшон тизмасида яққол кўринди).
+       Юмшоқлик энди blur'дан эмас, қатламлашдан келади — кенг чизиқ паст
+       тиниқликда, тор чизиқ юқорида.
+
+       `line-join`/`line-cap: "round"` ҳам шу сабабдан: стандарт `miter`
+       бурчаклари тоғ ёнбағрида тишли бўлиб кўринарди. */
     {
-      id: "b-country-glow",
+      id: "b-foreign",
       type: "line",
       source: "omt",
       "source-layer": "boundary",
-      filter: ["all", ["<=", "admin_level", 2], ["!=", "maritime", 1]],
+      layout: { "line-join": "round", "line-cap": "round" },
+      filter: [
+        "all",
+        ["<=", "admin_level", 2],
+        ["!=", "maritime", 1],
+        ["!=", "adm0_l", UZ],
+        ["!=", "adm0_r", UZ],
+      ],
       paint: {
-        "line-color": "#ffffff",
-        "line-blur": 4,
-        "line-width": ["interpolate", ["linear"], ["zoom"], 3, 3, 9, 9],
+        "line-color": "#9fb0cc",
+        "line-width": ["interpolate", ["linear"], ["zoom"], 3, 0.6, 9, 1.4],
         "line-opacity": 0.5,
       },
     },
     {
-      id: "b-country",
+      id: "b-uz-halo",
       type: "line",
       source: "omt",
       "source-layer": "boundary",
-      filter: ["all", ["<=", "admin_level", 2], ["!=", "maritime", 1]],
+      layout: { "line-join": "round", "line-cap": "round" },
+      filter: UZ_BORDER,
       paint: {
-        "line-color": "#ffffff",
-        "line-width": ["interpolate", ["linear"], ["zoom"], 3, 1, 9, 2.4],
-        "line-opacity": 0.95,
+        "line-color": "#ff6a12",
+        "line-blur": 0,
+        "line-width": ["interpolate", ["linear"], ["zoom"], 3, 5.5, 9, 12],
+        "line-opacity": 0.34,
+      },
+    },
+    {
+      id: "b-uz-glow",
+      type: "line",
+      source: "omt",
+      "source-layer": "boundary",
+      layout: { "line-join": "round", "line-cap": "round" },
+      filter: UZ_BORDER,
+      paint: {
+        "line-color": "#ffa32c",
+        "line-blur": 0,
+        "line-width": ["interpolate", ["linear"], ["zoom"], 3, 3, 9, 7],
+        "line-opacity": 0.8,
+      },
+    },
+    {
+      id: "b-uz",
+      type: "line",
+      source: "omt",
+      "source-layer": "boundary",
+      layout: { "line-join": "round", "line-cap": "round" },
+      filter: UZ_BORDER,
+      paint: {
+        "line-color": "#fff3cf",
+        "line-width": ["interpolate", ["linear"], ["zoom"], 3, 1.5, 9, 3.4],
+        "line-opacity": 1,
       },
     },
 
@@ -236,15 +302,27 @@ export const INVEST_MAP_STYLE: StyleSpec = {
         "text-font": ["Noto Sans Regular"],
         "text-size": ["interpolate", ["linear"], ["zoom"], 5, 10, 11, 15],
       },
+      /* Шаҳар номлари АТАЙИН сўнган: улар фон маълумоти. Лойиҳа ёрлиқлари
+         эса оқ ва ҳошияли — бўлимнинг асосий мазмуни ўша. Иккови бир хил
+         ёрқинликда бўлса, экранда «қайси ёзув лойиҳа?» деган савол туғилади. */
       paint: {
-        "text-color": "#e6ecf7",
+        "text-color": "#93a2bd",
         "text-halo-color": "#05070f",
-        "text-halo-width": 1.4,
+        "text-halo-width": 1.5,
       },
     },
   ],
-  terrain: { source: "dem", exaggeration: 1.15 },
-};
+  /* ⚠️ 3D `terrain` АТАЙИН ЁҚИЛМАГАН.
+     Ёқилганда иккита носозлик пайдо бўлади:
+       · маркер зум пайтида «ўйнайди» — MapLibre уни рельеф юзасига қўяди,
+         DEM плиткалари эса зум ўзгарганда қайта юкланади ва баландлик
+         ўзгаради (ўлчанди: битта нуқтада z6→z12 да 473,6 → 466,9 м);
+       · чегара тоғли жойда тишли бўлиб кетади — чизиқ 3D юзага ёпиштирилади
+         ва ҳар бир қисқа сегмент ўз бурчагида синади.
+     Рельеф кўриниши `hillshade` қатламида қолди: у 2D соя, камера
+     қийшайиши (`pitch`) ҳам ишлайверади — экранда фарқ деярли сезилмайди,
+     лекин иккита носозлик ҳам йўқолади. Қайта ёқишдан олдин юқоридаги
+     иккисини ЭКРАНДА текширинг. */};
 
 /**
  * Бошланғич кўриниш.
@@ -270,11 +348,16 @@ export const INVEST_MAP_HOME = {
 /**
  * Зумнинг чегаралари.
  *
- * `MIN` — бутун мамлакат кўринадиган даража. Ундан узоқлашса харита
- * «сайёра» кўринишига ўтарди ва лойиҳалар нуқтага айланарди. `MAX` — 16:
- * ундан кейин OpenMapTiles маълумоти тугайди ва фойда қолмайди.
+ * `MIN = 5.6` — бутун мамлакат кўринадиган даража. Бу сон АНИҚ танланган:
+ * ундан пастда OpenMapTiles чегара плиткаларида `adm0_l`/`adm0_r` майдонлари
+ * келмайди (соддалаштирилган геометрия, камроқ атрибут), шунинг учун
+ * Ўзбекистонни ажратадиган фильтр ишламай, олов ранг чегара УЗИЛИБ кетарди.
+ * Ўлчанди: z4,6 да фильтрга 11 бўлак тушади, z5,6 да 21, z6 да 24.
+ * Шунинг учун бу чегарани пасайтириш — чегара кўринишини бузиш.
+ *
+ * `MAX = 16` — ундан кейин OpenMapTiles маълумоти тугайди ва фойда қолмайди.
  */
-export const INVEST_MAP_MIN_ZOOM = 4.6;
+export const INVEST_MAP_MIN_ZOOM = 5.6;
 export const INVEST_MAP_MAX_ZOOM = 16;
 
 /**
