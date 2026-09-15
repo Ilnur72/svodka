@@ -18,6 +18,14 @@ export default defineConfig({
         manualChunks(id) {
           if (id.includes("node_modules/recharts") || id.includes("node_modules/d3-"))
             return "charts";
+          // MapLibre ~250 KB gz — фақат «Лойиҳалар харитаси» бўлимида керак,
+          // шунинг учун charts каби алоҳида чанкда туради ва илова қобиғини
+          // оғирлаштирмайди.
+          if (
+            id.includes("node_modules/maplibre-gl") ||
+            id.includes("node_modules/@maplibre/")
+          )
+            return "map";
         },
       },
     },
