@@ -320,13 +320,15 @@ summary::-webkit-details-marker {
 @keyframes map-pop-in {
   from {
     opacity: 0;
-    transform: translateY(6px) scale(0.97);
+    scale: 0.97;
   }
   to {
     opacity: 1;
-    transform: none;
+    scale: 1;
   }
 }
+
+
 .map-pop {
   position: relative;
   animation: map-pop-in 0.22s ease-out both;
@@ -365,14 +367,37 @@ summary::-webkit-details-marker {
    номларидан ажралмасди — иккови бир хил кулранг бўлиб қоларди.
    Фон қорага яқин ва ярим шаффоф, матн эса оқ: ёрлиқ ҳар қандай плитка
    устида ўқилади. */
+/* Тахминий жой — узуқ ҳалқа. Ўрни айнан ЛАНГАР нуқтаси (`--pin-anchor`),
+   яъни кристаллнинг ёруғ ҳалқаси турган жой: шунда белги «объект шу
+   атрофда» деб кўрсатади. Сабаби (вилоят маркази ёки мерос) карточкада
+   ва маркернинг изоҳида сўз билан ёзилади — ранг ва шакл ёлғиз маъно
+   ташувчи эмас. */
+.map-pin__ring {
+  position: absolute;
+  z-index: -1;
+  top: var(--pin-anchor, 84%);
+  left: 50%;
+  width: 26px;
+  height: 26px;
+  translate: -50% -50%;
+  border: 1.5px dashed color-mix(in srgb, var(--pin-color, #8fa0c4) 75%, transparent);
+  border-radius: 50%;
+  opacity: 0.75;
+  pointer-events: none;
+}
+
 .map-pin__label {
   position: absolute;
-  /* `--pin-dy` — манбадаги жадвалдан келадиган вертикал силжиш: ёнма-ён
-     турган иккита ёрлиқ бир хил баландликда бўлса кесишарди. */
-  top: calc(14px + var(--pin-dy, 0px));
+  /* ⚠️ `top`, `left` ва `right` қийматлари `MapCanvas` даги `LABEL_TOP` ва
+     `LABEL_GAP` билан АЙНАН бир хил бўлиши шарт: ёрлиқ қутиси экранда ўша
+     сонлар билан ҳисобланади ва тўқнашув шу ҳисобга кўра аниқланади.
+     Биттасини ўзгартирсангиз иккинчисини ҳам ўзгартиринг. */
+  top: 9px;
   display: flex;
   align-items: center;
-  max-width: 200px;
+  /* Тор ёрлиқ = экранда кўпроқ ном. Адаптер номни 26 белгига қисқартиради
+     (`LABEL_MAX`), бу эса унинг экрандаги чегараси — иккови мос. */
+  max-width: 170px;
   overflow: hidden;
   /* Ҳошия — лойиҳа тури ранги, лекин сўнган: ёрлиқни кристаллга боғлайди,
      матндан эса диққатни тортмайди. */
@@ -388,13 +413,15 @@ summary::-webkit-details-marker {
     0 0 14px -1px color-mix(in srgb, var(--pin-color, transparent) 65%, transparent);
   pointer-events: none;
 }
+/* Томон энди ҲИСОБЛАНАДИ (`layoutLabels`), манбадаги жадвалдан эмас:
+   `100%` — маркер элементининг эни, устига `LABEL_GAP`. */
 .map-pin[data-side="right"] .map-pin__label {
-  left: 42px;
+  left: calc(100% + 6px);
 }
 /* Чап томондаги ёрлиқда рангли чизиқ ўнг четга ўтади — у доим кристаллга
    қараб туриши керак, шунда ёрлиқ ва маркер бир-бирига боғланади. */
 .map-pin[data-side="left"] .map-pin__label {
-  right: 42px;
+  right: calc(100% + 6px);
   flex-direction: row-reverse;
 }
 .map-pin__bar {
@@ -440,14 +467,117 @@ summary::-webkit-details-marker {
 }
 
 /* ───────────────────────────────────────────────────────────────────────────
+   `/investmap` — хаританинг алоҳида саҳифаси.
+
+   Саҳифада дашборд қобиғи йўқ, экраннинг ҳаммаси харита. Сарлавҳа ва
+   легенда харита УСТИДА қатлам сифатида туради, шунинг учун ранглари
+   мавзу токенларидан эмас — худди маркер ёрлиғи ва карточкаси каби.
+   ─────────────────────────────────────────────────────────────────────── */
+/* Сарлавҳа блоки — юқори ўртада. `max-width` берилган: узун матн кенг
+   экранда бутун қаторни эгаллаб, бошқарув тугмаларига етиб бормасин. */
+.map-page__head {
+  position: absolute;
+  z-index: 30;
+  top: 0;
+  left: 50%;
+  translate: -50% 0;
+  max-width: min(760px, 78vw);
+  padding: 20px 16px 0;
+  text-align: center;
+  pointer-events: none;
+}
+
+/* Сарлавҳа ёниб туради: ранги чегаранинг олови билан бир хил гаммада
+   (иссиқ сариқ), ёғдуси эса учта қатламдан — яқин, ўрта ва тарқоқ. Тўртинчи
+   соя қора: тунги харитада ҳам ёруғ плитка учраб қолса матн ўқилиши учун. */
+.map-page__title {
+  color: #ffe6a3;
+  font-family: ui-serif, Georgia, "Times New Roman", serif;
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1.12;
+  text-shadow:
+    0 0 12px rgba(255, 186, 60, 0.85),
+    0 0 30px rgba(255, 140, 24, 0.55),
+    0 0 62px rgba(255, 110, 10, 0.35),
+    0 2px 10px rgba(0, 0, 0, 0.95);
+  text-transform: uppercase;
+}
+
+/* Легенда — чап пастда. Зум кўрсаткичи ҳам шу бурчакда, шунинг учун
+   легенда ундан юқорида турадиган қилиб қўйилган. */
+/* Ўрни ҳисоблаб танланган, шунда ҳеч нарсани беркитмайди:
+     · пастда — аттрибуция (лицензия талаби, ЯШИРИЛМАЙДИ), шунинг учун
+       легенда ундан юқорида (`bottom: 34px`);
+     · чап пастда — зум кўрсаткичи (`bottom-2 left-2.5`), шунинг учун
+       легенда унинг ҳам устида;
+     · ўнгда — бошқарув тугмалари устуни (`right-2.5`, эни ~44 px). */
+.map-page__legend {
+  position: absolute;
+  z-index: 30;
+  right: 58px;
+  bottom: 34px;
+  left: 16px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 16px;
+  padding: 8px 12px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 5px;
+  background: rgba(7, 13, 28, 0.9);
+  backdrop-filter: blur(10px);
+}
+.map-page__legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: #cfd9ea;
+  font-size: 11.5px;
+}
+.map-page__legend-item i {
+  width: 10px;
+  height: 10px;
+  flex: none;
+  border-radius: 50%;
+  box-shadow: 0 0 8px currentColor;
+}
+.map-page__legend-item b {
+  color: #f5c542;
+  font-weight: 700;
+}
+.map-page__legend-item em {
+  color: #8a97ad;
+  font-style: normal;
+}
+/* Тушиб қолган лойиҳа ёки нотаниш тур — огоҳлантириш, яширилмайди. */
+.map-page__warn {
+  color: #f5c542;
+  font-size: 11px;
+  letter-spacing: 0.01em;
+}
+
+/* ───────────────────────────────────────────────────────────────────────────
    Маркер карточкаси.
 
    Карточка ХАРИТА устида туради, шунинг учун ранглари мавзу токенларидан
    эмас — улар ёруғ мавзуда оқ карточка бериб, тунги харитада ёт кўринарди.
    `--pop-accent` эса лойиҳа турининг ранги: уни карточка JS'дан олади.
    ─────────────────────────────────────────────────────────────────────── */
+/* Карточка МАРКЕРНИНГ ЁНИДА очилади (MapLibre ойнаси ичида, лангари фақат
+   «чап»/«ўнг» — қаранг: `MapCanvas`). Шунинг учун бу ерда жойлашув эмас,
+   фақат кўриниш ва баландлик чегараси белгиланади.
+
+   `max-height` — паст экранда узун ном ва еттита қатор сиғмаса, карточканинг
+   ИЧИ сурилади (`.map-pop__body`), экран эмас.
+   `overflow: visible` — белги карточканинг юқори қиррасидан чиқиб туради. */
 .map-pop {
   position: relative;
+  display: flex;
+  flex-direction: column;
+  max-height: 78vh;
+  overflow: visible;
   border: 1px solid color-mix(in srgb, var(--pop-accent, #60a5fa) 42%, transparent);
   border-radius: 5px;
   background: rgba(7, 13, 28, 0.95);
@@ -462,6 +592,14 @@ summary::-webkit-details-marker {
 
 /* Белги карточканинг юқори қиррасидан чиқиб туради — шунинг учун унинг
    ўрни `top: -1px` эмас, тўлиқ баландлигича юқорида. */
+.map-pop__body {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  /* Юмалоқ бурчакда сурилаётган матн чиқиб кетмасин. */
+  border-radius: inherit;
+}
+
 .map-pop__badge {
   position: absolute;
   top: -21px;
@@ -529,7 +667,10 @@ summary::-webkit-details-marker {
 }
 .map-pop__row {
   display: grid;
-  grid-template-columns: 4px minmax(0, 1fr) auto;
+  /* Ёрлиқ ўз энида (`auto`), қиймат қолган жойни олади (`1fr` + `min-width: 0`).
+     Тескариси бўлса — узун қиймат («Тошкент вилояти Оҳангарон тумани») ёрлиқни
+     сиқиб, «Ҳ…» га айлантириб қўярди. */
+  grid-template-columns: 4px auto minmax(0, 1fr);
   align-items: center;
   gap: 0 12px;
   padding: 8px 0;
@@ -541,19 +682,36 @@ summary::-webkit-details-marker {
   border-radius: 1px;
 }
 .map-pop__key {
-  min-width: 0;
-  overflow: hidden;
   color: #aebbd2;
   font-size: 12px;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
 /* Қиймат — олтин: карточкадаги энг муҳим устун шу. */
 .map-pop__val {
+  min-width: 0;
   color: #f5c542;
   font-size: 12.5px;
   font-weight: 700;
+  line-height: 1.35;
+  /* Узун қиймат кесилмайди — иккинчи қаторга ўралади. */
   text-align: right;
+  overflow-wrap: anywhere;
+}
+
+/* Боғланган объектлар. Боғлаш бэкендда ЭВРИСТИК (ном бўйича), шунинг учун
+   у қаторлар жадвалида эмас, ундан ташқарида ва сўнган рангда туради —
+   ўлчанган маълумот билан тахмин аралашмаслиги учун. */
+.map-pop__links {
+  margin: 0 16px 2px;
+  padding-top: 9px;
+  border-top: 1px solid rgba(148, 163, 184, 0.14);
+  color: #9aa8bf;
+  font-size: 10.5px;
+  line-height: 1.45;
+}
+.map-pop__links b {
+  color: #aebbd2;
+  font-weight: 700;
 }
 
 .map-pop__foot {
@@ -567,6 +725,11 @@ summary::-webkit-details-marker {
   color: #7f8da6;
   font-size: 10px;
   letter-spacing: 0.02em;
+}
+/* Жой тахминий бўлса изоҳ сўнган кулрангда қолмайди: бу «майда шрифтдаги
+   эслатма» эмас, қиймат ўқилишига таъсир қиладиган факт. */
+.map-pop__hint--warn {
+  color: #f5c542;
 }
 .map-pop__link {
   flex: none;
@@ -583,6 +746,136 @@ summary::-webkit-details-marker {
   background: color-mix(in srgb, var(--pop-accent, transparent) 16%, transparent);
 }
 
+
+/* ───────────────────────────────────────────────────────────────────────────
+   Объектлар рўйхати — хаританинг чап томонида, йиғиладиган.
+
+   Рўйхат «ҳар бир объектнинг номи йўқолмасин» талабининг иккинчи ярми:
+   харитада ёрлиқлар тўқнашганда яширилади, бу ерда эса рўйхат ДОИМ тўлиқ ва
+   номлар қисқартирилмайди. Координатаси йўқ объектлар фақат шу ерда кўринади.
+
+   Ранглар мавзу токенларидан эмас — қолган харита қатламлари билан бир хил
+   сабабга кўра (тунги харита устида туради).
+   ─────────────────────────────────────────────────────────────────────── */
+.map-list {
+  position: absolute;
+  z-index: 30;
+  top: 14px;
+  left: 16px;
+  display: flex;
+  max-height: calc(100vh - 120px);
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+.map-list__toggle {
+  flex: none;
+  padding: 7px 12px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 5px;
+  background: rgba(7, 13, 28, 0.9);
+  color: #cfd9ea;
+  cursor: pointer;
+  font-size: 11.5px;
+  font-weight: 700;
+  backdrop-filter: blur(10px);
+  transition: color 0.15s ease;
+}
+.map-list__toggle:hover {
+  color: #fff;
+}
+.map-list__body {
+  width: 310px;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 4px 0 10px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 5px;
+  background: rgba(7, 13, 28, 0.94);
+  backdrop-filter: blur(12px);
+}
+.map-list__group + .map-list__group {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(148, 163, 184, 0.14);
+}
+.map-list__head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 12px;
+  background: rgba(7, 13, 28, 0.97);
+  color: #cfd9ea;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+.map-list__head i {
+  width: 9px;
+  height: 9px;
+  flex: none;
+  border-radius: 50%;
+  box-shadow: 0 0 7px currentColor;
+}
+.map-list__head b {
+  margin-left: auto;
+  color: #f5c542;
+  font-weight: 700;
+}
+/* Харитага тушмаган гуруҳ — огоҳлантириш рангида, яширилмайди. */
+.map-list__head--off {
+  color: #f5c542;
+}
+.map-list__note {
+  padding: 0 12px 6px;
+  color: #8a97ad;
+  font-size: 10.5px;
+  line-height: 1.45;
+}
+.map-list__item {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  gap: 1px;
+  padding: 5px 12px;
+  border-left: 2px solid transparent;
+  text-align: left;
+}
+button.map-list__item {
+  cursor: pointer;
+  transition:
+    background 0.13s ease,
+    border-color 0.13s ease;
+}
+button.map-list__item:hover {
+  border-left-color: rgba(148, 163, 184, 0.5);
+  background: rgba(148, 163, 184, 0.09);
+}
+button.map-list__item.is-on {
+  border-left-color: #f5c542;
+  background: rgba(245, 197, 66, 0.11);
+}
+/* Координатаси йўқ объект босилмайди: харитада учиб бориладиган нуқта ЙЎҚ.
+   Шунинг учун у тугма эмас ва курсор ҳам ўзгармайди. */
+.map-list__item--off {
+  opacity: 0.72;
+}
+.map-list__name {
+  color: #e6ecf7;
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+.map-list__sub {
+  color: #8a97ad;
+  font-size: 10px;
+  line-height: 1.35;
+}
 
 /* Хаританинг ўзи карточкани ТЎЛИҚ эгаллайди.
    MapLibre ўз стилида `.maplibregl-map { position: relative }` деб ёзади, у эса
@@ -610,4 +903,550 @@ summary::-webkit-details-marker {
 }
 .map-shell .maplibregl-ctrl-attrib-button {
   background-color: color-mix(in srgb, var(--ink) 55%, transparent);
+}
+
+/* ---------------------------------------------------------------------------
+   «Камералар девори» — `/camera1` ва `/camera2`.
+
+   Бу блок узун утилита сатрлари сифатида эмас, айнан шу ерда: тўр ҳақиқий
+   `grid-template-areas`/`grid-row: span` билан қурилади, каталарнинг ичидаги
+   ёзувлар эса бир-бирининг устида турувчи қатламлар. Юқоридаги жадвал ва
+   харита блоклари билан бир хил ёндашув.
+
+   ═══ Ранглар мавзу токенларидан ЭМАС ════════════════════════════════════
+
+   Девор — видео устидаги қатлам. Фон доим қорага яқин ва ёзувлар оқ, чунки
+   улар ЖОНЛИ КАДР устида туради: `--surface`/`--ink` билан ёруғ мавзуда
+   ёзувлар оқариб, қоронғи кадр устида ўқилмай қоларди. Худди шу сабабдан
+   `.map-pin__label` да ҳам ранглар қотирилган. Ҳолат ранглари (яшил/сариқ/
+   қизил) эса токенлардан келади — уларни компонент inline стил билан
+   қўяди ва ёнида ДОИМ матн туради, яъни ранг ёлғиз маъно ташимайди.
+--------------------------------------------------------------------------- */
+.wall {
+  display: grid;
+  gap: 8px;
+  padding: 8px;
+  min-height: 100dvh;
+  background: #05070b;
+  /* Тор экранда девор эмас, рўйхат: битта устун ва сурилувчи саҳифа. */
+  grid-template-columns: 1fr;
+  grid-auto-rows: minmax(190px, auto);
+  color: #eef3f8;
+}
+
+@media (min-width: 721px) {
+  .wall {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* Ҳақиқий девор: тўртта устун, иккита қатор, экранга АНИҚ сиғади.
+
+   ═══ Устунлар ТЕНГ эмас ═════════════════════════════════════════════════
+
+   Брендли устун кадрлар устунидан тор: `0.75fr` ва `1fr` нисбати уни экран
+   энининг 25% идан 20% ига туширади (0.75 / (3 + 0.75) = 20%), яъни аввалги
+   кенглигидан айнан бешдан бирига кичрайтиради. Бўшаган жой учта кадр
+   устунига тарқалади — ҳар бири 26,7% бўлади.
+
+   Нисбат `fr` да, пиксел ёки фоизда ЭМАС: тўр ораликларни (`gap`) ўзи
+   ҳисобга олади, шунинг учун ўлчам ҳар қандай монитор энида тўғри қолади. */
+@media (min-width: 1181px) {
+  .wall {
+    height: 100dvh;
+    min-height: 0;
+    overflow: hidden;
+    grid-template-rows: repeat(2, 1fr);
+    grid-auto-rows: auto;
+  }
+  .wall--right {
+    grid-template-columns: repeat(3, 1fr) 0.75fr;
+  }
+  .wall--left {
+    grid-template-columns: 0.75fr repeat(3, 1fr);
+  }
+  /* Брендли устун ЯВНО жойлаштирилади, каталар эса қолган катакларга ўзи
+     тушади. Шунинг учун DOM тартиби ўзгартирилмайди: тор экранда устун
+     доим биринчи (сарлавҳа ўрнида), кенг экранда эса ўз четида туради. */
+  .wall--right .wall-brand {
+    grid-column: 4;
+    grid-row: 1 / span 2;
+  }
+  .wall--left .wall-brand {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+  }
+}
+
+/* Экран пастидаги хабар қатори. Тўрнинг оқимидан чиқарилган — у катакни
+   эгаллаб, деворни 5 та кадрга айлантириб қўймаслиги керак. */
+.wall__notice {
+  position: fixed;
+  left: 50%;
+  bottom: 10px;
+  transform: translateX(-50%);
+  z-index: 30;
+  max-width: min(92vw, 900px);
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(8, 12, 18, 0.92);
+  color: #cfd8e3;
+  font-size: 12px;
+  text-align: center;
+  backdrop-filter: blur(6px);
+}
+
+/* ── Катак ──────────────────────────────────────────────────────────── */
+
+.wall-tile {
+  position: relative;
+  overflow: hidden;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  background: #000;
+  min-height: 0;
+  min-width: 0;
+  transition:
+    border-color 0.18s ease,
+    box-shadow 0.18s ease;
+}
+.wall-tile:hover,
+.wall-tile:focus-within {
+  border-color: rgba(120, 190, 255, 0.55);
+  box-shadow: 0 0 0 1px rgba(120, 190, 255, 0.25);
+}
+
+.wall-tile--empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #080c12;
+  border-style: dashed;
+}
+.wall-tile__empty-text {
+  font-size: 12.5px;
+  color: #5d6b7a;
+}
+
+/* Кенгайтирилган кадр: катак ЎЗИ экранни эгаллайди, иккинчи нусха
+   яратилмайди — акс ҳолда ўша камерага иккинчи WebRTC уланиши очиларди. */
+.wall-tile--full {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  border-radius: 0;
+  border-color: transparent;
+}
+
+.wall-tile__video,
+.wall-tile__snap {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.wall-tile__video {
+  transition: opacity 0.25s ease;
+}
+.wall-tile__snap {
+  /* Сақланган кадр жонли эфирга ўхшаб қолмаслиги керак. */
+  opacity: 0.4;
+  filter: grayscale(0.35);
+}
+
+/* Босиладиган қатлам — бутун катак. Ёзувлар ундан ЮҚОРИДА туради, лекин
+   сичқончани ўтказиб юборади (`pointer-events: none`). */
+.wall-tile__hit {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.wall-tile__no,
+.wall-tile__status,
+.wall-tile__ptz,
+.wall-tile__caption,
+.wall-tile__zoom,
+.wall-tile__spinner {
+  position: absolute;
+  z-index: 3;
+  pointer-events: none;
+}
+
+.wall-tile__no {
+  top: 7px;
+  left: 9px;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: rgba(255, 255, 255, 0.72);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+}
+
+.wall-tile__status {
+  top: 6px;
+  right: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(6, 10, 16, 0.72);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: #dce5ee;
+}
+.wall-tile__status i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex: none;
+}
+
+.wall-tile__ptz {
+  top: 34px;
+  right: 8px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgba(59, 130, 246, 0.9);
+  color: #fff;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+
+.wall-tile__caption {
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 16px 10px 8px;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.82), transparent);
+}
+.wall-tile__caption b {
+  font-size: 12.5px;
+  font-weight: 650;
+  color: #fff;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.wall-tile__caption em {
+  font-style: normal;
+  font-size: 10.5px;
+  color: rgba(226, 235, 244, 0.68);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.wall-tile--full .wall-tile__caption b {
+  font-size: 18px;
+}
+.wall-tile--full .wall-tile__caption em {
+  font-size: 13px;
+}
+
+.wall-tile__zoom {
+  top: 50%;
+  left: 50%;
+  translate: -50% -50%;
+  width: 42px;
+  height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(10, 16, 24, 0.66);
+  color: #fff;
+  opacity: 0;
+  scale: 0.9;
+  transition:
+    opacity 0.18s ease,
+    scale 0.18s ease;
+}
+.wall-tile__zoom svg {
+  width: 20px;
+  height: 20px;
+}
+.wall-tile:hover .wall-tile__zoom,
+.wall-tile:focus-within .wall-tile__zoom {
+  opacity: 1;
+  scale: 1;
+}
+
+.wall-tile__spinner {
+  top: 50%;
+  left: 50%;
+  translate: -50% -50%;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 2px solid rgba(120, 190, 255, 0.85);
+  border-top-color: transparent;
+  animation: wall-spin 0.9s linear infinite;
+}
+
+/* Хато қатлами — бу ерда тугма бор, шунинг учун у сичқончани ЎТКАЗМАЙДИ. */
+.wall-tile__down {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  pointer-events: none;
+  text-align: center;
+  padding: 10px;
+}
+.wall-tile__down-head {
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--crit);
+}
+.wall-tile__down-hint {
+  font-size: 11px;
+  color: rgba(214, 225, 236, 0.7);
+}
+.wall-tile__retry {
+  pointer-events: auto;
+  margin-top: 4px;
+  padding: 4px 11px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  background: rgba(12, 18, 26, 0.92);
+  color: #e6eef7;
+  font-size: 11px;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease;
+}
+.wall-tile__retry:hover {
+  background: rgba(30, 44, 60, 0.95);
+  border-color: rgba(120, 190, 255, 0.6);
+}
+
+/* ── Брендли устун ──────────────────────────────────────────────────── */
+
+.wall-brand {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 0;
+  min-width: 0;
+  padding: 18px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(120, 190, 255, 0.18);
+  text-align: center;
+  /* Устун кадрлар қаторидан ажралиб туриши керак, лекин улардан диққатни
+     тортмаслиги ҳам керак — шунинг учун ранг эмас, ЧУҚУРЛИК: марказдан
+     таралувчи сўник кўк ёруғлик. */
+  background:
+    radial-gradient(120% 80% at 50% 0%, rgba(59, 130, 246, 0.2), transparent 62%),
+    linear-gradient(180deg, #0c141f, #070b11);
+}
+
+/* Логотип — иккита расм устма-уст: эмблема ва «ТМК» ёзуви. Иккови ҳам
+   устуннинг ички энига мосланади ва баландликни ЎЗ нисбатидан олади
+   (`height: auto`), шунинг учун бу ерда бирорта пиксел қотирилмаган:
+   дизайнер файлни алмаштирса, ўлчам ўзи тўғриланади. */
+.wall-brand__logo {
+  position: relative;
+  width: 100%;
+  max-width: 320px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: clamp(10px, 1.4vw, 22px);
+}
+.wall-brand__logo img {
+  position: relative;
+  z-index: 1;
+  height: auto;
+  display: block;
+  /* Ёруғлик логотипнинг ЎЗ рангида — қирралари қоронғи фонда эриб
+     кетмаслиги учун, ранг эса файлдан олинади, бу ерда такрорланмайди. */
+  filter: drop-shadow(0 0 18px rgba(14, 168, 199, 0.45));
+  transition:
+    transform 0.4s ease,
+    filter 0.4s ease;
+}
+/* Эмблема квадрат (122×122), шунинг учун унга энг устундан эмас, ўзининг
+   ўлчамидан келиб чиқиб чегара қўйилади — акс ҳолда у ёзувдан баландроқ
+   бўлиб, устунни эгаллаб оларди. */
+.wall-brand__emblem {
+  width: clamp(76px, 7.5vw, 132px);
+}
+/* «ТМК» ёзуви кенг (нисбати ~4:1) — у устуннинг бутун энини олади. */
+.wall-brand__wordmark {
+  width: 100%;
+}
+.wall-brand:hover .wall-brand__logo img {
+  transform: scale(1.04);
+  filter: drop-shadow(0 0 26px rgba(14, 168, 199, 0.75));
+}
+/* Эмблема сичқонча остида бир оз айланади — «тирик» белги ҳисси, лекин
+   диққатни тортадиган даражада эмас. */
+.wall-brand:hover .wall-brand__emblem {
+  transform: scale(1.06) rotate(-6deg);
+}
+/* Орқадаги нафас олувчи ёруғлик — деворнинг ягона доимий безаги. Битта
+   элемент, расм ҳам, кутубхона ҳам керак эмас. */
+.wall-brand__glow {
+  position: absolute;
+  inset: -22% -14%;
+  background: radial-gradient(
+    55% 45% at 50% 34%,
+    rgba(14, 168, 199, 0.35),
+    transparent 70%
+  );
+  filter: blur(18px);
+  animation: wall-breathe 6s ease-in-out infinite;
+}
+
+/* Тўлиқ ном — логотипдан кейинги иккинчи асосий ёзув, шунинг учун КАТТА.
+   Устун тор (экран энининг 20%), шунинг учун ўлчам `clamp` билан экранга
+   боғланган ва матн бир неча қаторга ўзи тушади. */
+.wall-brand__full {
+  margin-top: 14px;
+  max-width: 16ch;
+  font-size: clamp(15px, 1.35vw, 25px);
+  line-height: 1.25;
+  font-weight: 700;
+  letter-spacing: 0.005em;
+  text-wrap: balance;
+  /* Металл ялтироғи: ёзув ҳаракатланувчи градиент билан бўялади. Фон
+     градиентни кесиб ололмайдиган браузерда ҳам ёзув ЙЎҚОЛМАЙДИ — таг
+     ранг оқ, у `-webkit-text-fill-color` ишламаганда кўринади. */
+  color: #fff;
+  background: linear-gradient(
+    100deg,
+    #dce9f5 0%,
+    #ffffff 20%,
+    #7fd6ea 38%,
+    #ffffff 56%,
+    #b9cfe3 78%,
+    #dce9f5 100%
+  );
+  background-size: 260% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: wall-sheen 9s linear infinite;
+  transition: letter-spacing 0.4s ease;
+}
+.wall-brand:hover .wall-brand__full {
+  letter-spacing: 0.03em;
+  animation-duration: 3.2s;
+}
+
+/* Созлама белгилари — устуннинг пастки бурчагида, деярли кўринмас ҳолда.
+   Девор экранида улар ҳар куни керак эмас (қаранг: `WallBrand.tsx`), лекин
+   БУТУНЛАЙ яширилмайди: `opacity: 0.1` да ҳам жойи билинади, сичқонча
+   устунга киргач эса тўлиқ чиқади. Клавиатура фокуси ҳам худди шундай
+   очади — сичқончасиз экранда тугмалар «йўқ» бўлиб қолмайди. */
+.wall-brand__tools {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  display: flex;
+  gap: 4px;
+  opacity: 0.1;
+  transition: opacity 0.25s ease;
+}
+.wall-brand:hover .wall-brand__tools,
+.wall-brand__tools:focus-within {
+  opacity: 1;
+}
+/* Чапдаги устунда белгилар ҳам чап бурчакда: улар экраннинг четига яқин
+   туриши керак, кадрлар томонига эмас. */
+.wall-brand--left .wall-brand__tools {
+  right: auto;
+  left: 10px;
+}
+
+.wall-icon {
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: rgba(197, 214, 232, 0.75);
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+}
+.wall-icon svg {
+  width: 15px;
+  height: 15px;
+}
+.wall-icon:hover {
+  background: rgba(255, 255, 255, 0.09);
+  color: #fff;
+}
+/* ── Ҳаракат ────────────────────────────────────────────────────────── */
+
+/* Жонли эфир белгиси. Юқоридаги `prefers-reduced-motion` блоки барча
+   анимацияни ўчиради, шунинг учун белги ўша ҳолатда ҳам кўринади — фақат
+   тепмайди, ёнидаги «Жонли эфир» ёзуви эса ўз ўрнида қолади. */
+.wall-pulse {
+  animation: wall-beat 1.9s ease-in-out infinite;
+}
+
+@keyframes wall-beat {
+  0%,
+  100% {
+    opacity: 1;
+    box-shadow: 0 0 0 0 currentColor;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+
+@keyframes wall-spin {
+  to {
+    rotate: 360deg;
+  }
+}
+
+@keyframes wall-breathe {
+  0%,
+  100% {
+    opacity: 0.55;
+    scale: 0.96;
+  }
+  50% {
+    opacity: 1;
+    scale: 1.04;
+  }
+}
+
+/* Ном устидан ўтувчи металл ялтироғи. Фақат `background-position` — матн
+   ҳам, тўр ҳам қайта ҳисобланмайди. */
+@keyframes wall-sheen {
+  to {
+    background-position: -260% 0;
+  }
 }

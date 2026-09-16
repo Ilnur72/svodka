@@ -1725,3 +1725,445 @@ export interface ExportTargetsDashboard {
     source: string;
   };
 }
+
+/* -------------------------------------------------------------------------- */
+/* pr-media-kpi — «PR Media KPI — yillik reja»                                 */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Бу блок бэкенддаги `src/modules/pr-media-kpi/pr-media-kpi.types.ts` нинг
+ * айнан кўзгуси. Манба — `PR_Media_KPI.xlsx`, «Yillik xulosa» варағи:
+ * 3 категория, 11 кўрсаткич.
+ *
+ * ⚠️ Тўртта қоида бутун блок бўйлаб амал қилади:
+ *
+ *  1. **Бу РЕЖА ҳужжати — фактик бажарилиш ЙЎҚ.** Манбада фақат мақсадлар
+ *     бор, ҳеч қаерда «нечтаси бажарилди» ёзилмаган. Шунинг учун бу ерда
+ *     «факт», «бажарилди %», «қолдиқ» каби майдон йўқ ва уни ўйлаб топиб
+ *     ҳам бўлмайди: ҳисоблаш учун иккинчи манба мавжуд эмас. Панелда
+ *     прогресс-бар чизиш — солиштирадиган факти бўлмаган сонни «эришилган»
+ *     деб кўрсатиш бўларди.
+ *
+ *  2. **`null` — нол ЭМАС.** Сон матндан ажратилмаса `null` бўлиб қолади ва
+ *     нолга айлантирилмайди. Энг муҳим ҳолат — Telegram: `cadenceText` =
+ *     «Qamrov 30%», ундаги 30 ҚАМРОВ фоизи, даврий сон эмас. Шунинг учун
+ *     `cadenceCount` = `null` (30 эмас) ва `yearlyComputed` = `null`.
+ *
+ *  3. **Матн ва сон бирга келади.** «240+» дан сон 240 ажратилади, лекин
+ *     «+» («камида») фақат матнда сақланиб қолади. Шунинг учун экранда
+ *     `yearlyTargetText` кўрсатилади, `yearlyTargetNum` эса диаграмма ва
+ *     ҳисоб учун ишлатилади.
+ *
+ *  4. **Маълумотнинг ўзи ЛОТИН ёзувида** (`Tashqi PR`, `Har oy 10 ta`,
+ *     `Obunachilar +50%`) — манбадагича қолади: таржима ҳам, транслитерация
+ *     ҳам қилинмайди. Кириллга ўгирилгани фақат интерфейс матни.
+ */
+
+/** `month` — «Har oy …» (йилига 12 марта), `quarter` — «Har chorakda …» (йилига 4 марта). */
+export type PrMediaKpiCadencePeriod = "month" | "quarter";
+
+export interface PrMediaKpiItem {
+  /** Барқарор калит: `tv`, `linkedin`, `telegram`, … — импорт шу бўйича upsert қилади. */
+  key: string;
+  /** `I` / `II` / `III`. */
+  categoryNo: string;
+  /** `Tashqi PR` / `Ijtimoiy tarmoqlar` / `Kontent` — лотин, манбадагича. */
+  categoryName: string;
+  /** Кўрсаткич номи — лотин, манбадагича. */
+  indicator: string;
+  /** Манбадаги МАТН: «Har oy 10 ta», «Qamrov 30%». */
+  cadenceText: string;
+  /**
+   * `cadenceText` дан ажратилган сон (10).
+   *
+   * ⚠️ ФОИЗ сон сифатида олинмайди: «Qamrov 30%» да даврий сон ЙЎҚ, шунинг
+   * учун бу ерда `null` — 30 эмас.
+   */
+  cadenceCount: number | null;
+  /** «Har oy» → `month`, «Har chorakda» → `quarter`; аниқланмаса `null`. */
+  cadencePeriod: PrMediaKpiCadencePeriod | null;
+  /** Манбадаги МАТН: «120 ta», «240+», «1100+». */
+  yearlyTargetText: string;
+  /** `yearlyTargetText` дан ажратилган сон (120, 240, 1100). */
+  yearlyTargetNum: number | null;
+  /**
+   * `cadenceCount` × йилдаги даврлар сони (ой → 12, чорак → 4).
+   *
+   * ⚠️ `yearlyTargetNum` дан ФАРҚ қилиши мумкин ва бу хато эмас — манбадаги
+   * номувофиқлик. Иккаласи атайин алоҳида сақланади, бири иккинчисини
+   * босиб кетмайди; фарқ қилганлари `mismatches[]` да рўйхатланади.
+   */
+  yearlyComputed: number | null;
+  /** «Obunachilar +50%» — фақат ижтимоий тармоқларда; қолганларида `null`. */
+  growthText: string | null;
+  /** `growthText` дан ажратилган фоиз (50, 20). */
+  growthPercent: number | null;
+  /** Манбадаги қатор тартиби (1…11). */
+  sortOrder: number;
+}
+
+export interface PrMediaKpiCategory {
+  /** `I` / `II` / `III`. */
+  no: string;
+  /** Лотин, манбадагича. */
+  name: string;
+  /** Шу категориядаги кўрсаткичлар СОНИ — бэкенд рўйхатдан ҳисоблайди. */
+  items: number;
+  /**
+   * `yearlyTargetNum` йиғиндиси. Биронта қаторда ҳам сон бўлмаса `null` —
+   * 0 ЭМАС: «мақсад нол» ва «мақсад сонга айлантирилмади» бир хил эмас.
+   *
+   * ⚠️ Бу МАҚСАДЛАР йиғиндиси ва ўлчов бирлиги АРАЛАШ бўлиши мумкин:
+   * «Ijtimoiy tarmoqlar» да у 1532 — ичида постлар сони (96+96+240) билан
+   * бирга Telegram'нинг обуначилар кўрсаткичи (1100) ҳам бор. Шунинг учун
+   * бу сон категориялараро таққослаш учун ЯРОҚСИЗ.
+   */
+  yearlyTotal: number | null;
+}
+
+/**
+ * Арифметикаси мос келмаган қатор.
+ *
+ * Ҳозир битта: «Xalqaro nashrlar» — ҳар чоракда 4 та × 4 = 16, лекин манбада
+ * йиллик мақсад 20 деб ёзилган. Манба ТУЗАТИЛМАГАН ва бу жимгина
+ * йўқолмаслиги керак — шунинг учун алоҳида рўйхат. Манба янгиланганда
+ * рўйхат узайиши мумкин.
+ */
+export interface PrMediaKpiMismatch {
+  key: string;
+  indicator: string;
+  /** `cadenceCount` × даврлар сони. */
+  computed: number;
+  /** Манбада ёзилгани. */
+  stated: number;
+}
+
+/** `GET /pr-media-kpi/dashboard` жавоби — панел учун ҳаммаси битта сўровда. */
+export interface PrMediaKpiDashboard {
+  /**
+   * Ҳужжат сарлавҳаси — `PR Media KPI — yillik reja`.
+   *
+   * ⚠️ КОНСТАНТА: модулда ҳужжат даражасидаги жадвал йўқ, шунинг учун у
+   * бэкенддаги `pr-media-kpi.constants.ts` дан келади, базадан эмас.
+   */
+  title: string;
+  /** Манбадаги тартибда: I → II → III (алифбо эмас). */
+  categories: PrMediaKpiCategory[];
+  /** 11 та қатор, `sortOrder` бўйича. */
+  items: PrMediaKpiItem[];
+  /** Бўш массив = барча қаторда арифметика мос келди. */
+  mismatches: PrMediaKpiMismatch[];
+  meta: {
+    /** Импорт қилинган файл номи — бу ҳам константа. */
+    source: string;
+  };
+}
+
+/* -------------------------------------------------------------------------- */
+/* cameras — алоҳида модул, `production-report` нинг ёнида                     */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Битта камера — `GET /cameras` жавобидаги ҳолида.
+ *
+ * ⚠️ Бу модул `{ success, data }` КОНВЕРТИНИ ишлатмайди: контроллер
+ * `{ factories: [...] }` ни тўғридан-тўғри қайтаради (бэкенд:
+ * `camera.controller.ts` → `renderFactoryCamerasPage`). Шунинг учун
+ * `endpoints.ts` да бу ягона сўров `unwrap()` дан ўтмайди.
+ *
+ * `login`, `password` ва `stream_link` майдонлари бэкендда ЎЧИРИЛАДИ —
+ * бу ерда ҳам йўқ ва кутилмайди.
+ */
+export interface CameraRow {
+  id: number;
+  factory_id: number;
+  /** Кўпинча «Navoi 2 PTZ 10.85.0.202» — номнинг охирида IP туради. */
+  model: string | null;
+  brand: string | null;
+  ip_address: string | null;
+  /** WebRTC стримнинг калити. Бўлмаса катак стрим кўрсата олмайди. */
+  stream_uuid: string | null;
+  /** Масалан `https://tmkstream.bgs.uz`. */
+  webrtc_server: string | null;
+  /** Одатда `0`. `null` бўлса `0` деб олинади. */
+  channel: number | null;
+  has_ptz: boolean;
+  status: "active" | "inactive" | "maintenance" | "broken";
+  /** `upload` базасига нисбий йўл: `camera-screenshots/camera_4.jpg`. */
+  screenshot_url: string | null;
+}
+
+/** Зaвод ва унинг камералари — жавобнинг бирламчи гуруҳлаши. */
+export interface CameraFactoryGroup {
+  id: number;
+  name: string;
+  cameras: CameraRow[];
+}
+
+/** `GET /cameras` жавоби. Конверт йўқ — юқоридаги изоҳга қаранг. */
+export interface CamerasResponse {
+  factories: CameraFactoryGroup[];
+}
+
+/* -------------------------------------------------------------------------- */
+/* map — алоҳида модул, `production-report` нинг ёнида                         */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * `GET /map/objects` жавоби. Типлар бэкенднинг `src/modules/map/map.types.ts`
+ * файлидан **кўчирилган** (ўйлаб топилмаган) ва жонли жавоб билан
+ * солиштириб текширилган (2026-09-16, `https://tmk.bgs.uz/api/map/objects?lang=uz`).
+ *
+ * ═══ Битта массив, `type` дискриминатори ════════════════════════════════
+ *
+ * Уччала қатлам ҳам — завод/кон (`factory`), геология лойиҳаси (`geology`) ва
+ * инвестиция лойиҳаси (`invest`) — БИТТА `items[]` массивида, бир хил
+ * конвертда келади. Турга ХОС майдонлар `detail` ичида.
+ */
+export const MAP_ITEM_TYPES = ["factory", "geology", "invest"] as const;
+
+export type MapItemType = (typeof MAP_ITEM_TYPES)[number];
+
+/** `exact` — аҳамиятли сўзлар тўлиқ мос; `partial` — қисман/қўшни шакл. */
+export type MapMatchConfidence = "exact" | "partial";
+
+/** Координата қаердан олингани. `linked` — боғланган бошқа элементдан. */
+export type MapCoordsSource = "own" | "linked";
+
+/**
+ * Нуқта қанчалик аниқ. `region` — ТАХМИНИЙ (вилоят маркази), у ерда бир
+ * нечта лойиҳа устма-уст туради.
+ *
+ * ⚠️ `MapLinkRef.confidence` даги `exact` билан аралаштирманг: у боғланиш
+ * ишончлилиги, бу эса ЖОЙЛАШУВ аниқлиги — бутунлай бошқа ўлчов.
+ */
+export type MapCoordsAccuracy = "exact" | "region";
+
+/** Бошқа элементга ҳавола. `confidence` — боғланиш ЭВРИСТИК бўлгани учун. */
+export interface MapLinkRef {
+  type: MapItemType;
+  /** Боғланган элементнинг `MapItem.id` си */
+  id: string;
+  name: string | null;
+  confidence: MapMatchConfidence;
+}
+
+/**
+ * Харитадаги битта элемент — уччала тур учун ҳам АЙНАН шу шакл.
+ *
+ * ⚠️ Координатаси йўқ элемент ҳам келади (`lat: null`) — ҳеч нарса ташлаб
+ * юборилмайди. Жонли жавобда бундай элемент 8 та (ҳаммаси `geology`).
+ */
+export interface MapItem {
+  /** Барқарор ва уникал: `factory-91`, `geology-12`, `invest-miskon` */
+  id: string;
+  type: MapItemType;
+  /**
+   * ⚠️ ЛОТИН ёзувида — `?lang=uz` сўралганда ҳам. Кириллча шакли
+   * `nameCyrillic` да. Сводка бутунлай кирилл, шунинг учун адаптер доим
+   * `nameCyrillic` ни афзал кўради.
+   */
+  name: string | null;
+  /** Ўша номнинг манбадаги кириллча шакли. Жонли жавобда 55 тасида ҳам бор. */
+  nameCyrillic: string | null;
+  /** ЛОТИН */
+  region: string | null;
+  /** Жонли жавобда 5 та геология лойиҳасида `null`. */
+  regionCyrillic: string | null;
+  /** `region` нинг биринчи бўлаги (верguлгача) — вилоят кесими учун. ЛОТИН. */
+  regionGroup: string | null;
+  /**
+   * КЎРСАТИШ учун кенглик/узунлик.
+   *
+   * ⚠️ Бу нуқта устма-уст тушиш сабабли озгина СИЛЖИТИЛГАН бўлиши мумкин
+   * (`coordsDisplaced: true`). Базадаги қиймат доим `sourceLat`/`sourceLon` да.
+   */
+  lat: number | null;
+  lon: number | null;
+  /**
+   * `true` — нуқта бошқа элемент билан устма-уст тушгани учун бэкенд томонидан
+   * АТАЙИН силжитилган. Жонли жавобда 25 та.
+   *
+   * ⚠️ Фронтендда ИККИНЧИ марта силжитилмайди — қаранг: `MapCanvas`.
+   */
+  coordsDisplaced: boolean;
+  /** Силжитишдан олдинги, базадаги ҳақиқий нуқта. */
+  sourceLat: number | null;
+  sourceLon: number | null;
+  /**
+   * `own` — элементнинг ўз координатаси; `linked` — боғланган элементдан
+   * МЕРОС (таҳминий!); `null` — координата умуман йўқ.
+   */
+  coordsSource: MapCoordsSource | null;
+  /** `coordsSource === 'linked'` бўлганда — манба элементнинг `id` си. */
+  linkedFrom: string | null;
+  /**
+   * `exact` — аниқ объект координатаси; `region` — ТАХМИНИЙ, вилоят маркази;
+   * `null` — координата йўқ, ёки у мерос, ёки базада аниқлик эълон қилинмаган.
+   *
+   * `coordsAccuracy !== null` бўлса `coordsSource` ДОИМ `'own'`.
+   */
+  coordsAccuracy: MapCoordsAccuracy | null;
+  /**
+   * Кимёвий белгилар (`["Au","Ag"]`).
+   *
+   * ⚠️ Жонли жавобда 55 элементнинг ҲАММАСИДА бўш (`[]`): геология жадвалида
+   * кимёвий белги устуни йўқ, металл номлари эса `detail.metalsCyrillic` /
+   * `detail.mineralCyrillic` да эркин матн ҳолида. Шунинг учун карточка
+   * қаторлари `elements` устига қурилмайди.
+   */
+  elements: string[];
+  /**
+   * ЛОТИН. `factory` да техник ҳолат коди (ўгирилмайди), `geology` да гуруҳ
+   * номи, `invest` да лойиҳа ҳолати.
+   */
+  status: string | null;
+  /**
+   * ⚠️ Номига қарамай ДОИМ кирилл эмас: `factory` да техник код
+   * (`REGISTRATION`, `STARTED`), `invest` да лотин матн
+   * (`Amalga oshirilayotgan loyiha`). Базадаги қиймат шундай — яширилмайди.
+   */
+  statusCyrillic: string | null;
+  /**
+   * УЛУШ 0…1 (фоиз ЭМАС). Жонли жавобда: `invest` да 7/7 тўлган,
+   * `geology` да 46 тасида ҳам `null`, `factory` да биттасида `0`.
+   */
+  progress: number | null;
+  costMlnUsd: number | null;
+  markerIcon: string | null;
+  /** Боғланган бошқа элементлар (турлар аралаш). */
+  links: MapLinkRef[];
+  /**
+   * Турга хос тўлиқ маълумот — `type` га қараб таркиби бошқача, шунинг учун
+   * тип `unknown`: ундан ўқишда тип текшируви қилинади, `as` билан
+   * мажбурлаб ташланмайди (қаранг: `lib/adapters/mapObjects.ts`).
+   *
+   * Матн майдонларининг кириллча шакли `*Cyrillic` қўшимчали жуфтликда
+   * (`fullName` / `fullNameCyrillic`).
+   *
+   * ⚠️ `invest` да реестрнинг `type` устуни бу ерда `investType` деб аталади:
+   * юқоридаги `type` дискриминатор сифатида банд.
+   */
+  detail: Record<string, unknown>;
+}
+
+export interface MapCountItem {
+  key: string | null;
+  count: number;
+}
+
+export interface MapTypeCounts {
+  factory: number;
+  geology: number;
+  invest: number;
+}
+
+export interface MapSummary {
+  totalItems: number;
+  byType: MapTypeCounts;
+  /** Ўз координатаси бор элементлар. */
+  withOwnCoords: number;
+  /** Координатани боғланган элементдан мерос қилиб олганлар (таҳминий). */
+  withLinkedCoords: number;
+  /** Координатаси умуман йўқ — харитага нуқта сифатида тушмайди. */
+  withoutCoords: number;
+  linkedItems: number;
+  totalLinks: number;
+  byElement: MapCountItem[];
+  byStatus: MapCountItem[];
+  byRegion: MapCountItem[];
+  byMarkerIcon: MapCountItem[];
+}
+
+/**
+ * ⚠️ `lat`/`lon` бу ерда — МАНБАДАГИ (силжитилмаган) нуқта. Бу маълумот
+ * сифати кўрсаткичи: «базада бу ёзувлар битта нуқтада».
+ */
+export interface MapDuplicateCoordGroup {
+  lat: number;
+  lon: number;
+  items: { id: string; type: MapItemType; name: string | null }[];
+}
+
+export interface MapInvalidCoordItem {
+  id: string;
+  name: string | null;
+  raw: string | null;
+  reason: "unparseable" | "out-of-bounds";
+  swappedWouldBeValid: boolean;
+}
+
+export interface MapRawValueItem {
+  id: string;
+  name: string | null;
+  raw: string | null;
+}
+
+export interface MapTestRecordItem {
+  id: string;
+  name: string | null;
+  reasons: string[];
+}
+
+export interface MapAmbiguousMatchItem {
+  itemId: string;
+  itemName: string | null;
+  candidates: { id: string; name: string | null; score: number }[];
+  chosenId: string;
+}
+
+export interface MapInvestDataIssue {
+  id: string;
+  name: string | null;
+  issue: string;
+}
+
+export interface MapDataQuality {
+  duplicateCoords: MapDuplicateCoordGroup[];
+  invalidCoords: MapInvalidCoordItem[];
+  malformedMarkerIcon: MapRawValueItem[];
+  importanceLooksLikeType: MapRawValueItem[];
+  missingObjectType: number;
+  missingElements: number;
+  possibleTestRecords: MapTestRecordItem[];
+  ambiguousMatches: MapAmbiguousMatchItem[];
+  /** Координатаси ҳам, боғланиши ҳам йўқ — харитага умуман тушмайди. */
+  itemsWithoutAnyCoords: { id: string; type: MapItemType; name: string | null }[];
+  investIssues: MapInvestDataIssue[];
+}
+
+/** Қайси фильтр қўлланганини жавобнинг ЎЗИДА айтади. */
+export interface MapFiltersMeta {
+  applied: boolean;
+  layer: MapItemType[] | null;
+  investType: string[] | null;
+  excluded: MapTypeCounts;
+  totalBeforeFilter: number;
+}
+
+export interface MapObjectsMeta {
+  lang: string;
+  generatedAt: string;
+  counts: MapTypeCounts;
+  filters: MapFiltersMeta;
+  /** Боғлаш эвристик — ҳисоботда очиқ кўрсатилади. */
+  matchStrategy: string;
+  /**
+   * ⚠️ ВАҚТИНЧАЛИК. `factory` жадвалида демо ёзувлар бор, шунинг учун жавобга
+   * фақат РЕАЛ заводлар тушади. Демо ёзувлар базадан ўчирилгач бу уччала
+   * майдон жавобдан бутунлай йўқолади — шунинг учун улар ихтиёрий.
+   */
+  factoryFilter?: "real-only";
+  factoryFilterNote?: string;
+  factoriesInDb?: number;
+  factoriesFiltered?: number;
+}
+
+/** `GET /map/objects` жавоби — ҳаммаси битта сўровда (~148 КБ). */
+export interface MapObjectsResponse {
+  /** ҲАММАСИ шу ерда: factory + geology + invest. */
+  items: MapItem[];
+  summary: MapSummary;
+  dataQuality: MapDataQuality;
+  meta: MapObjectsMeta;
+}

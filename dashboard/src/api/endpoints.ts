@@ -1,16 +1,20 @@
 import {
   ApiError,
   apiGet,
+  CAMERA_BASE,
   EXPORT_TARGETS_BASE,
   FINANCE_BASE,
   GAS_BASE,
   GEOLOGY_BASE,
   INVEST_DECK_BASE,
+  MAP_BASE,
+  PR_MEDIA_KPI_BASE,
   SCHEDULE_BASE,
   SOLAR_BASE,
 } from "./client";
 import type {
   BalanceResponse,
+  CamerasResponse,
   ChainResponse,
   CisternRow,
   CisternTxRow,
@@ -33,11 +37,13 @@ import type {
   InvestDeckDashboard,
   InvestDeckProjectDetail,
   KpiResponse,
+  MapObjectsResponse,
   MobplanResponse,
   NarastaykaRow,
   OgarokDailyRow,
   OgarokMonthlyRow,
   PagedEnvelope,
+  PrMediaKpiDashboard,
   ProductionMonthlyRow,
   ProjectScheduleDashboard,
   SalesMonthlyRow,
@@ -582,3 +588,62 @@ export const getExportTargets = (signal?: AbortSignal): Promise<ExportTargetsDas
   unwrap(
     apiGet<Envelope<ExportTargetsDashboard>>("/dashboard", {}, signal, EXPORT_TARGETS_BASE),
   );
+
+/* -------------------------------------------------------------------------- */
+/* pr-media-kpi — алоҳида модул, `production-report` нинг ёнида                 */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * «PR Media KPI — yillik reja» бўлимининг ягона манбаси: сарлавҳа,
+ * 3 категория, 11 кўрсаткич ва манбадаги арифметика номувофиқликлари —
+ * ҳаммаси битта сўровда (~4 КБ).
+ *
+ * **Параметрсиз**: жадвал 11 қаторлик, шунинг учун бэкендда саҳифалаш ҳам,
+ * фильтр ҳам йўқ — панел бутун рўйхатни бир марта олади ва ўзи кесади.
+ * Манба — битта РЕЖА ҳужжатининг қотирилган ҳолати, ой кесимидаги вақт
+ * қатори эмас; шунинг учун юқоридаги давр танлагичи бу бўлимга таъсир
+ * қилмайди — худди `getExportTargets` ва `getInvestDeckDashboard` каби.
+ */
+export const getPrMediaKpi = (signal?: AbortSignal): Promise<PrMediaKpiDashboard> =>
+  unwrap(apiGet<Envelope<PrMediaKpiDashboard>>("/dashboard", {}, signal, PR_MEDIA_KPI_BASE));
+
+/* -------------------------------------------------------------------------- */
+/* cameras — алоҳида модул, `production-report` нинг ёнида                     */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Барча камералар — заводлар бўйича гуруҳланган ҳолда.
+ *
+ * **Параметрсиз**: рўйхат ўнлаб қатордан иборат, бэкендда бу endpoint учун
+ * фильтр ҳам, саҳифалаш ҳам йўқ. Қайси камера қайси деворда туриши эса
+ * сервернинг иши эмас — уни `lib/adapters/cameras.ts` ҳал қилади.
+ *
+ * ⚠️ `unwrap()` ЙЎҚ: бу ягона endpoint `{ success, data }` конвертини
+ * бермайди, жавобнинг ўзи `{ factories: [...] }` (қаранг: `CamerasResponse`).
+ */
+export const getCameras = (signal?: AbortSignal): Promise<CamerasResponse> =>
+  apiGet<CamerasResponse>("", {}, signal, CAMERA_BASE);
+
+/* -------------------------------------------------------------------------- */
+/* map — алоҳида модул, `production-report` нинг ёнида                         */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Харитадаги ҲАММА объект битта сўровда ва битта массивда (`items[]`):
+ * завод/конлар, геология лойиҳалари ва инвестиция лойиҳалари. Уларни
+ * `items[].type` бўйича адаптер ажратади (`lib/adapters/mapObjects.ts`).
+ *
+ * **Фильтрсиз**: бэкендда `?layer=` ва `?investType=` фильтрлари бор, лекин
+ * харита саҳифасига ҲАММА қатлам керак — фильтр берилса легендадаги сонлар
+ * тўлиқ манзарани кўрсатмай қоларди. Ҳозирги ҳолат: 55 объект (2 завод,
+ * 46 геология, 7 инвестиция), жавоб ҳажми ~148 КБ.
+ *
+ * `lang=uz` берилади, лекин у **фақат лотин** майдонларига таъсир қилади:
+ * `name`/`region` ҳар қандай тилда лотин келади, кириллчаси эса ёнидаги
+ * `nameCyrillic`/`regionCyrillic` да. Сводка кирилл — қаранг: адаптер.
+ *
+ * ⚠️ Endpoint токен талаб қилади (`UniversalAuthGuard`). Илгари харита
+ * саҳифаси токенсиз ишларди — энди ишламайди, қаранг: `App.tsx`.
+ */
+export const getMapObjects = (signal?: AbortSignal): Promise<MapObjectsResponse> =>
+  unwrap(apiGet<Envelope<MapObjectsResponse>>("/objects", { lang: "uz" }, signal, MAP_BASE));
