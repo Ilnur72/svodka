@@ -103,6 +103,72 @@ export const INVEST_DECK_BASE = API_BASE.replace(/\/[^/]*$/, "") + "/invest-deck
  */
 export const EXPORT_TARGETS_BASE = API_BASE.replace(/\/[^/]*$/, "") + "/export-targets";
 
+/**
+ * «PR Media KPI — yillik reja» модулининг базаси.
+ *
+ * Худди юқоридагилар каби — бэкендда алоҳида модул
+ * (`@Controller('pr-media-kpi')`), `production-report` нинг ичида эмас.
+ * Тўққизинчи муҳит ўзгарувчиси **киритилмайди**: база ўша усул билан
+ * `VITE_API_BASE` дан ҳосил қилинади.
+ *
+ *   `http://localhost:8085/production-report`  → `http://localhost:8085/pr-media-kpi`
+ *   `https://tmk.bgs.uz/api/production-report` → `https://tmk.bgs.uz/api/pr-media-kpi`
+ */
+export const PR_MEDIA_KPI_BASE = API_BASE.replace(/\/[^/]*$/, "") + "/pr-media-kpi";
+
+/**
+ * Камералар модулининг базаси.
+ *
+ * Худди юқоридагилар каби — бэкендда алоҳида модул (`@Controller('cameras')`),
+ * `production-report` нинг ичида эмас. Ўнинчи муҳит ўзгарувчиси
+ * **киритилмайди**: база ўша усул билан `VITE_API_BASE` дан ҳосил қилинади.
+ *
+ *   `http://localhost:8085/production-report`  → `http://localhost:8085/cameras`
+ *   `https://tmk.bgs.uz/api/production-report` → `https://tmk.bgs.uz/api/cameras`
+ */
+export const CAMERA_BASE = API_BASE.replace(/\/[^/]*$/, "") + "/cameras";
+
+/**
+ * Харита модулининг базаси.
+ *
+ * Худди юқоридагилар каби — бэкендда алоҳида модул (`@Controller('map')`),
+ * `production-report` нинг ичида эмас. Ўн биринчи муҳит ўзгарувчиси
+ * **киритилмайди**: база ўша усул билан `VITE_API_BASE` дан ҳосил қилинади.
+ *
+ *   `http://localhost:8085/production-report`  → `http://localhost:8085/map`
+ *   `https://tmk.bgs.uz/api/production-report` → `https://tmk.bgs.uz/api/map`
+ *
+ * ⚠️ Бу endpoint ТОКЕН талаб қилади (`UniversalAuthGuard`, роллар
+ * admin/editor/viewer) — очиқ эмас. Харита саҳифаси илгари токенсиз
+ * ишларди, чунки манба бандл ичидаги реестр эди; энди у шу API'дан келади.
+ */
+export const MAP_BASE = API_BASE.replace(/\/[^/]*$/, "") + "/map";
+
+/**
+ * Камера скриншотлари турадиган СТАТИК манзил: стрим узилганда катакда
+ * охирги сақланган кадр кўрсатилади (қаранг: `panels/camera/CameraTile.tsx`).
+ *
+ * Бу API эмас — nginx берадиган файл, шунинг учун база юқоридагилар каби
+ * «охирги сегментни алмаштириш» билан эмас, АСЛ origin дан ясалади:
+ *
+ *   `https://tmk.bgs.uz/api/production-report` → `https://tmk.bgs.uz/upload`
+ *   `http://localhost:8085/production-report`  → `http://localhost:8085/upload`
+ *
+ * `VITE_API_BASE` нисбий бўлса (`/api/production-report` — ngrok режими)
+ * origin сифатида саҳифанинг ўзиники олинади ва расм топилмаслиги мумкин.
+ * Бу ҳалокат эмас: скриншот ЗАХИРА қатлам, у ҳам бўлмаса катак «сигнал йўқ»
+ * ҳолатини кўрсатади, стрим эса ўзи қайта уланишга уринаверади.
+ */
+export const UPLOAD_BASE = uploadOrigin() + "/upload";
+
+function uploadOrigin(): string {
+  try {
+    return new URL(API_BASE, window.location.href).origin;
+  } catch {
+    return "";
+  }
+}
+
 export class ApiError extends Error {
   readonly status: number;
   constructor(message: string, status: number) {

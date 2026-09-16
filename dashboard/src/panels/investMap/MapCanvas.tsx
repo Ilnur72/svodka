@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 /**
  * ⚠️ MapLibre GL **5.x** да қотирилган — 6.x га кўтарилмайди.
  *
@@ -24,9 +23,10 @@ import { createPortal } from "react-dom";
  * `Map as MapLibreMap` — `MapLibreMap` алиаси фақат 6.x да бор, `Map` эса
  * иккала мажор версияда ҳам; шунинг учун алиас қўлда ёзилади.
  */
-import { Map as MapLibreMap, Marker, Popup, type Offset } from "maplibre-gl";
+import { createPortal } from "react-dom";
+import { Map as MapLibreMap, Marker, Popup, type PositionAnchor } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import type { InvestMapPin, InvestMapVM } from "../../lib/adapters/investMap";
+import type { MapPin, MapVM } from "../../lib/adapters/mapObjects";
 import {
   INVEST_MAP_BOUNDS,
   INVEST_MAP_HOME,
@@ -36,9 +36,8 @@ import {
 } from "../../lib/invest/investMapStyle";
 import { nf } from "../../lib/format";
 
-
 /**
- * Инвестиция лойиҳалари харитаси — MapLibre GL.
+ * Лойиҳалар харитаси — MapLibre GL.
  *
  * ═══ Нега кутубхона, ўз камерамиз эмас ══════════════════════════════════
  *
@@ -47,44 +46,46 @@ import { nf } from "../../lib/format";
  * харита: зум ошганда янги плиткалар келади, йўллар, дарёлар ва шаҳар
  * номлари очилади.
  *
- * Шу билан бирга камера, суриш, яқинлаштириш, чегара ва проекция ҳисоби
- * MapLibre'нинг зиммасига ўтди — аввалги қўлда ёзилган `apply/coverScale/
- * zoomAt/pan` мантиғи бутунлай олиб ташланди. Расмнинг четида бўш майдон
- * қолиши муаммоси ҳам ўз-ўзидан йўқолди: харита ҳамма жойда чизилади,
- * `maxBounds` ва `minZoom` эса минтақадан узоққа кетишга йўл бермайди
- * (қаранг: `lib/invest/investMapStyle.ts`).
- *
  * ═══ React ва императив қатлам орасидаги чегара ═════════════════════════
  *
  * MapLibre — императив кутубхона, шунинг учун чегара аниқ ажратилган:
  *
  *   · **харита, маркерлар ва ойна** — эффект ичида, императив тарзда.
  *     Маркер элементи `document.createElement` билан ясалади, кўриниши эса
- *     `index.css` даги `.map-pin*` синфларида (узун утилита сатрини
- *     JS ичида ёзгандан кўра равшанроқ — жадвал сарлавҳалари билан бир хил
- *     ёндашув);
+ *     `index.css` даги `.map-pin*` синфларида;
  *   · **карточка (`PinCard`)** — оддий React компоненти. У MapLibre ойнаси
- *     ичига `createPortal` орқали чизилади: шунда иккинчи React илдизи
- *     керак бўлмайди, контекст ва ҳолат бир дарахтда қолади.
+ *     ичига `createPortal` орқали чизилади.
  *
- * Харита **бир марта** яратилади ва эффект тозалагичида `map.remove()`
- * чақирилади — StrictMode'да эффект икки марта ишлаганда иккита canvas
- * қолиб кетмаслиги учун.
+ * ═══ Координата бэкенддан — фронтенд уни СИЛЖИТМАЙДИ ════════════════════
  *
- * ═══ Жойни тўғрилаш ═════════════════════════════════════════════════════
+ * Нуқталар `GET /map/objects` дан келади. Устма-уст тушган белгиларни
+ * **бэкенднинг ўзи** ажратиб беради (`coordsDisplaced`, `map.displace.ts`),
+ * шунинг учун бу ерда ҳеч қандай қўшимча силжиш ЙЎҚ ва қўшилмайди.
  *
- * Координаталар туман даражасидаги тахмин (қаранг: `investMapSource.ts`),
- * шунинг учун фойдаланувчи маркерни суриб тўғрилай олади — энди MapLibre'нинг
- * ўз `draggable` механизми билан. Натижа фақат браузерда (`localStorage`)
- * сақланади: манбага ҳам, бэкендга ҳам тегмайди.
+ * Ягона силжиш — **лангар**: расм пастидаги ёруғ ҳалқа элемент пастки
+ * қиррасидан 16% юқорида, шунинг учун элемент шунча пастга сурилади ва
+ * ҳалқа маркази айнан координата устида туради. Бу зумга боғлиқ эмас.
  *
- * Сақлаш калити янги (`…-lnglat-v1`): эски ёзувда расм пикселлари турарди,
- * улар координата сифатида ўқилса маркерлар Тинч океанга учиб кетарди.
+ * ⚠️ Бир пайт силжиш маркер `offset` и (ЭКРАН ПИКСЕЛИ) билан берилган эди —
+ * ва бу нотўғри чиқди: пиксел силжиш зум билан ўзгармайди, иккита координата
+ * орасидаги экран масофаси эса зум ошганда ортади, натижада маркер ўз
+ * нуқтасидан «сузиб» кетарди. Бу такрорланмайди.
+ *
+ * ═══ «Жойни тўғрилаш» режими ОЛИБ ТАШЛАНДИ ══════════════════════════════
+ *
+ * Аввал фойдаланувчи маркерни суриб тўғрилай оларди ва натижа
+ * `localStorage` да сақланарди. У пайтда координаталар фронтендда қўлда
+ * ёзилган тахмин эди, яъни уларни браузерда тўғрилаш ягона имконият эди.
+ *
+ * Энди координата **базада**. Браузерда сақланган силжиш базадаги қиймат
+ * билан жимгина ажралиб кетарди: экранда бир нуқта, базада бошқаси, ва
+ * фарқни ҳеч ким кўрмасди. Нуқта нотўғри бўлса тузатиш жойи — база.
+ * Шунинг учун режим ҳам, `localStorage` калити ҳам олиб ташланди.
  */
 
 export interface MapCanvasProps {
-  vm: InvestMapVM;
-  /** Очиқ карточканинг лойиҳа `id` си; `null` — ёпиқ. */
+  vm: MapVM;
+  /** Очиқ карточканинг объект `id` си; `null` — ёпиқ. */
   selected: string | null;
   onSelect: (id: string | null) => void;
   /**
@@ -92,79 +93,83 @@ export interface MapCanvasProps {
    * муҳим — маркернинг ўзи босилганда харита силжимаслиги керак.
    */
   focusNonce: number;
+  /**
+   * `true` — харита ота-элементни ТЎЛИҚ эгаллайди: ромка, бурчак радиуси ва
+   * нисбат берилмайди. Алоҳида саҳифа (`/investmap`) шу режимда ишлатади.
+   */
+  fill?: boolean;
 }
 
-/** Сурилган маркерларнинг координатаси шу калит остида сақланади. */
-const STORAGE_KEY = "tmk-investmap-lnglat-v1";
-
 /**
- * Маркернинг экрандаги баландлиги, px. MapLibre маркерлари яқинлаштиришда
- * ўлчамини ўзгартирмайди, шунинг учун тескари масштаб ҳисоби керак эмас.
+ * Маркернинг экрандаги баландлиги, px.
+ *
+ * ⚠️ Аввал 74 эди — 7 та маркер учун. 55 та маркерда бу ўлчам экранни
+ * тўлдириб юборарди: кристаллар бир-бирига тегиб, хаританинг ўзи
+ * кўринмай қоларди. 46 px — кристалл шакли ҳали ажралиб турадиган, лекин
+ * ўндан ортиқ маркер ёнма-ён турганда ҳам фон кўринадиган ўлчам.
  */
-const MARKER_H = 74;
+const MARKER_H = 46;
 
 /** Карточканинг эни, px. Баландлиги матндан келиб чиқади. */
 const CARD_W = 320;
 
+/**
+ * Карточка билан маркер орасидаги бўшлиқ, px. Маркер кристаллининг ярим
+ * эни устига қўшилади, шунда карточка расмга тегиб турмайди.
+ */
+const CARD_GAP = 14;
+
+/**
+ * Карточка маркернинг ЁНИДА очилиши учун керакли жой (эни + бўшлиқ).
+ * Шу жойдан камида шунча бўлмаса, харита силжитилади.
+ */
+const CARD_ROOM = CARD_W + 40;
+
 /** Зум чегарасига етганини солиштириш учун бўшлиқ. */
 const ZOOM_EPS = 0.01;
 
-/**
- * Ойнанинг маркерга нисбатан силжиши — MapLibre танлаган лангарга қараб.
- * Кристаллнинг боши нуқтадан тахминан 76 px юқорида, шунинг учун «пастки»
- * лангарда ойна ундан ҳам юқорига кўтарилади; «юқори» лангарда эса ҳалқанинг
- * остига тушади.
- */
-const POPUP_OFFSET: Offset = {
-  center: [0, -40],
-  top: [0, 18],
-  bottom: [0, -82],
-  left: [34, -40],
-  right: [-34, -40],
-  "top-left": [16, 14],
-  "top-right": [-16, 14],
-  "bottom-left": [16, -78],
-  "bottom-right": [-16, -78],
-};
+/** Ёрлиқнинг маркер ёнидаги оралиғи, px. CSS билан бир хил бўлиши ШАРТ. */
+const LABEL_GAP = 6;
 
-interface Pos {
-  lon: number;
-  lat: number;
-}
+/** Ёрлиқнинг маркер элементи тепасидан пастга силжиши, px. CSS билан бир хил. */
+const LABEL_TOP = 9;
 
 /**
- * Сақланган координаталар. Ёзувнинг шакли текширилади: `localStorage` —
- * ташқи манба, ундаги қиймат эскирган ёки бузилган бўлиши мумкин, шундай
- * ҳолда харита ишдан чиқмаслиги керак.
+ * Ёрлиқлар орасидаги энг кичик бўшлиқ, px. Нолда ёрлиқлар бир-бирига тегиб
+ * турарди — ўқилса ҳам, зич кўринарди.
  */
-function readPositions(): Record<string, Pos> {
-  if (typeof window === "undefined") return {};
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return {};
-    const parsed: unknown = JSON.parse(raw);
-    if (parsed === null || typeof parsed !== "object") return {};
-    const out: Record<string, Pos> = {};
-    for (const [key, val] of Object.entries(parsed as Record<string, unknown>)) {
-      if (val === null || typeof val !== "object") continue;
-      const { lon, lat } = val as { lon?: unknown; lat?: unknown };
-      if (
-        typeof lon === "number" &&
-        typeof lat === "number" &&
-        isFinite(lon) &&
-        isFinite(lat) &&
-        Math.abs(lon) <= 180 &&
-        Math.abs(lat) <= 85
-      ) {
-        out[key] = { lon, lat };
-      }
-    }
-    return out;
-  } catch {
-    // Бузилган ёзув ёки хусусий режим — харита манбадаги жойлар билан очилади.
-    return {};
-  }
-}
+const LABEL_PAD = 2;
+
+/**
+ * Маркер расмининг ТЎСИҚ сифатидаги ўлчами — расмнинг ўз қутисидан кичик.
+ *
+ * PNG'нинг катта қисми шаффоф: кристалл марказда, атрофида эса ёғду. Тўлиқ
+ * қутини тўсиқ деб олсак, ёрлиқлар қўшни маркернинг БЎШ жойи учун ҳам
+ * жой топа олмасди — ўлчов: бошланғич зумда 47 ёрлиқдан атиги 5 таси
+ * сиғарди. Ёрлиқнинг ёғду четига озгина тегиши эса ўқишга халақит бермайди.
+ */
+const ICON_HIT_W = 0.62;
+
+/**
+ * Ёрлиқ учун СИНАБ КЎРИЛАДИГАН вертикал ўринлар, px (`LABEL_TOP` устига).
+ *
+ * Ёрлиқ фақат «ўнгда ёки чапда» бўлса, зич жойда у дарҳол қўшнисига тегиб
+ * яширилиб қоларди: ўлчов — бошланғич зумда 47 ёрлиқдан атиги 6 таси
+ * сиғди. Ҳар бир ёрлиқ иккита томон × учта баландликдан иборат олтита
+ * ўринни кетма-кет синаб кўради ва биринчи БЎШ ўринга жойлашади — ўшанда
+ * 18 та сиғади.
+ *
+ * Қадам ёрлиқ баландлигидан (≈25 px) катта: ёнма-ён турган иккита ёрлиқ
+ * бир-бирининг устига чиқмасин.
+ *
+ * ⚠️ Поғоналар атайин УЧТА, кўпроқ эмас: тўртинчи ва бешинчи поғона
+ * (±56 px) яна иккита ёрлиқ сиғдирарди, лекин ўшанда ёрлиқ ўз
+ * кристаллидан шунчалик узоқлашардики, зич жойда «қайси ёрлиқ қайси
+ * маркерники» деган савол туғиларди. Икки-уч ном кўпайтириш учун
+ * ноаниқлик киритиш — ёмон савдо. Сичқонча маркер устига келганда ёрлиқ
+ * барибир ЎРТА ўринга (dy = 0) қайтади, яъни боғланиш тикланади.
+ */
+const LABEL_DYS = [0, -28, 28];
 
 /* -------------------------------------------------------------------------- */
 /* иконкалар                                                                  */
@@ -173,7 +178,6 @@ function readPositions(): Record<string, Pos> {
 const ICONS = {
   plus: "M12 5v14M5 12h14",
   minus: "M5 12h14",
-  edit: "M4 20h4l11-11-4-4L4 16v4Zm9-13 4 4",
   reset: "M4 7v5h5M20 17v-5h-5M6.1 16a7 7 0 0 0 11.3 1M17.9 8A7 7 0 0 0 6.6 7",
   full: "M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5",
   exit: "M3 8h5V3M21 8h-5V3M3 16h5v5M21 16h-5v5",
@@ -207,29 +211,37 @@ const TOOL_BTN =
 /* -------------------------------------------------------------------------- */
 
 /**
- * Битта маркернинг DOM элементи: кристалл расми ва ёнидаги доимий ёрлиқ.
+ * Битта маркернинг DOM элементи: кристалл расми, ёнидаги ёрлиқ ва тахминий
+ * жой белгиси.
  *
- * Ёрлиқ ДОИМ кўринади — харита «қайси нуқта қайси лойиҳа» саволига биринчи
- * қарашда жавоб бериши керак. Томони манбадаги жадвалдан (`labelSide`):
- * гуруҳнинг ғарбий чеккасидаги маркер чапга, қолгани ўнгга қарайди, шунда
- * ёрлиқлар бир-бирини бекитмайди. Ёрлиқнинг маркерга қараган чети —
- * ўша маркернинг ранги: ёрлиқ ва кристалл шу чизиқ орқали боғланади.
+ * ⚠️ Ёрлиқнинг ТОМОНИ ва КЎРИНИШИ бу ерда белгиланмайди — иккови ҳам
+ * экрандаги ўрнига боғлиқ ва ҳар сурилишда қайта ҳисобланади
+ * (`layoutLabels`). Аввал улар манбадаги қўлда ёзилган жадвалдан келарди;
+ * 55 объект учун бундай жадвални ёзиб бўлмайди.
  */
-function buildPinElement(pin: InvestMapPin, markerW: number, anchorY: number): HTMLButtonElement {
+function buildPinElement(pin: MapPin, markerW: number, anchorY: number): HTMLButtonElement {
   const el = document.createElement("button");
   el.type = "button";
   el.className = "map-pin";
-  el.dataset.side = pin.labelSide;
+  el.dataset.side = "right";
   el.style.width = `${markerW}px`;
   el.style.height = `${MARKER_H}px`;
-  el.setAttribute("aria-label", `${pin.name} · ${pin.region} · ${pin.kind}`);
-  el.title = pin.name;
-  // Ёрлиқнинг вертикал силжиши CSS'га шу орқали берилади — ўлчам ва ўрин
-  // манбадаги жадвалдан келади, CSS'да қотирилган сон турмайди.
-  el.style.setProperty("--pin-dy", `${pin.labelDy}px`);
-  // Лойиҳа тури ранги — ёрлиқнинг чизиғи ҲАМ, ҳошияси ҲАМ шундан олади,
-  // шунда ёрлиқ ўз кристаллига боғланиб туради.
+  el.setAttribute("aria-label", `${pin.name} · ${pin.region} · ${pin.layerName} · ${pin.place.short}`);
+  // Ёрлиқ яширилган бўлса ҳам ном йўқолмайди: браузернинг ўз изоҳи доим бор.
+  el.title = `${pin.name}\n${pin.region}\n${pin.layerName} · ${pin.place.short}`;
+  // Қатлам ранги — ёрлиқнинг чизиғи ҲАМ, ҳошияси ҲАМ шундан олади.
   el.style.setProperty("--pin-color", pin.token);
+  el.style.setProperty("--pin-anchor", `${anchorY * 100}%`);
+
+  // Тахминий жой — узуқ ҳалқа билан белгиланади. Ранг ёлғиз маъно ташувчи
+  // эмас: сабаби `title`, `aria-label` ва карточкада сўз билан ёзилган.
+  if (pin.place.approx) {
+    el.classList.add("map-pin--approx");
+    const ring = document.createElement("i");
+    ring.className = "map-pin__ring";
+    ring.setAttribute("aria-hidden", "true");
+    el.append(ring);
+  }
 
   const img = document.createElement("img");
   img.className = "map-pin__icon";
@@ -260,16 +272,6 @@ function buildPinElement(pin: InvestMapPin, markerW: number, anchorY: number): H
 /* -------------------------------------------------------------------------- */
 
 /**
- * Маркер босилганда очиладиган карточка. Уни MapLibre'нинг ойнаси
- * жойлаштиради (лангарни ўзи танлайди ва четга чиқмаслигини ўзи ҳал қилади),
- * шунинг учун бу ерда фақат мазмун қолади.
- *
- * Сурат учта ҳолатда чизилади — худди «Инвестиция лойиҳалари» бўлимидаги
- * `AreaBlock` каби: юкланмоқда / юкланди / юкланмади. Файл бор-йўқлигини
- * build пайтида билиб бўлмайди (у бандлга кирмайди), шунинг учун қарор
- * браузерда қабул қилинади ва сингани расм иконкаси ҳеч қачон кўринмайди.
- */
-/**
  * Маркер босилганда очиладиган карточка.
  *
  * ═══ Нега дашборд карточкасидан бошқача ═════════════════════════════════
@@ -279,22 +281,35 @@ function buildPinElement(pin: InvestMapPin, markerW: number, anchorY: number): H
  * эмас, хаританинг ўзига мослаштирилган: қорага яқин ярим шаффоф фон,
  * оқ сарлавҳа, олтин рангдаги қийматлар. Ранглар мавзу токенларидан
  * ОЛИНМАЙДИ (улар ёруғ мавзуда карточкани оқартириб қўярди) — улар
- * `index.css` даги `.map-pop*` синфларида, харита учун алоҳида ёзилган.
+ * `index.css` даги `.map-pop*` синфларида.
  *
  * ═══ Тузилма ════════════════════════════════════════════════════════════
  *
- *   · юқори ўнг бурчакдаги белги — лойиҳа тури (`kind`), маркер рангида;
- *   · кичик сарлавҳа — объект тури (`Завод`, `Геология-қидирув ишлари`);
- *   · катта сарлавҳа — реестрдаги тўлиқ ном;
- *   · жадвал — ҳар қаторда рангли чизиқ, ёрлиқ ва қиймат.
+ *   · юқори ўнг бурчакдаги белги — ҚАТЛАМ номи, маркер рангида;
+ *   · кичик сарлавҳа — ҳудуд;
+ *   · катта сарлавҳа — объектнинг тўлиқ номи;
+ *   · жадвал — ҳар қаторда рангли чизиқ, ёрлиқ ва қиймат;
+ *   · пастда — жойлашув аниқлиги ва боғланган объектлар.
+ *
+ * Дизайн аввалгидек сақланган, фақат қаторлар энди ТУРГА қараб бошқача
+ * (қаранг: `adapters/mapObjects.ts` → `rowsOf`).
  *
  * Қатор чизиқларининг ранги МАЪНО ТАШИМАЙДИ: у фақат кўз қаторни
- * адаштирмаслиги учун. Шунинг учун ранглар рўйхати қаторлар сонига
- * боғланмаган — етмаса айланиб қайтадан бошланади.
+ * адаштирмаслиги учун, шунинг учун рўйхат қаторлар сонига боғланмаган.
  */
 const ROW_BARS = ["#f5c542", "#38bdf8", "#a855f7", "#34d399", "#818cf8", "#fb923c"];
 
-function PinCard({ pin, onClose }: { pin: InvestMapPin; onClose: () => void }) {
+/**
+ * Қайси қатлам дашборднинг қайси бўлимида батафсил кўрсатилган.
+ * Заводлар учун алоҳида бўлим йўқ — ўшанда ҳавола чизилмайди.
+ */
+const DETAIL_HREF: Partial<Record<MapPin["type"], string>> = {
+  invest: "/#invest",
+  geology: "/#geology",
+};
+
+function PinCard({ pin, onClose }: { pin: MapPin; onClose: () => void }) {
+  const href = DETAIL_HREF[pin.type];
   return (
     <div
       role="dialog"
@@ -302,8 +317,8 @@ function PinCard({ pin, onClose }: { pin: InvestMapPin; onClose: () => void }) {
       style={{ width: CARD_W, ["--pop-accent" as string]: pin.token }}
       className="map-pop"
     >
-      {/* Ранг ёлғиз маъно ташувчи эмас: белгида турнинг НОМИ ёзилади. */}
-      <span className="map-pop__badge">{pin.kind}</span>
+      {/* Ранг ёлғиз маъно ташувчи эмас: белгида қатламнинг НОМИ ёзилади. */}
+      <span className="map-pop__badge">{pin.layerName}</span>
 
       <button
         type="button"
@@ -314,77 +329,280 @@ function PinCard({ pin, onClose }: { pin: InvestMapPin; onClose: () => void }) {
         <Icon name="close" size={15} />
       </button>
 
-      <div className="map-pop__head">
-        {/* Реестрда объект тури билан лойиҳа тури баъзан БИР ХИЛ ёзилган
-            («Геология-қидирув ишлари» иккисида ҳам). Ўшанда кичик сарлавҳа
-            юқоридаги белгини сўзма-сўз такрорларди — шунинг учун фарқ
-            бўлмаса кўрсатилмайди. */}
-        {pin.objectKind !== pin.kind && (
-          <span className="map-pop__eyebrow">{pin.objectKind}</span>
+      <div className="map-pop__body">
+        <div className="map-pop__head">
+          <span className="map-pop__eyebrow">{pin.region}</span>
+          <h4 className="map-pop__title">{pin.name}</h4>
+        </div>
+
+        <dl className="map-pop__rows">
+          {pin.rows.map((r, i) => (
+            <div key={r.k} className="map-pop__row">
+              <i
+                aria-hidden="true"
+                className="map-pop__bar"
+                style={{ background: ROW_BARS[i % ROW_BARS.length] }}
+              />
+              <dt className="map-pop__key">{r.k}</dt>
+              <dd className={"map-pop__val" + (r.num ? " tabular-nums" : "")}>{r.v}</dd>
+            </div>
+          ))}
+        </dl>
+
+        {/* Боғланиш ЭВРИСТИК (ном бўйича), шунинг учун у «маълумот» эмас,
+            «шу объектга алоқадор бўлиши мумкин» деб ёзилади. */}
+        {pin.links.length > 0 && (
+          <p className="map-pop__links">
+            <b>Боғланган объектлар:</b> {pin.links.join(" · ")}
+          </p>
         )}
-        <h4 className="map-pop__title">{pin.name}</h4>
-      </div>
 
-      <dl className="map-pop__rows">
-        {pin.rows.map((r, i) => (
-          <div key={r.k} className="map-pop__row">
-            <i
-              aria-hidden="true"
-              className="map-pop__bar"
-              style={{ background: ROW_BARS[i % ROW_BARS.length] }}
-            />
-            <dt className="map-pop__key">{r.k}</dt>
-            <dd className={"map-pop__val" + (r.num ? " tabular-nums" : "")}>{r.v}</dd>
-          </div>
-        ))}
-      </dl>
-
-      <div className="map-pop__foot">
-        {/* Координата тахминий — буни карточкада ҳам айтиб туриш керак. */}
-        <span className="map-pop__hint">жой — туман даражасида тахмин</span>
-        {/* Реестрдаги қолган ўттизта майдон «Инвестиция лойиҳалари» бўлимида. */}
-        <a href="#invest" className="map-pop__link">
-          Батафсил →
-        </a>
+        <div className="map-pop__foot">
+          {/* Жойлашув аниқлиги ЯШИРИЛМАЙДИ — матн аниқликка қараб ўзгаради. */}
+          <span className={"map-pop__hint" + (pin.place.approx ? " map-pop__hint--warn" : "")}>
+            {pin.place.short}
+          </span>
+          {href && (
+            <a href={href} className="map-pop__link">
+              Батафсил →
+            </a>
+          )}
+        </div>
       </div>
     </div>
   );
 }
 
 /* -------------------------------------------------------------------------- */
+/* ёрлиқларни жойлаштириш                                                     */
+/* -------------------------------------------------------------------------- */
+
+interface Box {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+const hits = (a: Box, b: Box): boolean =>
+  a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+
+/* -------------------------------------------------------------------------- */
 /* харита                                                                     */
 /* -------------------------------------------------------------------------- */
 
-export function MapCanvas({ vm, selected, onSelect, focusNonce }: MapCanvasProps) {
+export function MapCanvas({ vm, selected, onSelect, focusNonce, fill = false }: MapCanvasProps) {
   const boxRef = useRef<HTMLDivElement>(null);
   const hostRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const markersRef = useRef(new Map<string, Marker>());
-  const popupRef = useRef<Popup | null>(null);
-  /** Портал учун идиш — MapLibre ойнасининг мазмуни шу элементга чизилади. */
+  const labelsRef = useRef(new Map<string, HTMLElement>());
   const portalRef = useRef<HTMLDivElement | null>(null);
   if (portalRef.current === null && typeof document !== "undefined") {
     portalRef.current = document.createElement("div");
   }
+  /** Портал учун идиш — MapLibre ойнасининг мазмуни шу элементга чизилади. */
 
   // Императив ҳодиса ишловчилари доим охирги қийматни кўриши учун.
   const selectedRef = useRef(selected);
   const onSelectRef = useRef(onSelect);
-  const editRef = useRef(false);
+  const hoveredRef = useRef<string | null>(null);
+  /** `layoutLabels` эффектлар ичидан чақирилади, лекин у маркерлардан кейин ясалади. */
+  const layoutRef = useRef<() => void>(() => {});
 
-  const [positions, setPositions] = useState<Record<string, Pos>>(readPositions);
-  const [edit, setEdit] = useState(false);
   const [isFull, setIsFull] = useState(false);
   const [ready, setReady] = useState(false);
   const [zoom, setZoom] = useState(INVEST_MAP_HOME.zoom);
+  /**
+   * Ёрлиқ ҳисоби — пастдаги изоҳ учун.
+   *
+   * ⚠️ Иккита сон ҲАМ керак: «сиғмади» фақат ЭКРАНДАГИ маркерлар орасидан
+   * ҳисобланиши шарт. Аввал у `vm.pins.length - shown` эди ва яқинлашганда
+   * «46 ёрлиқ сиғмади» деб ёзарди — ҳолбуки ўша 46 таси сиғмагани йўқ,
+   * улар шунчаки кадрдан ташқарида эди. Бу ёлғон огоҳлантириш.
+   */
+  const [labelStat, setLabelStat] = useState({ shown: 0, onScreen: 0 });
 
   const markerW = MARKER_H * vm.markerRatio;
 
   useEffect(() => {
     selectedRef.current = selected;
     onSelectRef.current = onSelect;
-    editRef.current = edit;
-  }, [selected, onSelect, edit]);
+  }, [selected, onSelect]);
+
+  /* --- ёрлиқ тўқнашуви -------------------------------------------------- */
+
+  /**
+   * ═══ 55 ёрлиқ экранни босиб кетмаслиги учун ═════════════════════════════
+   *
+   * Ёрлиқлар ҳар сурилиш ва зумда ЭКРАНДА ЎЛЧАНАДИ: маркерлар экран
+   * координатасига проекция қилинади, ёрлиқ қутиси ҳисобланади ва
+   * бир-бирига тегадиганлари ЯШИРИЛАДИ (очкўз алгоритм, устунлик бўйича).
+   *
+   * Нега айнан шу йўл:
+   *
+   *   · **Қўлда жадвал ишламайди.** Аввалги `labelSide`/`labelDy` жадвали
+   *     7 нуқта учун headless браузерда ўлчаб ёзилган эди. 55 объект учун
+   *     уни ёзиб бўлмайди, ёзилса ҳам базага битта янги лойиҳа қўшилиши
+   *     билан эскирарди.
+   *
+   *   · **Доим кўринадиган 55 ёрлиқ — ўқиб бўлмайдиган экран.** Бошланғич
+   *     зумда (z6) объектлар вилоят марказларида тўпланган, ёрлиқлар эса
+   *     бир-бирининг устига тушарди.
+   *
+   *   · **Фақат hover'да кўрсатиш ҳам етарли эмас**: ўшанда харита бўш
+   *     кўринарди ва «қайси нуқта нима» саволига жавоб бермасди.
+   *
+   *   · **MapLibre'нинг ўз `symbol` қатлами** (`text-allow-overlap: false`)
+   *     ҳам шу ишни қиларди, лекин ўшанда кристалл PNG'лари ҳам шу қатламга
+   *     ўтиши, ранглар `addImage` билан юкланиши ва hover/танлов
+   *     `queryRenderedFeatures` га кўчиши керак эди — яъни бутун маркер
+   *     қатлами қайта ёзиларди. Устига ёрлиқ шрифти узоқдаги glyph
+   *     серверига боғланиб қоларди (кирилл учун — қўшимча хавф). Мавжуд
+   *     DOM маркерлари ва уларнинг CSS'и эса тайёр ва текширилган.
+   *
+   * **Ҳеч бир ном йўқолмайди** — ёрлиғи яширилган объект тўрт жойда қолади:
+   * маркернинг `title` изоҳида, `aria-label` да, босилганда очиладиган
+   * карточкада ва саҳифадаги тўлиқ рўйхатда. Устига сичқонча маркер устига
+   * келганда ёрлиқ мажбуран кўрсатилади.
+   */
+  const layoutLabels = useCallback(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const host = map.getContainer();
+    const W = host.clientWidth;
+    const H = host.clientHeight;
+
+    interface Cand {
+      id: string;
+      el: HTMLElement;
+      label: HTMLElement;
+      cx: number;
+      cy: number;
+      w: number;
+      h: number;
+      weight: number;
+    }
+
+    const cands: Cand[] = [];
+    // Маркер расмларининг ўзи ҳам тўсиқ: ёрлиқ бошқа объектнинг кристаллини
+    // бекитиб қўймаслиги керак — акс ҳолда нуқта кўринмай қоларди.
+    const taken: Box[] = [];
+
+    for (const pin of vm.pins) {
+      const marker = markersRef.current.get(pin.id);
+      const label = labelsRef.current.get(pin.id);
+      if (!marker || !label) continue;
+      const el = marker.getElement();
+      const p = map.project([pin.lon, pin.lat]);
+
+      // Экрандан ташқаридаги маркер на ёрлиқ олади, на тўсиқ бўлади.
+      const top = p.y - MARKER_H * vm.markerAnchorY;
+      if (p.x < -markerW || p.x > W + markerW || top < -MARKER_H || top > H + MARKER_H) {
+        label.style.visibility = "hidden";
+        continue;
+      }
+
+      // Тўсиқ — кристаллнинг ўзи: эни бўйича торайтирилган ва ЛАНГАРГАЧА,
+      // яъни расмнинг шаффоф этаги ҳисобга олинмайди.
+      const hitW = markerW * ICON_HIT_W;
+      taken.push({
+        x: p.x - hitW / 2,
+        y: top,
+        w: hitW,
+        h: MARKER_H * vm.markerAnchorY,
+      });
+      cands.push({
+        id: pin.id,
+        el,
+        label,
+        cx: p.x,
+        cy: top,
+        // Ўлчам DOM'дан олинади: ёрлиқ экранга мосланган (`white-space: nowrap`,
+        // `max-width`), шунинг учун матн узунлигидан ҳисоблаш нотўғри бўларди.
+        w: label.offsetWidth,
+        h: label.offsetHeight,
+        weight: pin.weight,
+      });
+    }
+
+    // Устунлик: танланган → сичқонча остидаги → оғирлиги катта (аниқ
+    // координатали ва камроқ учрайдиган қатлам) → барқарорлик учун `id`.
+    const sel = selectedRef.current;
+    const hov = hoveredRef.current;
+    cands.sort((a, b) => {
+      const pa = a.id === sel ? 3 : a.id === hov ? 2 : 0;
+      const pb = b.id === sel ? 3 : b.id === hov ? 2 : 0;
+      if (pa !== pb) return pb - pa;
+      if (a.weight !== b.weight) return b.weight - a.weight;
+      return a.id < b.id ? -1 : 1;
+    });
+
+    const placed: Box[] = [];
+    let shown = 0;
+
+    for (const c of cands) {
+      const forced = c.id === sel || c.id === hov;
+      // Афзал томон: экраннинг қайси ярмида турганига қараб — ёрлиқ доим
+      // ичкарига қарайди, шунда у экран четидан чиқиб кетмайди. Жой
+      // бўлмаса қарама-қарши томон ҳам синаб кўрилади.
+      const prefer = c.cx < W / 2;
+      const boxAt = (right: boolean, dy: number): Box => ({
+        x:
+          (right ? c.cx + markerW / 2 + LABEL_GAP : c.cx - markerW / 2 - LABEL_GAP - c.w) -
+          LABEL_PAD,
+        y: c.cy + LABEL_TOP + dy - LABEL_PAD,
+        w: c.w + LABEL_PAD * 2,
+        h: c.h + LABEL_PAD * 2,
+      });
+
+      const fits = (b: Box): boolean =>
+        b.x >= 0 &&
+        b.x + b.w <= W &&
+        b.y >= 0 &&
+        b.y + b.h <= H &&
+        !placed.some((p) => hits(b, p)) &&
+        !taken.some((t) => hits(b, t));
+
+      let put: { right: boolean; dy: number; box: Box } | null = null;
+      // Тартиб муҳим: аввал афзал томоннинг ЎРТА баландлиги (маркерга энг
+      // яқин ва энг табиий ўрин), кейин юқори/қуйи поғоналар, охирида
+      // қарама-қарши томон.
+      outer: for (const right of [prefer, !prefer]) {
+        for (const dy of LABEL_DYS) {
+          const b = boxAt(right, dy);
+          if (fits(b)) {
+            put = { right, dy, box: b };
+            break outer;
+          }
+        }
+      }
+
+      // Танланган ва сичқонча остидаги ёрлиқ ДОИМ кўринади: бўш ўрин
+      // топилмаса ҳам у афзал ўринда мажбуран чизилади — фойдаланувчи
+      // айнан шу объектни сўраган.
+      if (put === null && forced) {
+        put = { right: prefer, dy: 0, box: boxAt(prefer, 0) };
+      }
+
+      if (put === null) {
+        c.label.style.visibility = "hidden";
+        continue;
+      }
+
+      c.el.dataset.side = put.right ? "right" : "left";
+      c.label.style.top = `${LABEL_TOP + put.dy}px`;
+      c.label.style.visibility = "visible";
+      placed.push(put.box);
+      shown += 1;
+    }
+
+    setLabelStat({ shown, onScreen: cands.length });
+  }, [vm.pins, vm.markerAnchorY, markerW]);
+
+  useEffect(() => {
+    layoutRef.current = layoutLabels;
+  }, [layoutLabels]);
 
   /* --- харита ва маркерлар: битта эффект, битта ҳаёт цикли -------------- */
 
@@ -407,57 +625,84 @@ export function MapCanvas({ vm, selected, onSelect, focusNonce }: MapCanvasProps
     });
     mapRef.current = map;
 
-    const onZoom = () => setZoom(map.getZoom());
-    const onLoad = () => setReady(true);
+    // Ёрлиқларни қайта жойлаштириш ҳар кадрда эмас, `requestAnimationFrame`
+    // орқали: суриш пайтида `move` ўнлаб марта чиқади, ҳисоб эса битта
+    // кадрга биттадан ортиқ керак эмас.
+    let raf = 0;
+    const relayout = () => {
+      if (raf !== 0) return;
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        layoutRef.current();
+      });
+    };
+
+    const onZoom = () => {
+      setZoom(map.getZoom());
+      relayout();
+    };
+    const onLoad = () => {
+      setReady(true);
+      relayout();
+    };
     // Хаританинг бўш жойи босилса карточка ёпилади. Маркер ва ойна DOM
     // қатламида, canvas'нинг ичида эмас — шунинг учун улар босилганда бу
     // ҳодиса умуман чиқмайди.
     const onMapClick = () => onSelectRef.current(null);
     map.on("zoom", onZoom);
+    map.on("move", relayout);
     map.on("load", onLoad);
     map.on("click", onMapClick);
 
     const made = new Map<string, Marker>();
+    const labels = new Map<string, HTMLElement>();
+
     for (const pin of vm.pins) {
       const el = buildPinElement(pin, markerW, vm.markerAnchorY);
       el.addEventListener("click", (ev) => {
         ev.stopPropagation();
-        // Тўғрилаш режимида босиш карточка очмайди: у ерда маркер сурилади.
-        if (editRef.current) return;
         const cur = selectedRef.current;
         onSelectRef.current(cur === pin.id ? null : pin.id);
+      });
+      // Сичқонча маркер устига келганда ёрлиқ МАЖБУРАН кўрсатилади — шунда
+      // тўқнашув сабабли яширилган ном ҳам бир ҳаракат билан ўқилади.
+      el.addEventListener("pointerenter", () => {
+        hoveredRef.current = pin.id;
+        layoutRef.current();
+      });
+      el.addEventListener("pointerleave", () => {
+        if (hoveredRef.current === pin.id) hoveredRef.current = null;
+        layoutRef.current();
       });
 
       const marker = new Marker({
         element: el,
-        // Ягона силжиш — лангар: расм пастидаги ёруғ ҳалқа элемент пастки
-        // қиррасидан 16% юқорида, шунинг учун элемент шунча пастга сурилади
-        // ва ҳалқа маркази айнан координата устида туради.
-        //
-        // Бошқа ҳеч қандай пиксел силжиш ЙЎҚ ва қўшилмайди: пиксел силжиш
-        // зум билан ўзгармайди, географик масофалар эса ўзгаради — натижада
-        // маркер зум пайтида ўз нуқтасига нисбатан «сузиб» кетарди. Устма-уст
-        // тушадиган жуфтликлар шу сабабли МАНБАДА, координата даражасида
-        // ажратилган (қаранг: `investMapSource.ts`).
+        // Ягона силжиш — лангар (қаранг: файл боши). Бошқа ҳеч қандай
+        // пиксел ёки градус силжиш ЙЎҚ: устма-уст тушганларни бэкенд
+        // ажратиб беради (`coordsDisplaced`).
         anchor: "bottom",
         offset: [0, MARKER_H * (1 - vm.markerAnchorY)],
       })
-        .setLngLat([pin.home.lon, pin.home.lat])
+        .setLngLat([pin.lon, pin.lat])
         .addTo(map);
 
-      marker.on("dragend", () => {
-        const ll = marker.getLngLat();
-        setPositions((old) => ({ ...old, [pin.id]: { lon: ll.lng, lat: ll.lat } }));
-      });
-
       made.set(pin.id, marker);
+      const label = el.querySelector<HTMLElement>(".map-pin__label");
+      if (label) labels.set(pin.id, label);
     }
     markersRef.current = made;
+    labelsRef.current = labels;
+    // Маркерлар қўшилгач биринчи жойлаштириш — `load` ни кутмасдан, чунки
+    // ёрлиқлар плиткалардан мустақил.
+    relayout();
 
     return () => {
+      if (raf !== 0) cancelAnimationFrame(raf);
       for (const m of made.values()) m.remove();
       markersRef.current = new Map();
+      labelsRef.current = new Map();
       map.off("zoom", onZoom);
+      map.off("move", relayout);
       map.off("load", onLoad);
       map.off("click", onMapClick);
       map.remove();
@@ -465,33 +710,7 @@ export function MapCanvas({ vm, selected, onSelect, focusNonce }: MapCanvasProps
     };
   }, [vm, markerW]);
 
-  /* --- сақланган ва тикланган жойлар ----------------------------------- */
-
-  useEffect(() => {
-    try {
-      if (Object.keys(positions).length === 0) window.localStorage.removeItem(STORAGE_KEY);
-      else window.localStorage.setItem(STORAGE_KEY, JSON.stringify(positions));
-    } catch {
-      // Хусусий режимда ёзиш тақиқланган бўлиши мумкин — харита ишлайверади,
-      // фақат жойлар кейинги очилишда сақланмайди.
-    }
-  }, [positions]);
-
-  // Маркерни ҳолатга мослаш. Суриш пайтида MapLibre координатани ўзи
-  // янгилаган бўлади, шунинг учун фарқ бўлмаса тегилмайди.
-  useEffect(() => {
-    for (const pin of vm.pins) {
-      const marker = markersRef.current.get(pin.id);
-      if (!marker) continue;
-      const p = positions[pin.id] ?? pin.home;
-      const cur = marker.getLngLat();
-      if (Math.abs(cur.lng - p.lon) > 1e-9 || Math.abs(cur.lat - p.lat) > 1e-9) {
-        marker.setLngLat([p.lon, p.lat]);
-      }
-    }
-  }, [positions, vm.pins]);
-
-  /* --- танлов ва тўғрилаш режимининг кўриниши --------------------------- */
+  /* --- танловнинг кўриниши ---------------------------------------------- */
 
   useEffect(() => {
     for (const pin of vm.pins) {
@@ -502,21 +721,18 @@ export function MapCanvas({ vm, selected, onSelect, focusNonce }: MapCanvasProps
       el.classList.toggle("map-pin--dim", selected !== null && !on);
       el.style.zIndex = on ? "8" : "5";
     }
+    // Танлов ўзгарса ёрлиқ устунлиги ҳам ўзгаради.
+    layoutRef.current();
   }, [selected, vm.pins]);
-
-  useEffect(() => {
-    for (const pin of vm.pins) {
-      const marker = markersRef.current.get(pin.id);
-      if (!marker) continue;
-      marker.setDraggable(edit);
-      const el = marker.getElement();
-      el.classList.toggle("map-pin--edit", edit);
-      el.title = edit ? "Маркерни керакли жойга суринг" : pin.name;
-    }
-  }, [edit, vm.pins]);
 
   /* --- карточка ойнаси -------------------------------------------------- */
 
+  /**
+   * Карточка — маркернинг ЁНИДА. Лангар фақат «чап» ёки «ўнг» бўлади:
+   * `anchor` берилмаса MapLibre уни ўзи танлайди ва баъзан «тепа»/«паст»
+   * қилиб қўяди — ўшанда карточка маркернинг устига ёки остига тушиб,
+   * экран четидан чиқиб кетарди.
+   */
   useEffect(() => {
     const map = mapRef.current;
     const portal = portalRef.current;
@@ -524,29 +740,45 @@ export function MapCanvas({ vm, selected, onSelect, focusNonce }: MapCanvasProps
     const marker = markersRef.current.get(selected);
     if (!marker) return;
 
+    const ll = marker.getLngLat();
+    const box = map.getContainer();
+    const w = box.clientWidth;
+    const px = map.project(ll).x;
+    // Карточка маркернинг қайси ёнида: бўш жойи кўпроқ томонда.
+    const side: PositionAnchor = px < w / 2 ? "left" : "right";
+
+    // Жой етармикан? Етмаса харитани бир оз суриб қўямиз — карточка ҳам,
+    // маркер ҳам экранда қолсин. Марказлаштириш ЭМАС: харита керагидан
+    // ортиқ сакрамаслиги учун фақат етишмаган пиксел қадар сурилади.
+    const room = side === "left" ? w - px : px;
+    if (room < CARD_ROOM) {
+      const by = CARD_ROOM - room;
+      map.panBy([side === "left" ? by : -by, 0], { duration: 300 });
+    }
+
+    // Ён лангарда карточка маркернинг вертикал ЎРТАСИДА туради, лекин
+    // маркернинг лангари пастда (ҳалқа) — шунинг учун у ярим бўйига
+    // кўтарилади, акс ҳолда кристаллнинг остидан чиқарди.
+    const dx = markerW / 2 + CARD_GAP;
+    const offset: [number, number] = [side === "left" ? dx : -dx, -MARKER_H / 2];
+
     const popup = new Popup({
       closeButton: false,
       closeOnClick: false,
       focusAfterOpen: false,
       maxWidth: "none",
       className: "map-pop-wrap",
-      offset: POPUP_OFFSET,
+      anchor: side,
+      offset,
     })
-      .setLngLat(marker.getLngLat())
+      .setLngLat(ll)
       .setDOMContent(portal)
       .addTo(map);
-    popupRef.current = popup;
-
-    // Тўғрилаш режимида маркер сурилса, ойна ҳам у билан бирга кетсин.
-    const follow = () => popup.setLngLat(marker.getLngLat());
-    marker.on("drag", follow);
 
     return () => {
-      marker.off("drag", follow);
       popup.remove();
-      popupRef.current = null;
     };
-  }, [selected, positions, vm.pins]);
+  }, [selected, vm.pins, markerW]);
 
   /* --- ташқи сигналлар --------------------------------------------------- */
 
@@ -555,9 +787,17 @@ export function MapCanvas({ vm, selected, onSelect, focusNonce }: MapCanvasProps
       setIsFull(document.fullscreenElement === boxRef.current);
       // Тўлиқ экранда контейнер ўлчами кескин ўзгаради.
       mapRef.current?.resize();
+      layoutRef.current();
     };
     document.addEventListener("fullscreenchange", onFs);
     return () => document.removeEventListener("fullscreenchange", onFs);
+  }, []);
+
+  // Ойна ўлчами ўзгарса ёрлиқ тўқнашуви бошқача бўлади — қайта ҳисобланади.
+  useEffect(() => {
+    const onResize = () => layoutRef.current();
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
   }, []);
 
   useEffect(() => {
@@ -577,15 +817,14 @@ export function MapCanvas({ vm, selected, onSelect, focusNonce }: MapCanvasProps
     const ll = marker.getLngLat();
     // `essential` берилмайди: `prefers-reduced-motion` ёқилган бўлса
     // MapLibre анимациясиз, дарҳол кўчади — бу кутилган хатти-ҳаракат.
-    map.flyTo({ center: [ll.lng, ll.lat], zoom: Math.max(map.getZoom(), 8.5), duration: 900 });
+    map.flyTo({ center: [ll.lng, ll.lat], zoom: Math.max(map.getZoom(), 9), duration: 900 });
     // Боғланиш атайин фақат `focusNonce` га: маркернинг ўзи босилганда
     // харита силжимайди.
   }, [focusNonce]);
 
   /* --- бошқарув ---------------------------------------------------------- */
 
-  const resetPositions = useCallback(() => {
-    setPositions({});
+  const resetView = useCallback(() => {
     mapRef.current?.easeTo({ ...INVEST_MAP_HOME, duration: 700 });
   }, []);
 
@@ -599,14 +838,19 @@ export function MapCanvas({ vm, selected, onSelect, focusNonce }: MapCanvasProps
   const active = selected === null ? null : (vm.pins.find((p) => p.id === selected) ?? null);
   const atMin = zoom <= INVEST_MAP_MIN_ZOOM + ZOOM_EPS;
   const atMax = zoom >= INVEST_MAP_MAX_ZOOM - ZOOM_EPS;
-  const changed = Object.keys(positions).length;
+  // Фақат ЭКРАНДАГИ маркерлар ҳисобга олинади — қаранг: `labelStat` изоҳи.
+  const hiddenLabels = labelStat.onScreen - labelStat.shown;
 
   return (
     <div
       ref={boxRef}
       className={
-        "map-shell relative w-full overflow-hidden border border-grid bg-sunken " +
-        (isFull ? "h-screen" : "aspect-[2/1] max-h-[620px] min-h-[440px] rounded-card")
+        "map-shell relative w-full overflow-hidden bg-sunken " +
+        (isFull
+          ? "h-screen"
+          : fill
+            ? "h-full"
+            : "aspect-[2/1] max-h-[620px] min-h-[440px] rounded-card border border-grid")
       }
     >
       <div ref={hostRef} className="absolute inset-0" />
@@ -644,19 +888,8 @@ export function MapCanvas({ vm, selected, onSelect, focusNonce }: MapCanvasProps
         <span aria-hidden="true" className="mx-1 h-px bg-hair" />
         <button
           type="button"
-          aria-pressed={edit}
-          aria-label="Маркер жойини тўғрилаш"
-          onClick={() => setEdit((v) => !v)}
-          className={
-            TOOL_BTN + (edit ? " border-s1 text-s1" : " border-hair text-ink-2 hover:text-ink")
-          }
-        >
-          <Icon name="edit" />
-        </button>
-        <button
-          type="button"
-          aria-label="Жойларни ва кўринишни тиклаш"
-          onClick={resetPositions}
+          aria-label="Бошланғич кўринишни тиклаш"
+          onClick={resetView}
           className={TOOL_BTN + " border-hair text-ink-2 hover:text-ink"}
         >
           <Icon name="reset" />
@@ -671,19 +904,20 @@ export function MapCanvas({ vm, selected, onSelect, focusNonce }: MapCanvasProps
         </button>
       </div>
 
-      {/* Зум даражаси — хаританинг ўз ўлчови (0 — бутун сайёра). */}
+      {/* Зум даражаси ва яширилган ёрлиқлар сони. Иккинчиси МАЖБУРИЙ: ёрлиқ
+          жимгина йўқолмаслиги керак — экран нечта номни кўрсатмаётганини
+          ўзи айтиб туради ва нима қилиш кераклигини ёзади. */}
       <span className="pointer-events-none absolute bottom-2 left-2.5 z-20 rounded-[4px] border border-hair bg-surface/85 px-1.5 py-0.5 font-mono text-[10.5px] text-ink-3">
         z {nf(zoom, 1)}
         {atMin && " · энг кичик"}
         {atMax && " · энг катта"}
+        {hiddenLabels > 0 && (
+          <span className="font-sans">
+            {" · "}
+            {nf(hiddenLabels)} ёрлиқ сиғмади — яқинлаштиринг ёки маркер устига келинг
+          </span>
+        )}
       </span>
-
-      {edit && (
-        <div className="pointer-events-none absolute bottom-2 left-1/2 z-20 -translate-x-1/2 rounded-[5px] border border-hair bg-surface/92 px-2.5 py-1 text-center text-[11px] leading-[1.35] text-ink-2 shadow-card">
-          Маркерни ушлаб керакли жойга суринг — янги координата фақат шу браузерда сақланади
-          {changed > 0 && <> · тўғриланган маркер: {changed} та</>}
-        </div>
-      )}
 
       {active !== null &&
         portalRef.current !== null &&

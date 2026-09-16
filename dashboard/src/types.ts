@@ -22,7 +22,6 @@ export type TabId =
   | "ing"
   | "fin"
   | "invest"
-  | "investmap"
   | "investdeck"
   | "exporttargets"
   | "schedule"

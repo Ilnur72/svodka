@@ -1,4 +1,4 @@
-import { Suspense, lazy, useMemo, useRef, type KeyboardEvent } from "react";
+import { useMemo, useRef, type KeyboardEvent } from "react";
 import type { PanelProps, TabId } from "./types";
 import { getFilters } from "./api/endpoints";
 import { useQuery } from "./lib/useQuery";
@@ -37,9 +37,6 @@ import { TexPanel } from "./panels/TexPanel";
  * биринчи юкланишда тортиб олинарди. Модуль бир марта юкланиб кэшланади,
  * шунинг учун таблар алмашганда скелет қайта кўринмайди.
  */
-const InvestMapPanel = lazy(() =>
-  import("./panels/InvestMapPanel").then((m) => ({ default: m.InvestMapPanel })),
-);
 
 /**
  * Даврлар рўйхати `/filters` дан келади. Агар ушбu endpoint серверда
@@ -127,16 +124,6 @@ function DashboardBody({ range }: { range: { min: string; max: string } }) {
       // ягона давр (январь–июнь) йилсиз, шунинг учун `props` олмайди.
       case "invest":
         return <InvestPanel />;
-      // «Лойиҳалар харитаси» — худди шу реестрнинг харита кўриниши. Манба
-      // битта бўлгани учун у ҳам `props` олмайди: реестрда йил йўқ, давр
-      // танлагичи бу бўлимга ҳам таъсир қилмайди. Ягона фарқи — у
-      // кечиктириб юкланади (қаранг: `InvestMapPanel` эълони).
-      case "investmap":
-        return (
-          <Suspense fallback={<Skeleton height={460} />}>
-            <InvestMapPanel />
-          </Suspense>
-        );
       // «Инвестиция дастури 2026–2030» — алоҳида бэкенд модули (`invest-deck`),
       // манбаси «Инв. лойиҳалар 2026-2030» тақдимоти (03.08.2026 ҳолати).
       // Битта ҳужжатнинг қотирилган ҳолати, вақт қатори эмас — шунинг учун
