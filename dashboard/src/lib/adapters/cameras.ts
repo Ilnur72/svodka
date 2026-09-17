@@ -36,7 +36,6 @@ export interface WallCamera {
   streamUrl: string | null;
   /** Стрим кўтарилмаганда кўрсатиладиган охирги кадр. */
   snapshotUrl: string | null;
-  hasPtz: boolean;
   /** Реестрда `active` эмас — камера ўзи ишламаслиги кутилади. */
   inactive: boolean;
 }
@@ -78,7 +77,6 @@ export function flattenCameras(res: CamerasResponse): WallCamera[] {
         snapshotUrl: cam.screenshot_url
           ? `${UPLOAD_BASE}/mnt/tmkupload/${cam.screenshot_url.replace(/^\/+/, "")}`
           : null,
-        hasPtz: Boolean(cam.has_ptz),
         inactive: cam.status !== "active",
       });
     }
