@@ -249,8 +249,6 @@ export function CameraTile({ camera, no, fit, expanded, onToggleExpand }: Camera
         {status.label}
       </span>
 
-      {camera.hasPtz && <span className="wall-tile__ptz">PTZ</span>}
-
       <span className="wall-tile__caption">
         <b>{camera.title}</b>
         {camera.factory && <em>{camera.factory}</em>}

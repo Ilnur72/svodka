@@ -61,7 +61,7 @@ export function WallBrand({ side, fit, onToggleFit }: WallBrandProps) {
         <img className="wall-brand__wordmark" src="./logo-tmk.svg" alt="ТМК" />
       </div>
 
-      <h1 className="wall-brand__full">O'zbekiston Texnologik Metallar Kombinati AJ</h1>
+      <h1 className="wall-brand__full">O'zbekiston Texnologik Metallar Kombinati</h1>
 
       {/* Сўник бурчак — юқоридаги изоҳга қаранг. */}
       <div className="wall-brand__tools">
