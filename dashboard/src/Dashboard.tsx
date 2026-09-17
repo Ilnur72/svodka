@@ -21,6 +21,7 @@ import { IngPanel } from "./panels/IngPanel";
 import { FinPanel } from "./panels/FinPanel";
 import { InvestPanel } from "./panels/InvestPanel";
 import { InvestDeckPanel } from "./panels/InvestDeckPanel";
+import { ProjectRegistryPanel } from "./panels/ProjectRegistryPanel";
 import { ExportTargetsPanel } from "./panels/ExportTargetsPanel";
 import { SchedulePanel } from "./panels/SchedulePanel";
 import { MobPlanPanel } from "./panels/MobPlanPanel";
@@ -130,6 +131,15 @@ function DashboardBody({ range }: { range: { min: string; max: string } }) {
       // панел `props` олмайди ва давр танлагичи унга таъсир қилмайди.
       case "investdeck":
         return <InvestDeckPanel />;
+      // «Лойиҳалар реестри · 16.09.2026» — алоҳида бэкенд модули
+      // (`project-registry`), манбаси `ТМК_Лойиҳалари_16_09_2026…xlsx` реестри:
+      // 144 лойиҳа, 9 кластер, 17 йўналиш. Юқоридаги «Инвестиция дастури» билан
+      // ЎХШАШ, лекин бошқа ҳужжат — фарқи `lib/useHashTab.ts` да ва бўлимнинг
+      // ўз сарлавҳаси остида ёзилган. Битта ҳужжатнинг қотирилган ҳолати, вақт
+      // қатори эмас — шунинг учун панел `props` олмайди ва давр танлагичи унга
+      // таъсир қилмайди.
+      case "registry":
+        return <ProjectRegistryPanel />;
       // «Экспорт кўрсаткичлари 2024–2030» — алоҳида бэкенд модули
       // (`export-targets`), манбаси «1.1 Рынок - экспорт 2024-2030.xlsx».
       // Битта ҳужжатнинг қотирилган ҳолати, ой кесимидаги вақт қатори эмас —

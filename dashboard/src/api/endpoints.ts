@@ -9,6 +9,7 @@ import {
   INVEST_DECK_BASE,
   MAP_BASE,
   PR_MEDIA_KPI_BASE,
+  PROJECT_REGISTRY_BASE,
   SCHEDULE_BASE,
   SOLAR_BASE,
 } from "./client";
@@ -45,6 +46,7 @@ import type {
   PagedEnvelope,
   PrMediaKpiDashboard,
   ProductionMonthlyRow,
+  ProjectRegistryDashboard,
   ProjectScheduleDashboard,
   SalesMonthlyRow,
   SalesProductRow,
@@ -647,3 +649,32 @@ export const getCameras = (signal?: AbortSignal): Promise<CamerasResponse> =>
  */
 export const getMapObjects = (signal?: AbortSignal): Promise<MapObjectsResponse> =>
   unwrap(apiGet<Envelope<MapObjectsResponse>>("/objects", { lang: "uz" }, signal, MAP_BASE));
+
+/* -------------------------------------------------------------------------- */
+/* project-registry — алоҳида модул, `production-report` нинг ёнида            */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * «Лойиҳалар реестри 2026–2030» бўлимининг ягона манбаси: йиғиндилар, кластер
+ * ва йўналиш кесимлари, молия манбалари, маълумот сифати блоки ва **144
+ * лойиҳанинг тўлиқ шакли** — ҳаммаси битта сўровда.
+ *
+ * **Параметрсиз**: манба — 16.09.2026 ҳолатидаги битта XLSX реестр, вақт
+ * қатори эмас. Шунинг учун юқоридаги давр танлагичи бу бўлимга таъсир
+ * қилмайди — худди `getInvestDeckDashboard` ва `getGeologyDashboard` каби.
+ *
+ * Ёндош учта endpoint **атайин ишлатилмайди**:
+ *
+ *  · `GET /project-registry/summary` — шу жавобнинг агрегат қисмининг такрори;
+ *  · `GET /project-registry?cluster=&direction=` — `projects` нинг такрори,
+ *    фильтр эса рўйхат тайёр бўлгач фронтда бир зумда ишлайди (144 қатор);
+ *  · `GET /project-registry/:id` — бу жавобдаги лойиҳа АЛЛАҚАЧОН тўлиқ (138
+ *    майдон), `neighbors` эса рўйхатнинг ўз тартибидан ҳисобланади. Иккинчи
+ *    сўров фақат бир хил маълумотни иккинчи марта тортиб олган бўларди.
+ */
+export const getProjectRegistryDashboard = (
+  signal?: AbortSignal,
+): Promise<ProjectRegistryDashboard> =>
+  unwrap(
+    apiGet<Envelope<ProjectRegistryDashboard>>("/dashboard", {}, signal, PROJECT_REGISTRY_BASE),
+  );

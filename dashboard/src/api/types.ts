@@ -2167,3 +2167,416 @@ export interface MapObjectsResponse {
   dataQuality: MapDataQuality;
   meta: MapObjectsMeta;
 }
+
+/* -------------------------------------------------------------------------- */
+/* project-registry — «ТМК лойиҳалари реестри 2026-2030»                       */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Бу блок бэкенддаги `src/modules/project-registry/project-registry.types.ts`
+ * нинг айнан кўзгуси. Манба — `ТМК_Лойиҳалари_16_09_2026_тўлдирилган_2.xlsx`,
+ * `2026-2030` варағи: **144 лойиҳа**, 9 кластер, 17 йўналиш, 59 устун.
+ *
+ * ⚠️ Бу модул `invest-deck` дан АЛОҲИДА ва у билан бирлаштирилмайди: манбаси
+ * бошқа (PPTX тақдимот ↔ XLSX реестр), санаси бошқа (03.08.2026 ↔ 16.09.2026),
+ * қамрови бошқа (88 ↔ 144). Ўхшаш лойиҳалар кўп — бу билиб туриб қабул
+ * қилинган.
+ *
+ * ⚠️ Тўртта қоида бутун блок бўйлаб амал қилади:
+ *
+ *  1. Матн майдонлари **ЛОТИН** ёзувида келади, манбадаги кирилл шакли эса ҳар
+ *     бирига жуфт `*Cyrillic` майдонида (`invest-projects` билан айнан бир хил
+ *     контракт). Сводка кирилл — панелда ДОИМ `*Cyrillic` кўрсатилади.
+ *
+ *  2. `null` ДОИМ «кўрсатилмаган» дегани, **ҳеч қачон 0 эмас**. Манбадаги бўш
+ *     катак ҳам, «-» ҳам шунга айланади. Йиғиндилар ҳам шундай: бирорта ҳам
+ *     қиймат бўлмаса `null` («молияси нол» ва «манбаси кўрсатилмаган» —
+ *     бошқа-бошқа нарса).
+ *
+ *  3. Базадаги `numeric` устунлар жавобда **сон** (`number`), сатр эмас —
+ *     бэкенд `toNum()` билан аллақачон айлантирган.
+ *
+ *  4. Гуруҳ (кластер/йўналиш/«ЖАМИ») қаторлари **лойиҳа эмас** ва `projects`
+ *     массивига тушмайди — улар пастдаги қаторларнинг суммаси
+ *     (`production-report` даги `isTotal` билан айнан бир хил мантиқ). Уларнинг
+ *     манбада эълон қилинган сонлари `byCluster`/`byDirection` даги
+ *     `declared*` майдонларида, текшириш учун.
+ */
+
+/** Молиялаштириш манбаининг каноник калити — бэкенддаги `FINANCE_SOURCE_KEYS`. */
+export type ProjectRegistryFinanceSourceKey =
+  | "finTmkMlnUsd"
+  | "finUzttjMlnUsd"
+  | "finCreditMlnUsd"
+  | "finPartnerMlnUsd"
+  | "finOfftakeMlnUsd"
+  | "finEurobondMlnUsd";
+
+/** Гуруҳ қаторининг даражаси. `grandTotal` — «ЖАМИ», бутун реестр йиғиндиси. */
+export type ProjectRegistryGroupKind = "cluster" | "direction" | "grandTotal";
+
+/**
+ * Битта лойиҳа — `GET /project-registry/dashboard` жавобидаги тўлиқ шакл
+ * (138 майдон). Қисқартирилган варианти йўқ: реестрнинг ўзи битта варақ ва
+ * дашборд жавоби бутунлигича ~400 КБ, иккинчи сўровга бўлишни оқламайди.
+ */
+export interface ProjectRegistryProject {
+  id: number;
+  /** Барқарор калит: `<ном-slug>-<6 белгилик sha1 хеши>`. */
+  key: string;
+  /** Файлдаги `Т/р` (1…144). ⚠️ КАЛИТ ЭМАС — қатор қўшилса сурилади. */
+  ordinal: number | null;
+  sortOrder: number;
+  /** Варақдаги 1-based қатор рақами — манбадаги катакни топиш учун. */
+  excelRow: number | null;
+
+  /* ─── Иерархия ─── */
+  /** `I`…`IX.` */
+  clusterNo: string | null;
+  /** ЛОТИН */
+  clusterName: string;
+  clusterNameCyrillic: string;
+  /** `1.1.`… `null` — манбада рақамсиз йўналиш (58-қатор, «Mine»). */
+  directionNo: string | null;
+  /**
+   * ЛОТИН. `null` — Литий, R&D, VIII ва IX кластерларида йўналиш умуман йўқ
+   * (65 лойиҳа).
+   *
+   * ⚠️ VI «Келажак металлари технопарки» да бу устунда технологик босқич эмас,
+   * **ЖОЙЛАШУВ** турибди («Чирчиқ шаҳрида»). Манбада шундай — бирлаштирилмаган.
+   */
+  directionName: string | null;
+  directionNameCyrillic: string | null;
+
+  /* ─── Асосий тавсиф ─── */
+  /** ⚠️ МАСЪУЛ ШАХС («Халилов А.»), КОРХОНА ЭМАС — устун сарлавҳаси алдайди. */
+  responsible: string | null;
+  responsibleCyrillic: string | null;
+  /** ЛОТИН */
+  name: string;
+  nameCyrillic: string;
+  region: string | null;
+  regionCyrillic: string | null;
+  goal: string | null;
+  goalCyrillic: string | null;
+  kind: string;
+  kindCyrillic: string;
+  /** Матнли муддат: «2028 йил декабрь». */
+  deadlineText: string | null;
+  deadlineTextCyrillic: string | null;
+  /**
+   * «Бажарилиш %» нинг ХОМ қиймати — манбадагидек.
+   * ⚠️ ШКАЛА АРАЛАШ: 0.8 (улуш) ҳам, 82 (фоиз) ҳам учрайди.
+   */
+  progressRaw: number | null;
+  /**
+   * Фоизга келтирилган қиймат (`progressRaw <= 1` бўлса ×100).
+   * ⚠️ Бу ТАХМИН — асл қиймат `progressRaw` да, шкала эса
+   * `dataQuality.progressScaleMixed` да рўйхатланган.
+   */
+  progressPercent: number | null;
+  state: string | null;
+  stateCyrillic: string | null;
+  priority: number | null;
+  processingCapacity: string | null;
+  processingCapacityCyrillic: string | null;
+  capacity: string | null;
+  capacityCyrillic: string | null;
+  oreReserveMlnT: number | null;
+  oreReserveText: string | null;
+  oreReserveTextCyrillic: string | null;
+  durationMonths: number | null;
+  durationText: string | null;
+  durationTextCyrillic: string | null;
+
+  /* ─── Муддатлар ─── */
+  startDateText: string | null;
+  startDateTextCyrillic: string | null;
+  /** `YYYY-MM-DD` — ФАҚАТ манбада ҳақиқий Excel санаси бўлганида (5 лойиҳа). */
+  startDate: string | null;
+  endDateText: string | null;
+  endDateTextCyrillic: string | null;
+  endDate: string | null;
+
+  /* ─── Молия (млн $) ─── */
+  totalCostMlnUsd: number | null;
+  finTmkMlnUsd: number | null;
+  finUzttjMlnUsd: number | null;
+  finCreditMlnUsd: number | null;
+  finPartnerMlnUsd: number | null;
+  /** ⚠️ Манбада ҳозирча бутунлай бўш (`dataQuality.emptyColumns` да). */
+  finOfftakeMlnUsd: number | null;
+  finEurobondMlnUsd: number | null;
+  /** `fin*` йиғиндиси. Бирорта манба кўрсатилмаган бўлса `null`. */
+  financeSourcesSumMlnUsd: number | null;
+  /**
+   * `totalCostMlnUsd − financeSourcesSumMlnUsd`.
+   * ⚠️ Нолдан фарқ қилса — МАНБАДАГИ номувофиқлик, ҳисоб хатоси эмас. Бундай
+   * лойиҳалар `dataQuality.financeMismatches` да тўлиқ рўйхатланади.
+   */
+  financeGapMlnUsd: number | null;
+  disbursedMlnUsd: number | null;
+
+  /* ─── Самарадорлик ─── */
+  paybackYears: number | null;
+  paybackText: string | null;
+  paybackTextCyrillic: string | null;
+  /** ⚠️ ФОИЗда (18.6 = 18,6%). `invest_projects.irrShare` эса УЛУШ эди. */
+  irrPercent: number | null;
+  irrText: string | null;
+  irrTextCyrillic: string | null;
+  npvMlnUsd: number | null;
+  npvText: string | null;
+  npvTextCyrillic: string | null;
+  jobs: number | null;
+  product: string | null;
+  productCyrillic: string | null;
+  annualOutputMlnUsd: number | null;
+  annualOutputText: string | null;
+  annualOutputTextCyrillic: string | null;
+  /** ⚠️ АРАЛАШ ЎЛЧОВ (тонна / дона) — қўшилмайди, битта шкалага қўйилмайди. */
+  annualOutputQty: number | null;
+  annualOutputQtyText: string | null;
+  annualOutputQtyTextCyrillic: string | null;
+
+  /* ─── Қурилиш ва ҳужжатлар ─── */
+  fsState: string | null;
+  fsStateCyrillic: string | null;
+  designer: string | null;
+  designerCyrillic: string | null;
+  contractor: string | null;
+  contractorCyrillic: string | null;
+  /** ⚠️ Манбада ҳозирча бутунлай бўш. */
+  epcContractMlnUsd: number | null;
+  epcContractText: string | null;
+  epcContractTextCyrillic: string | null;
+  buildStartText: string | null;
+  buildStartTextCyrillic: string | null;
+  /** ⚠️ Манбада ҳозирча бутунлай бўш. */
+  assemblyText: string | null;
+  assemblyTextCyrillic: string | null;
+  commissioningText: string | null;
+  commissioningTextCyrillic: string | null;
+  docState: string | null;
+  docStateCyrillic: string | null;
+  areaHa: number | null;
+  areaText: string | null;
+  areaTextCyrillic: string | null;
+  equipment: string | null;
+  equipmentCyrillic: string | null;
+  /** ⚠️ Манбада ҳозирча бутунлай бўш. */
+  equipmentPayment: string | null;
+  equipmentPaymentCyrillic: string | null;
+  objectKind: string | null;
+  objectKindCyrillic: string | null;
+  proposalsOpen: string | null;
+  proposalsOpenCyrillic: string | null;
+  costBreakdown: string | null;
+  costBreakdownCyrillic: string | null;
+
+  /* ─── Инфратузилма ─── */
+  powerGrid: string | null;
+  powerGridCyrillic: string | null;
+  /** ⚠️ Манбада ҳозирча бутунлай бўш. */
+  powerDemandKwhYear: number | null;
+  powerDemandText: string | null;
+  powerDemandTextCyrillic: string | null;
+  gasGrid: string | null;
+  gasGridCyrillic: string | null;
+  /** ⚠️ Манбада ҳозирча бутунлай бўш. */
+  gasDemandMlnM3: number | null;
+  gasDemandText: string | null;
+  gasDemandTextCyrillic: string | null;
+  drinkWaterGrid: string | null;
+  drinkWaterGridCyrillic: string | null;
+  /** ⚠️ Манбада ҳозирча бутунлай бўш. */
+  drinkWaterDemandThsM3: number | null;
+  drinkWaterDemandText: string | null;
+  drinkWaterDemandTextCyrillic: string | null;
+  techWaterGrid: string | null;
+  techWaterGridCyrillic: string | null;
+  /** ⚠️ Манбада ҳозирча бутунлай бўш. */
+  techWaterDemandThsM3: number | null;
+  techWaterDemandText: string | null;
+  techWaterDemandTextCyrillic: string | null;
+  railway: string | null;
+  railwayCyrillic: string | null;
+  railwayDistanceKm: number | null;
+  railwayDistanceText: string | null;
+  railwayDistanceTextCyrillic: string | null;
+  road: string | null;
+  roadCyrillic: string | null;
+  settlementDistanceKm: number | null;
+  settlementDistanceText: string | null;
+  settlementDistanceTextCyrillic: string | null;
+
+  /* ─── Натижа ва ҳамкор ─── */
+  expectedResults: string | null;
+  expectedResultsCyrillic: string | null;
+  partnerCompany: string | null;
+  partnerCompanyCyrillic: string | null;
+
+  /* ─── Манба кузатуви ─── */
+  sourceFile: string | null;
+  /** ISO 8601 */
+  importedAt: string | null;
+}
+
+/**
+ * Кластер (ёки йўналиш) кесими: ҲИСОБЛАНГАН ва файлда ЭЪЛОН ҚИЛИНГАН
+ * қийматлар ёнма-ён.
+ *
+ * ⚠️ Панелда `computed*` кўрсатилади. `declared*` — манбанинг ўз йиғиндиси ва
+ * фақат текшириш учун; фарқ чиқса `matches: false` ва қатор
+ * `dataQuality.clusterMismatches` га ҳам тушади.
+ */
+export interface ProjectRegistryGroupStat {
+  kind: ProjectRegistryGroupKind;
+  /** `I`…`IX.` ёки `1.1.`; манбада рақамсиз бўлса `null`. */
+  no: string | null;
+  /** ЛОТИН */
+  name: string;
+  nameCyrillic: string;
+  /** Йўналиш учун ота кластер (ЛОТИН); кластернинг ўзида `null`. */
+  clusterName: string | null;
+  clusterNameCyrillic: string | null;
+  sortOrder: number;
+
+  /** Базадаги лойиҳалардан ҲИСОБЛАНГАН. */
+  computedProjects: number;
+  computedTotalMlnUsd: number | null;
+  computedJobs: number | null;
+
+  /** Файлнинг гуруҳ қаторида ЭЪЛОН ҚИЛИНГАН. `null` — манбада кўрсатилмаган. */
+  declaredProjects: number | null;
+  declaredTotalMlnUsd: number | null;
+  declaredJobs: number | null;
+
+  matches: boolean;
+}
+
+/**
+ * Молия манбаси бўйича кесим.
+ *
+ * Рўйхат ДОИМ тўлиқ (олтита калит) ва доим бир хил тартибда келади — манба
+ * бирорта лойиҳада учрамаса ҳам `projects: 0`, `totalMlnUsd: null` билан
+ * қайтади. ⚠️ `label` **ЛОТИН** ва унинг кириллча жуфти йўқ — панел ёрлиқни
+ * `sourceKey` бўйича қўяди (қаранг: `lib/adapters/projectRegistry.ts`).
+ */
+export interface ProjectRegistryFinanceSourceStat {
+  sourceKey: ProjectRegistryFinanceSourceKey;
+  /** ЛОТИН — «OʻzTMK mablagʻlari». */
+  label: string;
+  /** Бирорта лойиҳада ҳам кўрсатилмаган бўлса `null` (0 ЭМАС). */
+  totalMlnUsd: number | null;
+  /** Нечта лойиҳада шу манба кўрсатилган. */
+  projects: number;
+}
+
+/**
+ * Молиялаштириш манбалари йиғиндиси умумий қийматга мос келмаган лойиҳа.
+ * ⚠️ Бу МАНБАДАГИ хато, импорт хатоси эмас — тузатилмайди ва яширилмайди.
+ */
+export interface ProjectRegistryFinanceMismatch {
+  id: number;
+  key: string;
+  ordinal: number | null;
+  excelRow: number | null;
+  /** ЛОТИН */
+  name: string;
+  nameCyrillic: string;
+  /** ⚠️ ЛОТИН, кириллча жуфти ЙЎҚ — адаптер уни `id` бўйича лойиҳадан олади. */
+  clusterName: string;
+  /** 17-устунда эълон қилинган. */
+  declaredMlnUsd: number;
+  /** 18–23-устунлар йиғиндиси. */
+  sourcesSumMlnUsd: number;
+  /** `declared − sourcesSum`. Манфий = манбалар кўп кўрсатилган. */
+  diffMlnUsd: number;
+}
+
+/** Кластер йиғиндиси манбадаги эълондан фарқ қилган ҳолат. */
+export interface ProjectRegistryClusterMismatch {
+  /** ЛОТИН */
+  clusterName: string;
+  field: "projects" | "totalMlnUsd" | "jobs";
+  computed: number;
+  declared: number;
+  diff: number;
+}
+
+/** Сана ўрнида Excel серияси турган катак (манбада формат йўқолган). */
+export interface ProjectRegistryDateSerial {
+  excelRow: number;
+  ordinal: number | null;
+  /** Манбадаги устун сарлавҳаси — КИРИЛЛ. */
+  column: string;
+  /** Катакдаги хом сон. */
+  serial: number;
+  /** Айлантирилган сана, `YYYY-MM-DD`. */
+  iso: string;
+}
+
+/** «Бажарилиш %» шкаласи аралашгани — улуш ва фоиз битта устунда. */
+export interface ProjectRegistryProgressScale {
+  excelRow: number;
+  ordinal: number | null;
+  value: number;
+  /** `share` — 0…1 оралиғида, `percent` — 1 дан катта. */
+  scale: "share" | "percent";
+}
+
+/**
+ * Манбада топилган номувофиқликлар.
+ *
+ * Бу блок АТАЙЛАБ жавобнинг бир қисми: «кўрсатилмаган» ≠ «нол» ва
+ * номувофиқлик беркитилмайди. Бўш массив = шу турдаги муаммо йўқ.
+ */
+export interface ProjectRegistryDataQuality {
+  financeMismatches: ProjectRegistryFinanceMismatch[];
+  clusterMismatches: ProjectRegistryClusterMismatch[];
+  dateSerials: ProjectRegistryDateSerial[];
+  progressScaleMixed: ProjectRegistryProgressScale[];
+  /**
+   * Реестрда эълон қилинган, лекин БИРОРТА лойиҳада ҳам тўлдирилмаган
+   * устунлар (манба сарлавҳалари, КИРИЛЛ). Ҳозир 9 та.
+   */
+  emptyColumns: string[];
+  /** Масъул шахси кўрсатилмаган лойиҳалар — **база id'лари**. */
+  missingResponsible: number[];
+  warnings: string[];
+}
+
+/** `GET /project-registry/summary` жавоби — фақат агрегатлар (~20 КБ). */
+export interface ProjectRegistrySummary {
+  totals: {
+    projects: number;
+    clusters: number;
+    directions: number;
+    /** Лойиҳалардан ҲИСОБЛАНГАН. */
+    totalMlnUsd: number | null;
+    jobs: number | null;
+    /** «ЖАМИ» қаторида ЭЪЛОН ҚИЛИНГАН — текшириш учун. */
+    declaredTotalMlnUsd: number | null;
+    declaredJobs: number | null;
+    matches: boolean;
+  };
+  /** 9 та, манба тартибида. */
+  byCluster: ProjectRegistryGroupStat[];
+  /** 17 та, манба тартибида. */
+  byDirection: ProjectRegistryGroupStat[];
+  /** ДОИМ 6 та. */
+  byFinanceSource: ProjectRegistryFinanceSourceStat[];
+  dataQuality: ProjectRegistryDataQuality;
+  meta: {
+    /** Манба файл номи — унда ҳолат санаси бор. */
+    source: string;
+    /** Охирги импорт вақти (ISO 8601). */
+    importedAt: string | null;
+  };
+}
+
+/** `GET /project-registry/dashboard` — агрегатлар + 144 лойиҳа тўлиқ шаклда. */
+export interface ProjectRegistryDashboard extends ProjectRegistrySummary {
+  projects: ProjectRegistryProject[];
+}

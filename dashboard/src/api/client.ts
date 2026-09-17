@@ -145,6 +145,23 @@ export const CAMERA_BASE = API_BASE.replace(/\/[^/]*$/, "") + "/cameras";
 export const MAP_BASE = API_BASE.replace(/\/[^/]*$/, "") + "/map";
 
 /**
+ * «ТМК лойиҳалари реестри 2026-2030» модулининг базаси.
+ *
+ * Худди юқоридагилар каби — бэкендда алоҳида модул
+ * (`@Controller('project-registry')`), `production-report` нинг ичида эмас.
+ * Ўн иккинчи муҳит ўзгарувчиси **киритилмайди**: база ўша усул билан
+ * `VITE_API_BASE` дан ҳосил қилинади.
+ *
+ *   `http://localhost:8085/production-report`  → `http://localhost:8085/project-registry`
+ *   `https://tmk.bgs.uz/api/production-report` → `https://tmk.bgs.uz/api/project-registry`
+ *
+ * Гвардлар `invest-deck` билан айнан бир хил (`UniversalAuthGuard` +
+ * `UniversalRoleGuard`, роллар admin/editor/viewer) — янги аутентификация
+ * ҳолати йўқ.
+ */
+export const PROJECT_REGISTRY_BASE = API_BASE.replace(/\/[^/]*$/, "") + "/project-registry";
+
+/**
  * Камера скриншотлари турадиган СТАТИК манзил: стрим узилганда катакда
  * охирги сақланган кадр кўрсатилади (қаранг: `panels/camera/CameraTile.tsx`).
  *

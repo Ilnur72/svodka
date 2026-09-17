@@ -23,6 +23,7 @@ export type TabId =
   | "fin"
   | "invest"
   | "investdeck"
+  | "registry"
   | "exporttargets"
   | "schedule"
   | "mobplan"
