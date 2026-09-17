@@ -1130,13 +1130,14 @@ button.map-list__item.is-on {
   right: 0;
   bottom: 0;
   display: flex;
+  text-align: center;
   flex-direction: column;
   gap: 1px;
   padding: 16px 10px 8px;
   background: linear-gradient(to top, rgba(0, 0, 0, 0.82), transparent);
 }
 .wall-tile__caption b {
-  font-size: 12.5px;
+  font-size: 25px;
   font-weight: 650;
   color: #fff;
   overflow: hidden;
