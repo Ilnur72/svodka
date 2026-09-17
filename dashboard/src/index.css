@@ -45,7 +45,8 @@
   --good-ink: #0a7a0a;
   --warn-ink: #8a6000;
   --crit-ink: #b02c2c;
-  --shadow: 0 1px 2px rgba(13, 18, 21, 0.05), 0 8px 24px -16px rgba(13, 18, 21, 0.18);
+  --shadow:
+    0 1px 2px rgba(13, 18, 21, 0.05), 0 8px 24px -16px rgba(13, 18, 21, 0.18);
   /* Modal orqa fon pardasi. Perde har ikkala mavzuda ham QORONG'I bo'ladi:
      u palitra rangi emas, ostidagi sahifani susaytiruvchi qatlam. --ink dan
      color-mix() bilan olinsa qorong'i mavzuda oqargan parda chiqardi. */
@@ -106,7 +107,8 @@
     --good-ink: #33b833;
     --warn-ink: #d9a41c;
     --crit-ink: #e06060;
-    --shadow: 0 1px 2px rgba(0, 0, 0, 0.35), 0 8px 24px -16px rgba(0, 0, 0, 0.6);
+    --shadow:
+      0 1px 2px rgba(0, 0, 0, 0.35), 0 8px 24px -16px rgba(0, 0, 0, 0.6);
     --scrim: rgba(0, 0, 0, 0.66);
   }
 }
@@ -328,7 +330,6 @@ summary::-webkit-details-marker {
   }
 }
 
-
 .map-pop {
   position: relative;
   animation: map-pop-in 0.22s ease-out both;
@@ -380,7 +381,8 @@ summary::-webkit-details-marker {
   width: 26px;
   height: 26px;
   translate: -50% -50%;
-  border: 1.5px dashed color-mix(in srgb, var(--pin-color, #8fa0c4) 75%, transparent);
+  border: 1.5px dashed
+    color-mix(in srgb, var(--pin-color, #8fa0c4) 75%, transparent);
   border-radius: 50%;
   opacity: 0.75;
   pointer-events: none;
@@ -401,7 +403,8 @@ summary::-webkit-details-marker {
   overflow: hidden;
   /* Ҳошия — лойиҳа тури ранги, лекин сўнган: ёрлиқни кристаллга боғлайди,
      матндан эса диққатни тортмайди. */
-  border: 1px solid color-mix(in srgb, var(--pin-color, #8fa0c4) 55%, transparent);
+  border: 1px solid
+    color-mix(in srgb, var(--pin-color, #8fa0c4) 55%, transparent);
   border-radius: 4px;
   background: rgba(6, 11, 26, 0.93);
   /* Учинчи соя — ёрлиқнинг ЎЗ ранги билан ёниши: у ёнидаги кристалл билан
@@ -410,7 +413,8 @@ summary::-webkit-details-marker {
   box-shadow:
     0 2px 10px rgba(0, 0, 0, 0.75),
     0 0 0 1px rgba(0, 0, 0, 0.45),
-    0 0 14px -1px color-mix(in srgb, var(--pin-color, transparent) 65%, transparent);
+    0 0 14px -1px
+      color-mix(in srgb, var(--pin-color, transparent) 65%, transparent);
   pointer-events: none;
 }
 /* Томон энди ҲИСОБЛАНАДИ (`layoutLabels`), манбадаги жадвалдан эмас:
@@ -578,13 +582,15 @@ summary::-webkit-details-marker {
   flex-direction: column;
   max-height: 78vh;
   overflow: visible;
-  border: 1px solid color-mix(in srgb, var(--pop-accent, #60a5fa) 42%, transparent);
+  border: 1px solid
+    color-mix(in srgb, var(--pop-accent, #60a5fa) 42%, transparent);
   border-radius: 5px;
   background: rgba(7, 13, 28, 0.95);
   box-shadow:
     0 20px 55px rgba(0, 0, 0, 0.72),
     0 0 0 1px rgba(0, 0, 0, 0.5),
-    0 0 26px -6px color-mix(in srgb, var(--pop-accent, transparent) 40%, transparent);
+    0 0 26px -6px
+      color-mix(in srgb, var(--pop-accent, transparent) 40%, transparent);
   backdrop-filter: blur(14px);
   text-align: left;
   animation: map-pop-in 0.22s ease-out both;
@@ -734,7 +740,8 @@ summary::-webkit-details-marker {
 .map-pop__link {
   flex: none;
   padding: 5px 10px;
-  border: 1px solid color-mix(in srgb, var(--pop-accent, #60a5fa) 50%, transparent);
+  border: 1px solid
+    color-mix(in srgb, var(--pop-accent, #60a5fa) 50%, transparent);
   border-radius: 4px;
   color: var(--pop-accent, #60a5fa);
   font-size: 11px;
@@ -743,9 +750,12 @@ summary::-webkit-details-marker {
   transition: background 0.15s ease;
 }
 .map-pop__link:hover {
-  background: color-mix(in srgb, var(--pop-accent, transparent) 16%, transparent);
+  background: color-mix(
+    in srgb,
+    var(--pop-accent, transparent) 16%,
+    transparent
+  );
 }
-
 
 /* ───────────────────────────────────────────────────────────────────────────
    Объектлар рўйхати — хаританинг чап томонида, йиғиладиган.
@@ -1070,7 +1080,6 @@ button.map-list__item.is-on {
 
 .wall-tile__no,
 .wall-tile__status,
-.wall-tile__ptz,
 .wall-tile__caption,
 .wall-tile__zoom,
 .wall-tile__spinner {
@@ -1109,18 +1118,6 @@ button.map-list__item.is-on {
   height: 7px;
   border-radius: 50%;
   flex: none;
-}
-
-.wall-tile__ptz {
-  top: 34px;
-  right: 8px;
-  padding: 1px 6px;
-  border-radius: 4px;
-  background: rgba(59, 130, 246, 0.9);
-  color: #fff;
-  font-size: 9.5px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
 }
 
 .wall-tile__caption {
@@ -1258,7 +1255,11 @@ button.map-list__item.is-on {
      тортмаслиги ҳам керак — шунинг учун ранг эмас, ЧУҚУРЛИК: марказдан
      таралувчи сўник кўк ёруғлик. */
   background:
-    radial-gradient(120% 80% at 50% 0%, rgba(59, 130, 246, 0.2), transparent 62%),
+    radial-gradient(
+      120% 80% at 50% 0%,
+      rgba(59, 130, 246, 0.2),
+      transparent 62%
+    ),
     linear-gradient(180deg, #0c141f, #070b11);
 }
 
@@ -1269,11 +1270,11 @@ button.map-list__item.is-on {
 .wall-brand__logo {
   position: relative;
   width: 100%;
-  max-width: 320px;
+  max-width: 440px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: clamp(10px, 1.4vw, 22px);
+  gap: clamp(15px, 2vw, 30px);
 }
 .wall-brand__logo img {
   position: relative;
@@ -1291,7 +1292,7 @@ button.map-list__item.is-on {
    ўлчамидан келиб чиқиб чегара қўйилади — акс ҳолда у ёзувдан баландроқ
    бўлиб, устунни эгаллаб оларди. */
 .wall-brand__emblem {
-  width: clamp(76px, 7.5vw, 132px);
+  width: clamp(104.88px, 10.35vw, 182.16px);
 }
 /* «ТМК» ёзуви кенг (нисбати ~4:1) — у устуннинг бутун энини олади. */
 .wall-brand__wordmark {
@@ -1326,7 +1327,7 @@ button.map-list__item.is-on {
 .wall-brand__full {
   margin-top: 14px;
   max-width: 16ch;
-  font-size: clamp(15px, 1.35vw, 25px);
+  font-size: clamp(78px, 1.62vw, 30px);
   line-height: 1.25;
   font-weight: 700;
   letter-spacing: 0.005em;
