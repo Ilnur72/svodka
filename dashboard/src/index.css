@@ -1331,9 +1331,9 @@ button.map-list__item.is-on {
    Устун тор (экран энининг 20%), шунинг учун ўлчам `clamp` билан экранга
    боғланган ва матн бир неча қаторга ўзи тушади. */
 .wall-brand__full {
-  margin-top: 14px;
+  margin-top: 50px;
   max-width: 16ch;
-  font-size: clamp(78px, 1.62vw, 30px);
+  font-size: clamp(70px, 1.62vw, 25px);
   line-height: 1.25;
   font-weight: 700;
   letter-spacing: 0.005em;
