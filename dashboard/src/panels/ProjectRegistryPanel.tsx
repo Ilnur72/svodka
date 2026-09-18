@@ -4,7 +4,7 @@ import { getProjectRegistryDashboard } from "../api/endpoints";
 import { useQuery } from "../lib/useQuery";
 import { useHashSub } from "../lib/useHashTab";
 import { usePalette } from "../lib/theme";
-import { dateLabel, exact, nf, pctTxt } from "../lib/format";
+import { exact, nf, pctTxt } from "../lib/format";
 import {
   REG_FILTER_EMPTY,
   regById,
@@ -19,7 +19,6 @@ import {
 } from "../lib/adapters/projectRegistry";
 import { GRID } from "../components/layout";
 import { Card, Section } from "../components/Card";
-import { Banner } from "../components/Banner";
 import { StatTile } from "../components/StatTile";
 import { Pill } from "../components/Pill";
 import { BarsH } from "../components/BarsH";
@@ -27,7 +26,7 @@ import { ShareBar } from "../components/ShareBar";
 import { CheckSelect } from "../components/CheckSelect";
 import { DataTable, type Row } from "../components/DataTable";
 import { EmptyState, Loader } from "../components/states";
-import { Coverage, Muted, Num, SourceDot } from "./projectRegistry/parts";
+import { Muted, Num, SourceDot } from "./projectRegistry/parts";
 import { RegistryProjectDetail } from "./projectRegistry/RegistryProjectDetail";
 
 /**
@@ -45,8 +44,9 @@ import { RegistryProjectDetail } from "./projectRegistry/RegistryProjectDetail";
  *                  ОПЕРАЦИОН устунлар: бажарилиш %, ТИА/қурилиш ҳужжатлари,
  *                  инфратузилма, ишга тушириш санаси, масъул шахс.
  *
- * Улар атайин бирлаштирилмаган — бу фойдаланувчининг қарори. Шунинг учун
- * бўлим бошида фарқ очиқ ёзилади ва манба файли сарлавҳа остида туради.
+ * Улар атайин бирлаштирилмаган — бу фойдаланувчининг қарори. Бу фарқ энди
+ * интерфейсда ёзилмайди (фойдаланувчи талаби билан манба баннери олиб
+ * ташланган) — сарлавҳа остида фақат реестр санаси ва «XLSX реестр» қолди.
  *
  * ═══ Тузилиш ════════════════════════════════════════════════════════════
  *
@@ -56,8 +56,11 @@ import { RegistryProjectDetail } from "./projectRegistry/RegistryProjectDetail";
  *     босилса пастдаги рўйхат шу кластерга фильтрланади.
  *  3. Молиялаштириш манбалари.
  *  4. Лойиҳалар рўйхати — кластер → йўналиш бўйича гуруҳланган.
- *  5. Маълумот сифати — манбадаги номувофиқликлар, **яширилмайди**.
- *  6. Маълумот тўлиқлиги — қайси устун нечта лойиҳада тўлдирилган.
+ *
+ * «Маълумот сифати» ва «Маълумот тўлиқлиги» бўлимлари фойдаланувчи талаби
+ * билан олиб ташланган. Адаптердаги `quality` ва `filled` ҳисоби ЖОЙИДА
+ * қолди: `quality.emptyColumns` тафсилот ойнасига узатилади (унда «реестрда
+ * бу устун бўш» белгиси шундан келади).
  *
  * ═══ Бирликлар аралашмайди ══════════════════════════════════════════════
  *
@@ -353,27 +356,9 @@ function RegistryBody({ data }: { data: ProjectRegistryDashboard }) {
   }));
 
   const noDirection = v.projects.filter((p) => p.direction === null).length;
-  const qy = v.quality;
 
   return (
     <>
-      {/* --- манба ва ёнидаги таб билан фарқи ------------------------------- */}
-      <Banner tone="info">
-        Манба — <b>{v.source}</b>
-        {v.asOf && (
-          <>
-            {" "}
-            (<b>{v.asOf}</b> ҳолатига)
-          </>
-        )}
-        {v.importedAt && <> · охирги импорт: {dateLabel(v.importedAt.slice(0, 10))}</>}. Ёнидаги
-        «Инвестиция дастури 2026–2030» билан адашмасин: у — <b>PPTX тақдимот</b> (03.08.2026,
-        88 лойиҳа, ҳар бирида KPI, иш режаси ва молия жадвали), бу эса — <b>XLSX реестр</b>{" "}
-        (144 лойиҳа, 9 кластер), унда операцион устунлар бор: бажарилиш %, қурилиш ҳужжатлари,
-        инфратузилма, ишга тушириш санаси, масъул шахс. Лойиҳаларнинг кўпи иккала ҳужжатда ҳам
-        учрайди — ҳужжатлар атайин бирлаштирилмаган.
-      </Banner>
-
       {/* --- 1. плиткалар --------------------------------------------------- */}
       <Section
         title="Лойиҳалар реестри 2026–2030"
@@ -614,205 +599,13 @@ function RegistryBody({ data }: { data: ProjectRegistryDashboard }) {
         </Section>
       </div>
 
-      {/* --- 5. маълумот сифати --------------------------------------------- */}
-      <Section
-        title="Маълумот сифати"
-        note={`манбадаги ${qy.issues} та белги — яширилмайди, тузатилмайди`}
-      >
-        <div className={GRID.g2}>
-          <Card
-            title="Молиялаштириш номувофиқлиги"
-            sub={`${qy.financeMismatches.length} та лойиҳа`}
-            stripe="var(--crit)"
-            note="Манбаларнинг йиғиндиси 17-устунда эълон қилинган умумий қийматга тенг эмас. Бу МАНБАДАГИ фарқ — импорт хатоси эмас ва бу ерда тузатилмайди."
-          >
-            {qy.financeMismatches.length === 0 ? (
-              <EmptyState title="Барча лойиҳада молия йиғиндиси мос келди" />
-            ) : (
-              <DataTable
-                cols={[
-                  { t: "Т/р", num: true },
-                  { t: "Лойиҳа", wrap: true },
-                  { t: "Эълон", num: true },
-                  { t: "Манбалар", num: true },
-                  { t: "Фарқ", num: true },
-                ]}
-                rows={qy.financeMismatches.map((m) => ({
-                  key: String(m.id),
-                  cells: [
-                    m.ordinal === null ? "—" : nf(m.ordinal),
-                    <span key="n" className="block max-w-[320px]">
-                      {m.name}
-                      <span className="block text-[11px] text-ink-3">{m.cluster}</span>
-                    </span>,
-                    exact(m.declared),
-                    exact(m.sourcesSum),
-                    <b key="d" className="text-crit-ink">
-                      {exact(m.diff)}
-                    </b>,
-                  ],
-                }))}
-                caption="Молиялаштириш манбалари умумий қийматга мос келмаган лойиҳалар"
-              />
-            )}
-          </Card>
-
-          <Card
-            title="«Бажарилиш %» шкаласи"
-            sub={`${qy.progress.length} та қатор`}
-            stripe="var(--warn)"
-            note="Битта устунда икки хил шкала: баъзи қаторда улуш (0,8 = 80%), баъзисида фоиз (82). Фоиз устуни — шу тахминдан ҳисобланган, хом қиймат ўзгаришсиз."
-          >
-            {qy.progress.length === 0 ? (
-              <EmptyState title="Бажарилиш % умуман кўрсатилмаган" />
-            ) : (
-              <DataTable
-                cols={[
-                  { t: "Т/р", num: true },
-                  { t: "Лойиҳа", wrap: true },
-                  { t: "Манбада", num: true },
-                  { t: "Шкала" },
-                  { t: "Фоизда", num: true },
-                ]}
-                rows={qy.progress.map((r) => ({
-                  key: r.key,
-                  cells: [
-                    r.ordinal === null ? "—" : nf(r.ordinal),
-                    <span key="n" className="block max-w-[280px]">
-                      {r.name ?? "—"}
-                    </span>,
-                    exact(r.value),
-                    r.scale === "share" ? "улуш" : "фоиз",
-                    r.percent === null ? "—" : exact(r.percent) + "%",
-                  ],
-                }))}
-                caption="Бажарилиш фоизи кўрсатилган лойиҳалар"
-              />
-            )}
-            <p className="mt-2 text-[11.5px] leading-[1.45] text-ink-3">
-              Бу устун атиги {qy.progress.length} / {t.projects} лойиҳада тўлдирилган — шунинг
-              учун бўлимда «ўртача бажарилиш» кўрсаткичи умуман ҳисобланмайди.
-            </p>
-          </Card>
-        </div>
-
-        <div className={"mt-3 " + GRID.g2}>
-          <Card
-            title="Сана ўрнида Excel серияси"
-            sub={`${qy.dateSerials.length} та катак`}
-            note="Манбада катак формати йўқолган ва сана ўрнида хом сон турибди (46082). Импорт уни UTC'да санага айлантирган; хом сон ҳам, сана ҳам ёнма-ён кўрсатилади."
-          >
-            {qy.dateSerials.length === 0 ? (
-              <EmptyState title="Бундай катак топилмади" />
-            ) : (
-              <DataTable
-                cols={[
-                  { t: "Т/р", num: true },
-                  { t: "Қатор", num: true },
-                  { t: "Устун", wrap: true },
-                  { t: "Хом сон", num: true },
-                  { t: "Сана" },
-                ]}
-                rows={qy.dateSerials.map((s) => ({
-                  key: s.key,
-                  cells: [
-                    s.ordinal === null ? "—" : nf(s.ordinal),
-                    nf(s.excelRow),
-                    s.column,
-                    nf(s.serial),
-                    dateLabel(s.iso),
-                  ],
-                }))}
-                caption="Сана ўрнида Excel серияси турган катаклар"
-              />
-            )}
-          </Card>
-
-          <Card
-            title="Бутунлай бўш устунлар"
-            sub={`${qy.emptyColumns.length} та`}
-            note="Реестрда эълон қилинган, лекин 144 лойиҳанинг БИРОРТАСИДА ҳам тўлдирилмаган устунлар. Улар бўлимда диаграмма ёки йиғинди сифатида умуман чизилмайди — маълумот бордек кўринмаслиги учун."
-          >
-            {qy.emptyColumns.length === 0 ? (
-              <EmptyState title="Барча устун тўлдирилган" />
-            ) : (
-              <ul className="flex flex-col">
-                {qy.emptyColumns.map((c) => (
-                  <li
-                    key={c}
-                    className="flex items-baseline gap-2 border-t border-grid py-[7px] text-[12.5px] first:border-t-0"
-                  >
-                    <span aria-hidden="true" className="flex-none font-mono text-ink-3">
-                      —
-                    </span>
-                    <span className="min-w-0 flex-1 break-words text-ink-2">{c}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-
-            {qy.missingResponsible.length > 0 && (
-              <p className="mt-2.5 border-t border-grid pt-2.5 text-[11.5px] leading-[1.5] text-ink-3">
-                Масъул шахси кўрсатилмаган лойиҳалар:{" "}
-                {qy.missingResponsible
-                  .map((m) => `${m.ordinal === null ? "—" : `Т/р ${m.ordinal}`} — ${m.name}`)
-                  .join("; ")}
-              </p>
-            )}
-
-            {qy.clusterMismatches.length > 0 && (
-              <p className="mt-2 text-[11.5px] leading-[1.5] text-ink-3">
-                Кластер йиғиндиси манбадаги эълондан фарқ қилди:{" "}
-                {qy.clusterMismatches
-                  .map(
-                    (m) =>
-                      `${m.cluster} — ${m.field}: ҳисобланган ${exact(m.computed)}, эълон ${exact(m.declared)}`,
-                  )
-                  .join("; ")}
-                .
-              </p>
-            )}
-
-            {qy.clusterMismatches.length === 0 && (
-              <p className="mt-2 text-[11.5px] leading-[1.5] text-ink-3">
-                Кластер йиғиндилари манбанинг ўз гуруҳ қаторлари билан тўлиқ мос келди —
-                реестр тўғри ўқилганининг асосий далили.
-              </p>
-            )}
-
-            {qy.warnings.length > 0 && (
-              <p className="mt-2 text-[11.5px] leading-[1.5] text-ink-3">
-                Импорт огоҳлантиришлари: {qy.warnings.join("; ")}.
-              </p>
-            )}
-          </Card>
-        </div>
-      </Section>
-
-      {/* --- 6. маълумот тўлиқлиги ------------------------------------------ */}
-      <Section
-        title="Маълумот тўлиқлиги"
-        note={`${t.projects} лойиҳадан нечтасида устун тўлдирилган`}
-      >
-        <Card
-          title="Реестрда нима бор"
-          note="Тўлдирилмаган жой нол билан тўлдирилмайди: тафсилот ойнасида ундай блок чизилмайди ва йўқлиги ёзиб қўйилади. Устун 3–5 лойиҳада тўлган бўлса ундан ўртача ёки йиғинди ҳисобланмайди — у бутун реестр ҳақида ҳеч нарса демайди."
-        >
-          {v.filled.map((f) => (
-            <Coverage key={f.key} label={f.label} filled={f.filled} total={f.total} />
-          ))}
-          <p className="mt-2.5 border-t border-grid pt-2.5 text-[11.5px] leading-[1.5] text-ink-3">
-            Устига {qy.emptyColumns.length} та устун бутунлай бўш — улар юқоридаги рўйхатда йўқ,
-            чунки «нечта лойиҳада бор» деган савол уларга нисбатан маъносиз.
-          </p>
-        </Card>
-      </Section>
-
       {open && (
         <RegistryProjectDetail
           p={open}
           all={v.projects}
-          emptyColumns={qy.emptyColumns}
+          // «Маълумот сифати» бўлими олиб ташланди, лекин бу рўйхат ойнада
+          // керак: «реестрда бу устун бўш» белгиси шундан ясалади.
+          emptyColumns={v.quality.emptyColumns}
           onOpen={(id) => goSub(String(id))}
           onClose={() => goSub(null)}
         />

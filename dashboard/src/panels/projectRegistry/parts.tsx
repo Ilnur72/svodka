@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { NO_DATA, type RegProject } from "../../lib/adapters/projectRegistry";
-import { exact, nf, pctTxt } from "../../lib/format";
+import { exact } from "../../lib/format";
 
 /**
  * «Лойиҳалар реестри» бўлимининг иккита кўринишида (рўйхат қатори ва
@@ -98,40 +98,5 @@ export function SourceDot({ color }: { color: string }) {
       className="inline-block h-2.5 w-2.5 flex-none translate-y-[1px] rounded-sm"
       style={{ background: color }}
     />
-  );
-}
-
-/**
- * «N / 144» тўлиқлик қатори.
- *
- * Фоиз фақат чизиқнинг ёнида — у ўртача ёки йиғинди эмас, шунчаки нечта
- * лойиҳада устун тўлдирилгани. Сон доим ёнида туради, шунда «82%» ўқувчини
- * «82 та лойиҳа» деб адаштирмайди.
- */
-export function Coverage({ label, filled, total }: { label: string; filled: number; total: number }) {
-  const pct = total === 0 ? 0 : (filled / total) * 100;
-  const tone = pct >= 66 ? "bg-s1" : pct >= 20 ? "bg-s3" : "bg-rule";
-  return (
-    <div className="border-t border-grid py-2 first:border-t-0">
-      <div className="flex flex-wrap items-baseline justify-between gap-x-2.5 gap-y-1">
-        <span className="min-w-0 flex-1 truncate text-[12.5px] [font-weight:600]">{label}</span>
-        <span className="font-mono text-[12px] tabular-nums text-ink-2">
-          {nf(filled)}
-          <span className="mx-1 text-ink-3">/</span>
-          {nf(total)}
-        </span>
-      </div>
-      <div className="mt-1.5 flex items-center gap-2">
-        <span className="relative h-2 min-w-0 flex-1 overflow-hidden rounded-[3px] bg-sunken">
-          <span
-            className={"absolute inset-y-0 left-0 rounded-[3px] " + tone}
-            style={{ width: `${pct.toFixed(2)}%` }}
-          />
-        </span>
-        <span className="w-[52px] flex-none text-right font-mono text-[11.5px] tabular-nums">
-          {pctTxt(pct)}
-        </span>
-      </div>
-    </div>
   );
 }
