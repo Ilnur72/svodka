@@ -7,11 +7,13 @@ import {
   GAS_BASE,
   GEOLOGY_BASE,
   INVEST_DECK_BASE,
+  LEGAL_AFFAIRS_BASE,
   MAP_BASE,
   PR_MEDIA_KPI_BASE,
   PROJECT_REGISTRY_BASE,
   SCHEDULE_BASE,
   SOLAR_BASE,
+  STATE_PROCUREMENT_BASE,
 } from "./client";
 import type {
   BalanceResponse,
@@ -38,6 +40,7 @@ import type {
   InvestDeckDashboard,
   InvestDeckProjectDetail,
   KpiResponse,
+  LegalAffairsDashboard,
   MapObjectsResponse,
   MobplanResponse,
   NarastaykaRow,
@@ -53,6 +56,7 @@ import type {
   SolarEnvelope,
   SolarKpiRow,
   SolarStationRow,
+  StateProcurementDashboard,
   SummaryData,
   TreeData,
 } from "./types";
@@ -677,4 +681,57 @@ export const getProjectRegistryDashboard = (
 ): Promise<ProjectRegistryDashboard> =>
   unwrap(
     apiGet<Envelope<ProjectRegistryDashboard>>("/dashboard", {}, signal, PROJECT_REGISTRY_BASE),
+  );
+
+/* -------------------------------------------------------------------------- */
+/* legal-affairs — алоҳида модул, `production-report` нинг ёнида               */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * «Юридик бошқарма» бўлимининг ягона манбаси: йиғиндилар, бўлимлар кесими,
+ * юрист ва суд кесимлари, маълумот сифати блоки ва **учала бўлимнинг тўлиқ
+ * рўйхати** (23 суд иши + 2 претензия + 10 экспертиза) — ҳаммаси битта
+ * сўровда.
+ *
+ * **Параметрсиз**: манба — битта XLSX ҳужжатнинг жорий ҳолати, вақт қатори
+ * эмас. Шунинг учун юқоридаги давр танлагичи бу бўлимга таъсир қилмайди —
+ * худди `getProjectRegistryDashboard` каби.
+ *
+ * Ёндош тўртта endpoint **атайин ишлатилмайди**:
+ *
+ *  · `GET /legal-affairs/summary` — шу жавобнинг агрегат қисмининг такрори;
+ *  · `GET /legal-affairs/court-cases?lawyer=&court=` — `courtCases` нинг
+ *    такрори, фильтр эса 23 қатор учун фронтда бир зумда ишлайди;
+ *  · `GET /legal-affairs/claims` ва `/contract-reviews` — шу жавобда
+ *    аллақачон тўлиқ шаклда бор.
+ */
+export const getLegalAffairsDashboard = (signal?: AbortSignal): Promise<LegalAffairsDashboard> =>
+  unwrap(apiGet<Envelope<LegalAffairsDashboard>>("/dashboard", {}, signal, LEGAL_AFFAIRS_BASE));
+
+/* -------------------------------------------------------------------------- */
+/* state-procurement — алоҳида модул, `production-report` нинг ёнида           */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * «Давлат харидлари 2025–2026» бўлимининг ягона манбаси: йиғиндилар, 8 давр
+ * слоти, 10 харид тури, давр ва тур кесимлари, **«Жами харидлар:» қатори**,
+ * маълумот сифати блоки ва 80 та фактнинг тўлиқ рўйхати — битта сўровда.
+ *
+ * **Параметрсиз**: манба — битта XLSX варағининг жорий ҳолати. Бўлимдаги давр
+ * (`2025-Q1` … `2026-TOTAL`) — манбанинг ўз устун гуруҳлари, юқоридаги ой
+ * кесимидаги давр танлагичига боғлиқ эмас.
+ *
+ * Ёндош учта endpoint **атайин ишлатилмайди**:
+ *
+ *  · `GET /state-procurement/summary` — шу жавобнинг агрегат қисмининг такрори;
+ *  · `GET /state-procurement/totals` — «Жами харидлар:» қатори шу жавобда
+ *    `totalRow` сифатида аллақачон бор;
+ *  · `GET /state-procurement?period=&type=` — `facts` нинг такрори, фильтр эса
+ *    80 факт учун фронтда бир зумда ишлайди.
+ */
+export const getStateProcurementDashboard = (
+  signal?: AbortSignal,
+): Promise<StateProcurementDashboard> =>
+  unwrap(
+    apiGet<Envelope<StateProcurementDashboard>>("/dashboard", {}, signal, STATE_PROCUREMENT_BASE),
   );

@@ -162,6 +162,40 @@ export const MAP_BASE = API_BASE.replace(/\/[^/]*$/, "") + "/map";
 export const PROJECT_REGISTRY_BASE = API_BASE.replace(/\/[^/]*$/, "") + "/project-registry";
 
 /**
+ * «Юридик бошқарма» модулининг базаси.
+ *
+ * Худди юқоридагилар каби — бэкендда алоҳида модул
+ * (`@Controller('legal-affairs')`), `production-report` нинг ичида эмас.
+ * Ўн учинчи муҳит ўзгарувчиси **киритилмайди**: база ўша усул билан
+ * `VITE_API_BASE` дан ҳосил қилинади.
+ *
+ *   `http://localhost:8085/production-report`  → `http://localhost:8085/legal-affairs`
+ *   `https://tmk.bgs.uz/api/production-report` → `https://tmk.bgs.uz/api/legal-affairs`
+ *
+ * Гвардлар `project-registry` билан айнан бир хил (`UniversalAuthGuard` +
+ * `UniversalRoleGuard`, роллар admin/editor/viewer). Бу ерда очиқ endpoint
+ * **бўлиши ҳам мумкин эмас**: жавобда суд ишларининг тўлиқ матни, даъвогар ва
+ * жавобгар номлари, неустойка суммалари ва корхона юристларининг исмлари бор.
+ */
+export const LEGAL_AFFAIRS_BASE = API_BASE.replace(/\/[^/]*$/, "") + "/legal-affairs";
+
+/**
+ * «Давлат харидлари» модулининг базаси.
+ *
+ * Худди юқоридагилар каби — бэкендда алоҳида модул
+ * (`@Controller('state-procurement')`), `production-report` нинг ичида эмас.
+ * Ўн тўртинчи муҳит ўзгарувчиси **киритилмайди**: база ўша усул билан
+ * `VITE_API_BASE` дан ҳосил қилинади.
+ *
+ *   `http://localhost:8085/production-report`  → `http://localhost:8085/state-procurement`
+ *   `https://tmk.bgs.uz/api/production-report` → `https://tmk.bgs.uz/api/state-procurement`
+ *
+ * Гвардлар `project-registry` билан айнан бир хил — очиқ endpoint йўқ:
+ * жавобда корхонанинг харид ҳажмлари ва шартнома суммалари бор.
+ */
+export const STATE_PROCUREMENT_BASE = API_BASE.replace(/\/[^/]*$/, "") + "/state-procurement";
+
+/**
  * Камера скриншотлари турадиган СТАТИК манзил: стрим узилганда катакда
  * охирги сақланган кадр кўрсатилади (қаранг: `panels/camera/CameraTile.tsx`).
  *

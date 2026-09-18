@@ -25,6 +25,8 @@ import { ProjectRegistryPanel } from "./panels/ProjectRegistryPanel";
 import { ExportTargetsPanel } from "./panels/ExportTargetsPanel";
 import { SchedulePanel } from "./panels/SchedulePanel";
 import { MobPlanPanel } from "./panels/MobPlanPanel";
+import { LegalAffairsPanel } from "./panels/LegalAffairsPanel";
+import { StateProcurementPanel } from "./panels/StateProcurementPanel";
 import { ProjectsPanel } from "./panels/ProjectsPanel";
 import { GeologyPanel } from "./panels/GeologyPanel";
 import { TexPanel } from "./panels/TexPanel";
@@ -161,6 +163,20 @@ function DashboardBody({ range }: { range: { min: string; max: string } }) {
       // таъсир қилмайди — буни панелнинг ўзи изоҳлайди.
       case "mobplan":
         return <MobPlanPanel {...props} />;
+      // «Юридик бошқарма» — алоҳида бэкенд модули (`legal-affairs`), манбаси
+      // `Юридик бошқарма.xlsx` нинг УЧТА варағи: суд ишлари (23), претензиялар
+      // (2) ва шартнома экспертизаси (10). Битта ҳужжатнинг жорий ҳолати, вақт
+      // қатори эмас — шунинг учун панел `props` олмайди ва давр танлагичи унга
+      // таъсир қилмайди.
+      case "legal":
+        return <LegalAffairsPanel />;
+      // «Давлат харидлари 2025–2026» — алоҳида бэкенд модули
+      // (`state-procurement`), манбаси `Давлат Харидлари_2025_2026.xlsx`.
+      // Бўлимдаги давр (2025 I чорак … 2026 умумий) — МАНБАНИНГ ўз устун
+      // гуруҳлари, юқоридаги ой кесимидаги давр танлагичи билан боғлиқ эмас,
+      // шунинг учун панел `props` олмайди.
+      case "procurement":
+        return <StateProcurementPanel />;
       // «Лойиҳалар паспорти» манбаи — иккита Word ҳужжати, «Production Report»
       // API'дан келмайди ва ой кесимида эмас. Шунинг учун панел `props` олмайди:
       // юқоридаги давр танлагичи унга таъсир қилмайди.

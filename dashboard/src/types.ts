@@ -27,6 +27,8 @@ export type TabId =
   | "exporttargets"
   | "schedule"
   | "mobplan"
+  | "legal"
+  | "procurement"
   | "projects"
   | "geology"
   | "tex";

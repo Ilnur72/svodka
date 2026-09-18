@@ -2580,3 +2580,736 @@ export interface ProjectRegistrySummary {
 export interface ProjectRegistryDashboard extends ProjectRegistrySummary {
   projects: ProjectRegistryProject[];
 }
+
+/* -------------------------------------------------------------------------- */
+/* legal-affairs — «Юридик бошқарма»                                           */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Бу блок бэкенддаги `src/modules/legal-affairs/legal-affairs.types.ts` нинг
+ * айнан кўзгуси. Манба — `Юридик бошқарма.xlsx`, **учта варақ**:
+ * `1. СУД ИШЛАРИ` (23 ёзув), `2. ПРЕТЕНЗИЯЛАР` (2 ёзув),
+ * `3. ШАРТНОМА ЭКСПЕРТИЗАСИ` (10 ёзув) — жами **35 мантиқий ёзув**.
+ *
+ * ⚠️ Нега учта жадвал, «тур устунли» битта жадвал эмас: уч варақнинг
+ * устунлари `Т/р` дан бошқа жойда умуман кесишмайди. Битта жадвалга йиғилса
+ * ~24 устуннинг 70% дан кўпи ҳар қаторда `null` бўларди ва «бу майдон бу тур
+ * учун МАВЖУД ЭМАС» билан «бу майдон ТЎЛДИРИЛМАГАН» фарқланмай қоларди.
+ *
+ * ⚠️ Учта қоида бутун блок бўйлаб амал қилади:
+ *
+ *  1. Матн майдонлари **ЛОТИН** ёзувида келади, манбадаги кирилл шакли эса ҳар
+ *     бирига жуфт `*Cyrillic` майдонида (`project-registry` билан айнан бир хил
+ *     контракт). Сводка кирилл — панелда ДОИМ `*Cyrillic` кўрсатилади.
+ *     ТЕХНИК қийматлар (`key`, `caseNumber`, `section`, `field`) ўгирилмайди.
+ *
+ *  2. `null` ДОИМ «манбада кўрсатилмаган» дегани, **ҳеч қачон 0 эмас**.
+ *     Манбадаги «-» ҳам шунга айланади.
+ *
+ *  3. Манбадаги хатолар (такрорий `Т/р`, 2001 йил, «млн сўм» сарлавҳаси
+ *     остидаги сўм қиймати) **ТУЗАТИЛМАГАН** ҳолда келади ва `dataQuality` да
+ *     очиқ рўйхатланади. Панел уларни фойдаланувчига **ҳалол** кўрсатади.
+ */
+
+/** Бўлим калити — бэкенддаги `LEGAL_SECTIONS`. */
+export type LegalSectionKey = "courtCases" | "claims" | "contractReviews";
+
+/**
+ * Бирлаштирилган (merge) блок ичидаги, асосий қийматдан ФАРҚ ҚИЛАДИГАН катак.
+ *
+ * ⚠️ Бу «ортиқча маълумот» эмас — манбада ҳақиқатан турган, лекин merge
+ * тузилмаси сабабли асосий майдонга сиғмаган матн (масалан 1-варақнинг
+ * 9-қаторидаги иккинчи неустойка суммаси).
+ */
+export interface LegalExtraCell {
+  /** Варақдаги 1-based қатор. */
+  excelRow: number;
+  /** ЛОТИН */
+  column: string;
+  columnCyrillic: string;
+  /** ЛОТИН */
+  value: string;
+  valueCyrillic: string;
+}
+
+/** `1. СУД ИШЛАРИ` — 23 ёзув. */
+export interface LegalCourtCase {
+  id: number;
+  /** Барқарор калит: `courtCases:<slug>-<6 белгилик хеш>`. */
+  key: string;
+  /** Файлдаги `Т/р`. ⚠️ КАЛИТ ЭМАС — қатор қўшилса сурилади. */
+  ordinal: number | null;
+  ordinalText: string | null;
+  sortOrder: number;
+  /** Блокнинг БИРИНЧИ (anchor) қатори, 1-based. */
+  excelRow: number | null;
+  /** Блокнинг ОХИРГИ қатори; merge бўлмаса `excelRow` га тенг. */
+  excelRowEnd: number | null;
+  /** 1 дан катта бўлса — merge блоки. */
+  rowSpan: number;
+
+  /** ЛОТИН */
+  subject: string;
+  subjectCyrillic: string;
+
+  /** «Иш тайинланган Ажрим сана», `YYYY-MM-DD`. */
+  rulingDate: string | null;
+  /**
+   * Сана сифатида ЎҚИЛМАГАН хом матн («23.06.2025 й»).
+   * ⚠️ `rulingDate` билан бир вақтда ҳеч қачон тўлмайди: форматни тахмин
+   * қилиш маълумот тўқиш бўларди.
+   */
+  rulingDateText: string | null;
+  rulingDateTextCyrillic: string | null;
+
+  courtName: string | null;
+  courtNameCyrillic: string | null;
+  /** «иш рақами» — ТЕХНИК қиймат, ўгирилмайди. ⚠️ УНИКАЛ ЭМАС. */
+  caseNumber: string | null;
+  lawyer: string | null;
+  lawyerCyrillic: string | null;
+
+  hearingDate: string | null;
+  hearingDateText: string | null;
+  hearingDateTextCyrillic: string | null;
+
+  result: string | null;
+  resultCyrillic: string | null;
+  /** Манбада 2/23. */
+  appealSummary: string | null;
+  appealSummaryCyrillic: string | null;
+  /** Манбада 3/23. */
+  appealHearingText: string | null;
+  appealHearingTextCyrillic: string | null;
+  /**
+   * «Шикоят иши қолдирлган кун».
+   * ⚠️ Манбада **0/23** — устун МАВЖУД, лекин бутунлай тўлдирилмаган. Панел
+   * буни «маълумот йўқ» деб кўрсатади, `0` деб ЭМАС.
+   */
+  appealPostponedText: string | null;
+  appealPostponedTextCyrillic: string | null;
+  /** Манбада 3/23. */
+  note: string | null;
+  noteCyrillic: string | null;
+
+  /** Бўш массив = қўшимча катак йўқ. */
+  extras: LegalExtraCell[];
+  sourceFile: string | null;
+  /** ISO 8601 */
+  importedAt: string | null;
+}
+
+/**
+ * `2. ПРЕТЕНЗИЯЛАР` — **2 ёзув**.
+ *
+ * ⚠️ Бўлимда атиги 2 ёзув бор — бу МАНБАНИНГ ҳолати, хато эмас. Панел
+ * «маълумот йўқ» эмас, «манбада 2 та ёзув бор» деб кўрсатади.
+ */
+export interface LegalClaim {
+  id: number;
+  key: string;
+  ordinal: number | null;
+  ordinalText: string | null;
+  sortOrder: number;
+  excelRow: number | null;
+  excelRowEnd: number | null;
+  rowSpan: number;
+
+  /** ЛОТИН */
+  subject: string;
+  subjectCyrillic: string;
+  respondent: string | null;
+  respondentCyrillic: string | null;
+
+  /**
+   * «Суммаси» — МАНБАДАГИ ХОМ сон, қайта шкалаланМАГАН.
+   * ⚠️ Манбада 9 106 250 ва 5 334 000. Сарлавҳа «млн сўм» дейди, лекин бу
+   * қийматлар «млн сўм» бўлса 9,1 **триллион** сўм чиқарди.
+   */
+  amountRaw: number | null;
+  amountText: string | null;
+  amountTextCyrillic: string | null;
+  /** Манбадаги устун сарлавҳаси — АЙНАН («Суммаси (млн сўм)»). */
+  amountUnitLabel: string;
+  /** `true` → сарлавҳадаги бирлик ИШОНЧСИЗ. Панел уни ишончли деб ёзмайди. */
+  amountUnitSuspect: boolean;
+
+  /** ⚠️ Манбада 0/2. */
+  sentDate: string | null;
+  sentDateText: string | null;
+  sentDateTextCyrillic: string | null;
+  /** ⚠️ Манбада 0/2. */
+  deadlineText: string | null;
+  deadlineTextCyrillic: string | null;
+  /** ⚠️ Манбада 0/2. */
+  responseText: string | null;
+  responseTextCyrillic: string | null;
+  /** ⚠️ Манбада 0/2. */
+  note: string | null;
+  noteCyrillic: string | null;
+
+  extras: LegalExtraCell[];
+  sourceFile: string | null;
+  importedAt: string | null;
+}
+
+/** `3. ШАРТНОМА ЭКСПЕРТИЗАСИ` — 10 ёзув. */
+export interface LegalContractReview {
+  id: number;
+  key: string;
+  /** ⚠️ КАЛИТ ҳам, УНИКАЛ ҳам ЭМАС — 7- ва 8-қаторларда иккаласи ҳам 3. */
+  ordinal: number | null;
+  ordinalText: string | null;
+  sortOrder: number;
+  excelRow: number | null;
+  excelRowEnd: number | null;
+  /** ⚠️ Бу бўлимда 2 ва 3 ҳам учрайди. */
+  rowSpan: number;
+
+  /** ⚠️ Манбада бу ерда шартнома номи эмас, ЛАВОЗИМ турибди. */
+  contractName: string;
+  contractNameCyrillic: string;
+  /** Манбада 9/10. */
+  counterparty: string | null;
+  counterpartyCyrillic: string | null;
+
+  /** «Келиб тушган кун.ой.йил», `YYYY-MM-DD`. Манбада 10/10. */
+  receivedDate: string | null;
+  receivedDateText: string | null;
+  receivedDateTextCyrillic: string | null;
+
+  /** «Кўриб чиқилган кун.ой.йил» (5-устун), `YYYY-MM-DD`. */
+  reviewedDate: string | null;
+  reviewedDateText: string | null;
+  reviewedDateTextCyrillic: string | null;
+  /**
+   * `true` — сананинг куни 1, яъни бу аниқ КУН эмас, **ОЙ** белгиси.
+   * Манбада 10/10 шундай. Панелда «Январь 2026» деб кўрсатилади,
+   * «1-январь» деб ЭМАС.
+   */
+  reviewedDateIsMonthOnly: boolean;
+  /** `true` — йил кетма-кетликдан чиққан (манбада 2001, қолганлари 2026). */
+  reviewedDateYearSuspect: boolean;
+
+  /**
+   * 6-устун — ЮРИДИК ХУЛОСА матни.
+   * ⚠️ Манбада бу устуннинг сарлавҳаси `reviewedDate` билан АЙНАН бир хил
+   * («Кўриб чиқилган кун.ой.йил»), лекин мазмуни бутунлай бошқа. Иккисини
+   * битта майдонга қўшиш мумкин эмас.
+   */
+  conclusion: string | null;
+  conclusionCyrillic: string | null;
+
+  extras: LegalExtraCell[];
+  sourceFile: string | null;
+  importedAt: string | null;
+}
+
+/**
+ * Устун тўлдирилганлиги.
+ *
+ * ⚠️ Бу блокнинг мақсади — «устун манбада ЙЎҚ» билан «устун бор, лекин БЎШ»
+ * ни ажратиш. Иккинчиси бажарилмаган иш ҳақидаги сигнал ва жимгина
+ * йўқолмаслиги керак.
+ */
+export interface LegalColumnFill {
+  /** ЛОТИН */
+  column: string;
+  /** Манбадаги сарлавҳа. */
+  columnCyrillic: string;
+  /** API майдонининг номи — панел шу бўйича устунни топади. */
+  field: string;
+  filled: number;
+  total: number;
+  /** `filled / total`, 0…1. */
+  ratio: number;
+}
+
+/** Merge блоки — нечта физик қатор битта ёзувга йиғилгани. */
+export interface LegalMergedBlock {
+  excelRow: number;
+  excelRowEnd: number;
+  rowSpan: number;
+}
+
+/** Бир хил қиймат бир нечта ёзувда учраган ҳолат. */
+export interface LegalDuplicate {
+  /** Такрорланган қиймат — манбадагидек. */
+  value: string;
+  excelRows: number[];
+}
+
+/** Иккита устуннинг сарлавҳаси бир хил, мазмуни бошқа. */
+export interface LegalDuplicateHeader {
+  header: string;
+  /** Варақдаги 0-based устун индекслари. */
+  columnIndexes: number[];
+  /** Ҳар бир устун қайси API майдонига тушгани. */
+  fields: string[];
+  reason: string;
+}
+
+/** Сарлавҳа билан мазмун мос келмаган устун. */
+export interface LegalHeaderMeaningConflict {
+  header: string;
+  field: string;
+  reason: string;
+  /** Мисол қийматлар — манбадагидек. */
+  samples: string[];
+}
+
+/** Ўлчов бирлиги сарлавҳада бошқа, қиймат катталигида бошқа. */
+export interface LegalUnitConflict {
+  header: string;
+  field: string;
+  declaredUnit: string;
+  observedUnit: string;
+  values: Array<{ excelRow: number; value: number }>;
+  reason: string;
+}
+
+/** Кетма-кетликдан чиқиб қолган сана. */
+export interface LegalDateAnomaly {
+  excelRow: number;
+  /** Манбадаги устун сарлавҳаси — КИРИЛЛ. */
+  column: string;
+  field: string;
+  /** Хом сана, `YYYY-MM-DD`. */
+  value: string;
+  year: number;
+  expectedYear: number | null;
+  reason: string;
+}
+
+/** Саналар аслида кун эмас, ОЙ белгиси экани. */
+export interface LegalMonthOnlyDates {
+  column: string;
+  field: string;
+  records: number;
+  reason: string;
+}
+
+/** Битта бўлим бўйича маълумот сифати. Массивлар ДОИМ бор (бўш бўлса ҳам). */
+export interface LegalSectionDataQuality {
+  section: LegalSectionKey;
+  sheet: string;
+  /** МАНТИҚИЙ ёзувлар сони. */
+  recordCount: number;
+  /** ФИЗИК (Excel) қатор сони. ⚠️ `recordCount` дан катта бўлса — merge бор. */
+  physicalRowCount: number;
+  columnFill: LegalColumnFill[];
+  /** `filled === 0` — устун бор, маълумот йўқ. */
+  emptyColumns: LegalColumnFill[];
+  /** `0 < ratio < 0.5`. */
+  sparseColumns: LegalColumnFill[];
+  mergedBlocks: LegalMergedBlock[];
+  extras: LegalExtraCell[];
+  duplicateOrdinals: LegalDuplicate[];
+  /** Фақат `courtCases` да тўлади. */
+  duplicateCaseNumbers: LegalDuplicate[];
+  duplicateHeaders: LegalDuplicateHeader[];
+  headerMeaningConflicts: LegalHeaderMeaningConflict[];
+  unitConflicts: LegalUnitConflict[];
+  dateAnomalies: LegalDateAnomaly[];
+  /** `null` — саналар ой белгиси эмас. */
+  monthOnlyDates: LegalMonthOnlyDates | null;
+  warnings: string[];
+}
+
+export interface LegalAffairsDataQuality {
+  courtCases: LegalSectionDataQuality;
+  claims: LegalSectionDataQuality;
+  contractReviews: LegalSectionDataQuality;
+  /** Бўлимлараро умумий огоҳлантиришлар. */
+  warnings: string[];
+}
+
+/** Бўлим бўйича қисқа кўрсаткич — карточкалар учун. */
+export interface LegalSectionSummary {
+  section: LegalSectionKey;
+  sheet: string;
+  /** ЛОТИН */
+  title: string;
+  titleCyrillic: string;
+  recordCount: number;
+  physicalRowCount: number;
+  columnCount: number;
+  filledColumnCount: number;
+  emptyColumnCount: number;
+}
+
+/** Юрист бўйича кесим. */
+export interface LegalLawyerStat {
+  /** ЛОТИН */
+  lawyer: string;
+  lawyerCyrillic: string;
+  cases: number;
+}
+
+/** Суд бўйича кесим. */
+export interface LegalCourtStat {
+  /** ЛОТИН */
+  court: string;
+  courtCyrillic: string;
+  cases: number;
+}
+
+/** `GET /legal-affairs/summary` — фақат агрегатлар (рўйхатсиз). */
+export interface LegalAffairsSummary {
+  totals: {
+    courtCases: number;
+    claims: number;
+    contractReviews: number;
+    /** Учала бўлим йиғиндиси — МАНТИҚИЙ ёзувлар. */
+    records: number;
+    /** ⚠️ `records` дан катта — merge блоклари сабабли. */
+    physicalRows: number;
+    /** ⚠️ ХОМ йиғинди, бирлиги ШУБҲАЛИ. */
+    claimsAmountRawSum: number | null;
+    claimsAmountUnitLabel: string;
+    claimsAmountUnitSuspect: boolean;
+  };
+  /** 3 та бўлим, ДОИМ тўлиқ ва бир хил тартибда. */
+  sections: LegalSectionSummary[];
+  /** Камайиш тартибида. */
+  byLawyer: LegalLawyerStat[];
+  byCourt: LegalCourtStat[];
+  dataQuality: LegalAffairsDataQuality;
+  meta: {
+    source: string;
+    /** ISO 8601; импорт қилинмаган бўлса `null`. */
+    importedAt: string | null;
+  };
+}
+
+/** `GET /legal-affairs/dashboard` — агрегатлар + учала бўлимнинг тўлиқ рўйхати. */
+export interface LegalAffairsDashboard extends LegalAffairsSummary {
+  courtCases: LegalCourtCase[];
+  claims: LegalClaim[];
+  contractReviews: LegalContractReview[];
+}
+
+/* -------------------------------------------------------------------------- */
+/* state-procurement — «Давлат харидлари 2025–2026»                            */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Бу блок бэкенддаги
+ * `src/modules/state-procurement/state-procurement.types.ts` нинг айнан
+ * кўзгуси. Манба — `Давлат Харидлари_2025_2026.xlsx`, ягона варақ
+ * `Харидлар маълумоти`.
+ *
+ * ⚠️ Маълумот **LONG** форматда: битта қатор = `(харид тури × давр)`,
+ * **10 тур × 8 давр = 80 факт**, устига йиғинди қатори учун 8 та.
+ * Матрица бўлганда ҳар янги чорак жадвалга УСТУН қўшишни талаб қиларди.
+ *
+ * ⚠️ Уч қоида бутун блок бўйлаб амал қилади:
+ *
+ *  1. `null` ДОИМ «манбада кўрсатилмаган», `0` эса «нол». Манбада иккаласи
+ *     ҳам бор (`contractAmount`: 10 та `null` ва 8 та `0`) ва уларни
+ *     аралаштириш катта хато бўларди.
+ *
+ *  2. Йиғинди қатори (`isTotal: true`) `facts` да ЙЎҚ — у алоҳида `totalRow`
+ *     да. Панелда у ЭТАЛОН сифатида кўрсатилади, ҳисобланган йиғиндига
+ *     ҚЎШИЛМАЙДИ (`production-report` даги `isTotal` билан бир хил мантиқ).
+ *
+ *  3. Манбадаги хатолар (ёлғон «млрд сум» ёрлиғи, аномал катак, файлнинг ўз
+ *     йиғиндисидаги номувофиқлик) **ТУЗАТИЛМАГАН** ва `dataQuality` да очиқ
+ *     рўйхатланади.
+ */
+
+/** Давр слотининг тури. `total` — «умумий», чораклар йиғиндиси. */
+export type ProcurementPeriodKind = "quarter" | "total";
+
+export interface StateProcurementFact {
+  id: number;
+  /** Барқарор калит: `<турКалит>:<даврКалит>`. */
+  key: string;
+  /** `facts` да ДОИМ `false`. */
+  isTotal: boolean;
+
+  /** Манбадаги `Т/р` (1…10). ⚠️ КАЛИТ ЭМАС. */
+  purchaseTypeNo: number | null;
+  purchaseTypeKey: string;
+  /** ЛОТИН */
+  purchaseTypeName: string;
+  purchaseTypeNameCyrillic: string;
+
+  /** `2025-Q1` … `2026-TOTAL`. */
+  periodKey: string;
+  periodYear: number;
+  periodKind: ProcurementPeriodKind;
+  /** 1…4; умумий слотларда `null`. */
+  periodQuarter: number | null;
+  /** ЛОТИН */
+  periodLabel: string;
+  /** ⚠️ Манбадагидек — орқа пробели билан («2025 йил умумий »). */
+  periodLabelCyrillic: string;
+  quarterLabel: string | null;
+  quarterLabelCyrillic: string | null;
+
+  /** `сони`. ⚠️ `null` — кўрсатилмаган, `0` — нол. */
+  count: number | null;
+  /** Манбада катак МАТН бўлганда — хом матн. */
+  countRawText: string | null;
+  /**
+   * `true` — манбада `сони` катаги МАТН эди.
+   * ⚠️ Бу файлнинг ЎЗ йиғиндиси билан фарқни ТУШУНТИРАДИ: Excel'нинг `SUM()`
+   * и матн катакларни эътиборсиз қолдиради.
+   */
+  countWasText: boolean;
+
+  /** ХОМ қиймат, қайта шкалаланМАГАН. */
+  contractAmount: number | null;
+  contractAmountText: string | null;
+  contractAmountTextCyrillic: string | null;
+  /** Манбадаги сарлавҳа — АЙНАН (имлоси билан). */
+  amountUnitLabel: string;
+  /**
+   * `true` — сарлавҳадаги ўлчов бирлиги қийматга ЗИД.
+   * Фақат `2025-TOTAL` слотида: сарлавҳа «млрд сум», қиймат эса чораклар
+   * (млн сум) йиғиндисига айнан тенг. Далил `dataQuality.unitConflicts` да.
+   */
+  amountUnitSuspect: boolean;
+
+  /** ⚠️ Манбада БАРЧА ТМБ устунлари бўш — ҳозирча ДОИМ `null`. */
+  approvedTmb: number | null;
+  approvedTmbText: string | null;
+  /** Устун йўқ бўлса `null`. */
+  tmbUnitLabel: string | null;
+  /**
+   * `false` — бу давр учун манбада ТМБ устуни УМУМАН ЙЎҚ.
+   * ⚠️ `false` («устун йўқ») ва `true` + `approvedTmb === null` («устун бор,
+   * бўш») — БОШҚА-БОШҚА ҳолат, бирлаштирилмайди.
+   */
+  hasApprovedTmbColumn: boolean;
+
+  excelRow: number | null;
+  /** Excel устун ҳарфлари — манбадаги катакни топиш учун. */
+  sourceColumns: { count: string; amount: string; tmb: string | null } | null;
+  sortOrder: number;
+  sourceFile: string | null;
+  /** ISO 8601 */
+  importedAt: string | null;
+}
+
+/** Давр слоти ҳақидаги метамаълумот — панел сарлавҳалари учун. */
+export interface StateProcurementPeriod {
+  key: string;
+  year: number;
+  kind: ProcurementPeriodKind;
+  quarter: number | null;
+  /** ЛОТИН */
+  label: string;
+  labelCyrillic: string;
+  quarterLabel: string | null;
+  quarterLabelCyrillic: string | null;
+  amountUnitLabel: string;
+  amountUnitSuspect: boolean;
+  /** Бу даврда ТМБ устуни манбада борми. */
+  hasApprovedTmbColumn: boolean;
+  columnLetters: { count: string; amount: string; tmb: string | null };
+}
+
+/** Харид тури ҳақидаги метамаълумот. */
+export interface StateProcurementType {
+  key: string;
+  /** Манбадаги `Т/р`. */
+  no: number | null;
+  /** ЛОТИН */
+  name: string;
+  nameCyrillic: string;
+  excelRow: number | null;
+}
+
+/** Битта давр бўйича ҲИСОБЛАНГАН кесим (йиғинди қаторисиз). */
+export interface StateProcurementPeriodStat {
+  periodKey: string;
+  /** Харид турларидан ҲИСОБЛАНГАН. `null` — биронта қиймат кўрсатилмаган. */
+  computedCount: number | null;
+  computedAmount: number | null;
+  /** «Жами харидлар:» қаторида ЭЪЛОН ҚИЛИНГАН. */
+  declaredCount: number | null;
+  declaredAmount: number | null;
+  matches: boolean;
+  /** Нечта турда `count` кўрсатилган (`null` бўлмаган). */
+  typesWithCount: number;
+  typesWithAmount: number;
+}
+
+/** Битта харид тури бўйича кесим. */
+export interface StateProcurementTypeStat {
+  purchaseTypeKey: string;
+  /** ЛОТИН */
+  purchaseTypeName: string;
+  purchaseTypeNameCyrillic: string;
+  purchaseTypeNo: number | null;
+  /** ⚠️ Фақат ЧОРАК слотлари — умумий слотлар қўшилмайди. */
+  quartersCount: number | null;
+  quartersAmount: number | null;
+  /** Манбада эълон қилинган умумий слотлар (эталон). */
+  declared2025Count: number | null;
+  declared2025Amount: number | null;
+  declared2026Count: number | null;
+  declared2026Amount: number | null;
+}
+
+/** Давр йиғиндиси: қаторлар йиғиндиси ↔ файлда эълон қилинган. */
+export interface StateProcurementTotalCheck {
+  periodKey: string;
+  measure: "count" | "amount";
+  /** Манбадаги устун ҳарфи. */
+  column: string;
+  computed: number | null;
+  declared: number | null;
+  /** `computed − declared`. */
+  diff: number | null;
+  matches: boolean;
+  reason: string | null;
+}
+
+/** «Умумий» слот ўз чоракларига тенгми. */
+export interface StateProcurementTotalSlotCheck {
+  purchaseTypeKey: string;
+  /** ЛОТИН */
+  purchaseTypeName: string;
+  purchaseTypeNameCyrillic: string;
+  periodKey: string;
+  /** Қайси чораклардан йиғилиши кутилади. */
+  partKeys: string[];
+  measure: "count" | "amount";
+  computed: number | null;
+  declared: number | null;
+  diff: number | null;
+  matches: boolean;
+}
+
+/** Манбада бутунлай бўш устун. */
+export interface StateProcurementEmptyColumn {
+  /** Excel устун ҳарфи. */
+  column: string;
+  /** Манбадаги сарлавҳа. */
+  header: string;
+  periodKey: string;
+  measure: "count" | "amount" | "approvedTmb";
+  rowsChecked: number;
+}
+
+/** Ўлчов бирлиги сарлавҳада бошқа, қийматда бошқа. */
+export interface StateProcurementUnitConflict {
+  periodKey: string;
+  column: string;
+  header: string;
+  field: string;
+  declaredUnit: string;
+  observedUnit: string;
+  reason: string;
+  /**
+   * Арифметик далил: ҳар бир тур бўйича «умумий ↔ чораклар йиғиндиси».
+   * ⚠️ `purchaseTypeName` ФАҚАТ ЛОТИН — кириллча жуфти ЙЎҚ, адаптер уни
+   * `purchaseTypes` рўйхати бўйича топади.
+   */
+  evidence: Array<{
+    purchaseTypeName: string;
+    declared: number | null;
+    quartersSum: number | null;
+    equal: boolean;
+  }>;
+}
+
+/** `сони` катаги МАТН бўлган ҳолат. */
+export interface StateProcurementTextCountCell {
+  excelRow: number | null;
+  column: string;
+  periodKey: string;
+  /** ЛОТИН */
+  purchaseTypeName: string;
+  purchaseTypeNameCyrillic: string;
+  /** Хом матн. */
+  value: string;
+  /** Сонга келтирилган қиймат. */
+  parsed: number | null;
+}
+
+/** Қатордаги қолган чораклардан кескин ажралиб турган сумма. */
+export interface StateProcurementOutlier {
+  purchaseTypeKey: string;
+  /** ЛОТИН */
+  purchaseTypeName: string;
+  purchaseTypeNameCyrillic: string;
+  periodKey: string;
+  column: string;
+  excelRow: number | null;
+  value: number;
+  medianOfOthers: number;
+  ratio: number;
+  /** Қийматнинг давр йиғиндисидаги улуши (0…1). */
+  shareOfPeriod: number | null;
+  shareExceedsThreshold: boolean;
+  reason: string;
+}
+
+/**
+ * Манбада топилган номувофиқликлар.
+ *
+ * Бу блок АТАЙЛАБ жавобнинг бир қисми: «кўрсатилмаган» ≠ «нол» ва
+ * номувофиқлик беркитилмайди. Бўш массив = шу турдаги муаммо йўқ.
+ */
+export interface StateProcurementDataQuality {
+  /** 8 давр × 2 кўрсаткич = 16 та. */
+  totalChecks: StateProcurementTotalCheck[];
+  /** `totalChecks` нинг қисм тўплами. */
+  totalMismatches: StateProcurementTotalCheck[];
+  totalSlotChecks: StateProcurementTotalSlotCheck[];
+  totalSlotMismatches: StateProcurementTotalSlotCheck[];
+  /** ⚠️ Ҳозир 6 та — барча ТМБ (`тасдиқланган`) устунлари. */
+  emptyColumns: StateProcurementEmptyColumn[];
+  unitConflicts: StateProcurementUnitConflict[];
+  /** `сони` катаги МАТН бўлган катаклар — йиғинди фарқининг сабаби. */
+  textCountCells: StateProcurementTextCountCell[];
+  amountOutliers: StateProcurementOutlier[];
+  /** ⚠️ `0` қийматли катаклар БУ ЕРГА КИРМАЙДИ. */
+  missingCells: Array<{
+    periodKey: string;
+    measure: "count" | "amount" | "approvedTmb";
+    missing: number;
+    total: number;
+  }>;
+  warnings: string[];
+}
+
+/** `GET /state-procurement/summary` — фақат агрегатлар. */
+export interface StateProcurementSummary {
+  totals: {
+    /** Йиғинди қаторисиз. */
+    facts: number;
+    totalFacts: number;
+    purchaseTypes: number;
+    periods: number;
+    /** ⚠️ Фақат ЧОРАК слотлари; умумий слотлар қўшилса икки баробар чиқарди. */
+    quartersCount: number | null;
+    quartersAmount: number | null;
+    amountUnitLabel: string;
+  };
+  /** 8 та, манба тартибида. */
+  periods: StateProcurementPeriod[];
+  /** 10 та, манба тартибида. */
+  purchaseTypes: StateProcurementType[];
+  byPeriod: StateProcurementPeriodStat[];
+  byType: StateProcurementTypeStat[];
+  /** «Жами харидлар:» қатори — 8 та факт. ⚠️ `facts` га ҚЎШИЛМАЙДИ. */
+  totalRow: StateProcurementFact[];
+  dataQuality: StateProcurementDataQuality;
+  meta: {
+    source: string;
+    sheet: string;
+    /** ISO 8601; импорт қилинмаган бўлса `null`. */
+    importedAt: string | null;
+  };
+}
+
+/** `GET /state-procurement/dashboard` — агрегатлар + 80 факт. */
+export interface StateProcurementDashboard extends StateProcurementSummary {
+  /** ⚠️ Фақат харид турлари (80 та). Йиғинди қатори `totalRow` да. */
+  facts: StateProcurementFact[];
+}
