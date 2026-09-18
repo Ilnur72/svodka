@@ -229,6 +229,16 @@ export interface ProcPeriod {
   key: string;
   label: string;
   short: string;
+  /**
+   * Манбадаги давр сарлавҳаси — чораксиз («2026 йил 1 ярим йиллик»).
+   *
+   * ⚠️ Бу ЁРЛИҚ ЭМАС, МАЪЛУМОТ: манбанинг ўзи 2026 нинг тўлиқ йил эмаслигини
+   * шу сарлавҳада айтади. Панел уни 2025 билан ёнма-ён қўйганда кўрсатиши
+   * ШАРТ — акс ҳолда «харидлар камайди» деган ёлғон хулоса чиқарди.
+   */
+  base: string;
+  /** Чорак ёрлиғи — «I чорак»; «умумий» слотларда `null`. */
+  quarterLabel: string | null;
   year: number;
   kind: ProcurementPeriodKind;
   /** Харид турларидан ҲИСОБЛАНГАН. */
@@ -245,6 +255,86 @@ export interface ProcPeriod {
   amountUnitSuspect: boolean;
   hasTmbColumn: boolean;
   columns: { count: string; amount: string; tmb: string | null };
+}
+
+/**
+ * Қатордаги қолган чораклардан кескин ажралиб турган сумма.
+ *
+ * ⚠️ Бу тур АЛОҲИДА ном олган, чунки у иккита жойда керак: «Маълумот
+ * сифати» рўйхатида ВА йил кўрсаткичининг ЁНИДА. Иккинчиси мажбурий —
+ * аномал катак йил суммасининг ярмидан кўпини ташкил қилиши мумкин, ва
+ * бундай сонни огоҳлантиришсиз кўрсатиш фойдаланувчини чалғитарди.
+ */
+export interface ProcOutlier {
+  key: string;
+  /** КИРИЛЛ */
+  type: string;
+  /** Давр ёрлиғи — «2025 йил · II чорак». */
+  period: string;
+  /**
+   * Давр калити — аномалия қайси йил кўрсаткичига тегишли эканини шу
+   * белгилайди.
+   *
+   * ⚠️ Йил АЛОҲИДА майдон сифатида сақланмайди: у метамаълумотдан
+   * қидирилса, топилмаган ҳолат учун «йил 0» каби сохта қиймат керак
+   * бўларди ва бундай аномалия жимгина ҳеч бир йилга тушмай қоларди.
+   * Калит бўйича мослаштириш эса аниқ: мос келмаса — аномалия йил
+   * карточкасида кўринмайди, лекин «Маълумот сифати» рўйхатида ТЎЛИҚ
+   * қолади, яъни ҳеч нарса йўқолмайди.
+   */
+  periodKey: string;
+  column: string;
+  excelRow: number | null;
+  value: number;
+  medianOfOthers: number;
+  ratio: number;
+  /** Қийматнинг ЎЗ ДАВРИ йиғиндисидаги улуши, 0…1. */
+  shareOfPeriod: number | null;
+  reason: string;
+}
+
+/**
+ * Битта йилнинг якуний кўрсаткичи — бўлимнинг БОШ рақами.
+ *
+ * ⚠️ Фақат `quarter` слотларидан йиғилади. Манбанинг «умумий» слоти ва
+ * «Жами харидлар:» қатори бу ерга ҚЎШИЛМАЙДИ — улар аллақачон
+ * чоракларнинг суммаси (`production-report` даги `isTotal` мантиғи).
+ * Манбанинг ўз сони эса `declared*` да, ЁНМА-ЁН текшириш учун туради.
+ */
+export interface ProcYearTotal {
+  key: string;
+  year: number;
+  /** Манбадаги давр сарлавҳаси — «2025 йил» / «2026 йил 1 ярим йиллик». */
+  sourceLabel: string;
+  /** Шу йилда манбада нечта ЧОРАК сloti бор. */
+  quarters: number;
+  /** Чорак ёрлиқлари — «I чорак», «II чорак»… */
+  quarterLabels: string[];
+  /**
+   * `true` — йил ТЎЛИҚ ЭМАС (4 чоракдан кам).
+   * ⚠️ Бундай йилни тўлиқ йил билан ёнма-ён қўйиш нотўғри таққослаш:
+   * панел буни ёзиб қўйиши шарт.
+   */
+  partial: boolean;
+
+  /** Чораклардан ҲИСОБЛАНГАН — бош рақам. */
+  count: number | null;
+  amount: number | null;
+  /** Манбанинг ўз «умумий» слотида ЭЪЛОН ҚИЛИНГАН — эталон. */
+  declaredCount: number | null;
+  declaredAmount: number | null;
+  countMatches: boolean;
+  amountMatches: boolean;
+
+  /** Шу йилга тушган аномал катаклар. */
+  outliers: ProcOutlier[];
+  /**
+   * Аномал катаклар йиғиндисининг ЙИЛ суммасидаги улуши, 0…1.
+   * `null` — аномалия йўқ ёки сумма кўрсатилмаган.
+   */
+  outlierShare: number | null;
+  /** `true` — шу йилнинг бирор слотида сумма ёрлиғи ШУБҲАЛИ. */
+  unitSuspect: boolean;
 }
 
 export interface ProcQuality {
@@ -303,19 +393,7 @@ export interface ProcQuality {
     value: string;
     parsed: number | null;
   }>;
-  outliers: Array<{
-    key: string;
-    type: string;
-    period: string;
-    column: string;
-    excelRow: number | null;
-    value: number;
-    medianOfOthers: number;
-    ratio: number;
-    /** 0…1 */
-    shareOfPeriod: number | null;
-    reason: string;
-  }>;
+  outliers: ProcOutlier[];
   /** ⚠️ `0` қийматли катаклар БУ ЕРГА КИРМАЙДИ. */
   missingCells: Array<{
     key: string;
@@ -343,6 +421,11 @@ export interface ProcView {
     quartersAmount: number | null;
     amountUnitLabel: string;
   };
+  /**
+   * Йил кесимидаги якуний кўрсаткичлар — бўлимнинг БОШ рақамлари.
+   * Манба тартибида (2025, сўнг 2026).
+   */
+  years: ProcYearTotal[];
   /** 8 давр слоти — 6 чорак + 2 умумий. */
   periods: ProcPeriod[];
   /** Фақат `quarter` слотлари — диаграммалар шулардан чизилади. */
@@ -392,6 +475,63 @@ function yearChecks(typeKey: string, slots: ProcSlot[]): ProcYearCheck[] {
         amountMatches: same(computedAmount, total.amount),
       },
     ];
+  });
+}
+
+/**
+ * Йил кесимидаги якуний кўрсаткич — бўлимнинг бош рақами.
+ *
+ * ⚠️ Йиғинди ФАҚАТ `quarter` слотларидан олинади. Манбанинг «умумий» слоти
+ * (`2025-TOTAL`) ва «Жами харидлар:» қатори қўшилмайди — улар аллақачон
+ * чоракларнинг суммаси. Манбанинг ўз сони `declared*` да ёнма-ён туради:
+ * фарқ чиқса иккаласи ҳам экранда қолади, тенглаштирилмайди.
+ */
+function yearTotals(
+  periods: ProcPeriod[],
+  types: ProcType[],
+  totalRow: ProcSlot[],
+  outliers: ProcOutlier[],
+): ProcYearTotal[] {
+  const years = [...new Set(periods.map((p) => p.year))].sort((a, b) => a - b);
+
+  return years.map((year) => {
+    const quarters = periods.filter((p) => p.year === year && p.kind === "quarter");
+    const total = totalRow.find((s) => s.year === year && s.kind === "total") ?? null;
+    // Шу йилга тегишли БАРЧА давр калитлари — аномалияни йилга боғлаш учун.
+    const ownKeys = new Set(periods.filter((p) => p.year === year).map((p) => p.key));
+
+    // Йиғинди ТУР қаторларининг чорак слотларидан — давр кесимидан эмас:
+    // манба қайси йўл билан ўқилмасин, натижа бир хил чиқиши керак.
+    const cells = types.flatMap((t) =>
+      t.slots.filter((s) => s.year === year && s.kind === "quarter"),
+    );
+    const count = sumOrNull(cells.map((s) => s.count));
+    const amount = sumOrNull(cells.map((s) => s.amount));
+
+    const own = outliers.filter((o) => ownKeys.has(o.periodKey));
+    const outlierSum = own.reduce((s, o) => s + o.value, 0);
+
+    return {
+      key: String(year),
+      year,
+      // Манбанинг ЎЗ сарлавҳаси — «2026 йил 1 ярим йиллик» айнан шу ерда
+      // йилнинг тўлиқ эмаслигини айтади.
+      sourceLabel: quarters[0]?.base ?? String(year),
+      quarters: quarters.length,
+      // Йил карточкасининг ичида йил АЛЛАҚАЧОН сарлавҳада турибди — ёрлиқда
+      // фақат чорак қолади («I чорак»), такрор бўлмасин.
+      quarterLabels: quarters.map((p) => p.quarterLabel ?? p.short),
+      partial: quarters.length < 4,
+      count,
+      amount,
+      declaredCount: total ? total.count : null,
+      declaredAmount: total ? total.amount : null,
+      countMatches: same(count, total ? total.count : null),
+      amountMatches: same(amount, total ? total.amount : null),
+      outliers: own,
+      outlierShare: own.length === 0 || amount === null || amount === 0 ? null : outlierSum / amount,
+      unitSuspect: periods.some((p) => p.year === year && p.amountUnitSuspect),
+    };
   });
 }
 
@@ -496,6 +636,8 @@ export function procurementView(d: StateProcurementDashboard): ProcView {
       key: p.key,
       label: slotLabel(p.labelCyrillic, p.quarterLabelCyrillic),
       short: slotShort(p.year, p.kind, p.quarterLabelCyrillic),
+      base: p.labelCyrillic.trim(),
+      quarterLabel: p.quarterLabelCyrillic === null ? null : p.quarterLabelCyrillic.trim(),
       year: p.year,
       kind: p.kind,
       computedCount: s ? s.computedCount : null,
@@ -563,6 +705,7 @@ export function procurementView(d: StateProcurementDashboard): ProcView {
       key: `${o.purchaseTypeKey}-${o.periodKey}-${i}`,
       type: o.purchaseTypeNameCyrillic,
       period: labelOf(o.periodKey),
+      periodKey: o.periodKey,
       column: o.column,
       excelRow: o.excelRow,
       value: o.value,
@@ -590,6 +733,13 @@ export function procurementView(d: StateProcurementDashboard): ProcView {
     quality.outliers.length +
     quality.warnings.length;
 
+  // «Жами харидлар:» қатори — манба тартибида, БИР МАРТА ясалади: у ҳам
+  // экранда эталон сифатида, ҳам йил кўрсаткичини текширишда керак.
+  const totalSlots = d.periods
+    .map((p) => d.totalRow.find((f) => f.periodKey === p.key))
+    .filter((f): f is StateProcurementFact => f !== undefined)
+    .map(toSlot);
+
   return {
     source: d.meta.source,
     sheet: d.meta.sheet,
@@ -603,13 +753,11 @@ export function procurementView(d: StateProcurementDashboard): ProcView {
       quartersAmount: d.totals.quartersAmount,
       amountUnitLabel: d.totals.amountUnitLabel,
     },
+    years: yearTotals(periods, types, totalSlots, quality.outliers),
     periods,
     quarters: periods.filter((p) => p.kind === "quarter"),
     types,
-    totalRow: d.periods
-      .map((p) => d.totalRow.find((f) => f.periodKey === p.key))
-      .filter((f): f is StateProcurementFact => f !== undefined)
-      .map(toSlot),
+    totalRow: totalSlots,
     quality,
   };
 }

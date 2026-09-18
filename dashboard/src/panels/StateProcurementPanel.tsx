@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { useMemo } from "react";
+import { useId, useMemo, useState } from "react";
 import type { StateProcurementDashboard } from "../api/types";
 import { getStateProcurementDashboard } from "../api/endpoints";
 import { useQuery } from "../lib/useQuery";
@@ -13,11 +13,11 @@ import {
   type ProcQuality,
   type ProcSlot,
   type ProcType,
+  type ProcYearTotal,
 } from "../lib/adapters/stateProcurement";
 import { GRID } from "../components/layout";
 import { Card, Section } from "../components/Card";
 import { Banner } from "../components/Banner";
-import { StatTile } from "../components/StatTile";
 import { Pill } from "../components/Pill";
 import { BarsH } from "../components/BarsH";
 import { DataTable, type Row } from "../components/DataTable";
@@ -33,6 +33,25 @@ import { EmptyState, Loader } from "../components/states";
  * Иккови ҳам бошқарма ҳужжатидан ва иккови ҳам вақт қатори эмас, лекин
  * мазмуни кесишмайди: бу — ХАРИД ҳажмлари (тур × чорак, сони ва шартнома
  * суммаси), у эса ҲУҚУҚИЙ иш юритиш. Алоҳида бэкенд модуллари.
+ *
+ * ═══ ИККИ ДАРАЖА: аввал жавоб, сўнг тафсилот ════════════════════════════
+ *
+ * Бўлим атайин икки қаватга бўлинган, чунки манбада 80 факт ва 30 дан
+ * ортиқ сифат белгиси бор — ҳаммасини бирданига чизиш «қанча харид қилдик
+ * ва қанча суммага» деган АСОСИЙ саволни кўмиб юборарди.
+ *
+ *   БИРИНЧИ ЭКРАН — жавоб:
+ *     1. Йил кесимидаги бош рақамлар (2025 ва 2026 алоҳида карточкада);
+ *     2. Чораклар динамикаси — иккита диаграмма;
+ *     3. Харид турлари — сумма бўйича улуши;
+ *     4. Сифат белгиларининг ҚИСҚА хулосаси.
+ *
+ *   ИККИНЧИ ДАРАЖА (`Disclosure`, ёпиқ ҳолатда):
+ *     тўлиқ матрица (80 катак) · давр слотлари ва «Жами харидлар:» эталони ·
+ *     сифат белгиларининг батафсил рўйхати.
+ *
+ * ⚠️ Тафсилот ЯШИРИЛМАЙДИ — у бир босишда очилади ва ҳеч нарса олиб
+ * ташланмаган. Ёпиқ ҳолат фақат биринчи экранни ўқилади қилади.
  *
  * ═══ Учта ҳолат аралаштирилмайди ════════════════════════════════════════
  *
@@ -77,11 +96,16 @@ function Muted({ children = NO_DATA }: { children?: ReactNode }) {
  * Сон катаги.
  *
  * ⚠️ `null` **ҳеч қачон** `0` деб кўрсатилмайди: у «маълумот йўқ» деб
- * ёзилади. Ҳақиқий `0` эса `0` бўлиб қолади. Сон яхлитланмайди — `exact()`.
+ * ёзилади. Ҳақиқий `0` эса `0` бўлиб қолади.
+ *
+ * `calc` — қиймат ҲИСОБЛАНГАН (чораклар йиғиндиси, фарқ). Ўшанда `nf(v, 2)`:
+ * сузувчи нуқта «думи» экранга чиқмаслиги учун (`663861.21529` шунинг
+ * натижаси эди). Манбадан келган катак эса яхлитланмайди — `exact()`.
+ * Қоида `adapters/invest.ts` да ёзилган ва бутун сводка бўйлаб бир хил.
  */
-function V({ v }: { v: number | null }) {
+function V({ v, calc = false }: { v: number | null; calc?: boolean }) {
   if (v === null) return <Muted />;
-  return <span className="font-mono tabular-nums">{exact(v)}</span>;
+  return <span className="font-mono tabular-nums">{calc ? nf(v, 2) : exact(v)}</span>;
 }
 
 /**
@@ -130,6 +154,197 @@ function SlotLabel({ label, total }: { label: string; total: boolean }) {
       {label}
       {total && <span className="ml-1.5 text-[10px] font-normal text-ink-3">йиғинди слот</span>}
     </span>
+  );
+}
+
+/**
+ * Иккинчи даражали блок — ёпиқ ҳолатда бошланади.
+ *
+ * ⚠️ Бу ЯШИРИШ эмас: ичидаги ҳамма нарса жойида, бир босишда очилади ва
+ * тугманинг ўзида нима борлиги (ва нечта экани) ёзилган. Мақсад — биринчи
+ * экранда «қанча харид қилдик» деган саволга жавоб турсин, 80 катакли
+ * матрица эса ўқувчи сўраганда чиқсин.
+ *
+ * A11y ва ҳулқ `components/TableToggle.tsx` билан айнан бир хил
+ * (`aria-expanded` + `aria-controls` + `hidden`), фақат ичида жадвал эмас,
+ * ихтиёрий мазмун туради. Мазмун очилгандагина рендер қилинади — ёпиқ
+ * блокларнинг ҳаммаси доим чизилса биринчи рендер оғирлашарди.
+ */
+function Disclosure({
+  label,
+  hint,
+  children,
+}: {
+  label: string;
+  /** Тугмадаги қисқа ҳисоб — «80 факт», «32 белги». */
+  hint?: string;
+  children: ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+  const uid = useId();
+  const panelId = `sp-more-${uid}`;
+
+  return (
+    <div className="mt-2.5 first:mt-0">
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-controls={panelId}
+        onClick={() => setOpen((v) => !v)}
+        className={
+          "flex w-full cursor-pointer items-center gap-2.5 rounded-card border px-[13px] py-2.5 text-left " +
+          (open
+            ? "border-s1 bg-surface text-ink"
+            : "border-hair bg-surface text-ink-2 hover:text-ink")
+        }
+      >
+        <span
+          aria-hidden="true"
+          className={
+            "grid h-[18px] w-[18px] flex-none place-items-center rounded-[4px] font-mono text-[12px] leading-none " +
+            (open ? "bg-s1 text-white" : "bg-sunken text-ink-3")
+          }
+        >
+          {open ? "−" : "+"}
+        </span>
+        <span className="min-w-0 flex-1 text-[12.5px] [font-weight:650]">{label}</span>
+        {hint && <span className="flex-none text-[11.5px] text-ink-3">{hint}</span>}
+      </button>
+      <div id={panelId} hidden={!open} className="mt-2.5">
+        {open && children}
+      </div>
+    </div>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* йил карточкаси — бўлимнинг бош рақами                                      */
+/* -------------------------------------------------------------------------- */
+
+/** Катта сон — ёрлиқ, қиймат ва бирлик. Сон ЯХЛИТЛАНМАЙДИ. */
+function Big({
+  label,
+  value,
+  unit,
+  calc = false,
+  children,
+}: {
+  label: string;
+  value: number | null;
+  unit: string;
+  /**
+   * `true` — қиймат ҲИСОБЛАНГАН (йиғинди, улуш, нисбат), шунинг учун
+   * `nf(v, 2)` билан чиқади. Сабаби `adapters/invest.ts` да ёзилган ва
+   * бутун сводка бўйлаб амал қилади: манбадаги сон яхлитланмайди
+   * (`exact()`), ҳисобланган сон эса сузувчи нуқта «думи»ни экранга
+   * олиб чиқмаслиги керак — `720953.00349` шунинг натижаси эди.
+   * Иккита хона манбадаги аниқликдан ортиқ, яъни маълумот йўқолмайди.
+   */
+  calc?: boolean;
+  /** Соннинг ОСТИДА турадиган изоҳ — ишончлилик белгиси шу ерда. */
+  children?: ReactNode;
+}) {
+  return (
+    <div className="min-w-0">
+      <div className={LBL}>{label}</div>
+      <div className="mt-1 text-[24px] leading-[1.05] [font-weight:640] tracking-[-0.02em]">
+        {value === null ? (
+          <Muted />
+        ) : (
+          <>
+            <span className="font-mono tabular-nums">{calc ? nf(value, 2) : exact(value)}</span>
+            <span className="ml-[5px] text-[12px] font-medium tracking-normal text-ink-3">
+              {unit}
+            </span>
+          </>
+        )}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+/**
+ * Битта йилнинг якуний кўрсаткичи — бўлимнинг БОШ рақами.
+ *
+ * ⚠️ Учта нарса шу карточкада ҳал бўлади ва улар безак эмас:
+ *
+ *  1. **Тўлиқ бўлмаган йил** ёзиб қўйилади. 2026 — 2 чорак («1 ярим
+ *     йиллик»), 2025 — 4 чорак. Уларни бир хил кўринишда ёнма-ён қўйиб
+ *     изоҳсиз қолдириш «харидлар камайди» деган ЁЛҒОН хулосага олиб
+ *     келарди.
+ *  2. **Аномал катак огоҳлантириши АЙНАН сумманинг остида** туради,
+ *     йиғилган «сифат» блокида эмас: 2025 да битта шубҳали катак йил
+ *     суммасининг ярмидан кўпини ташкил қилади, ва бу сонни огоҳлантиришсиз
+ *     кўрсатиш фойдаланувчини чалғитиш бўларди.
+ *  3. **Манбанинг ўз йиғиндиси** фарқ қилса — ИККАЛА сон ҳам қолади
+ *     (2026: ҳисобланган 978, манбада 976). Тенглаштириб қўйилмайди.
+ */
+function YearCard({ y }: { y: ProcYearTotal }) {
+  const flagged = y.outliers.length > 0 || !y.countMatches || !y.amountMatches || y.unitSuspect;
+
+  return (
+    <Card
+      title={`${y.year} йил`}
+      sub={`${y.quarters} чорак`}
+      stripe={flagged ? "var(--warn)" : "var(--s1)"}
+    >
+      {/* Манбанинг ЎЗ сарлавҳаси — фақат карточка сарлавҳасидан ФАРҚ ҚИЛСА.
+          2026 да у «1 ярим йиллик» деб йилнинг тўлиқ эмаслигини айтади, 2025
+          да эса «2025 йил» — сарлавҳанинг такрори, шунинг учун чизилмайди. */}
+      {(y.sourceLabel !== `${y.year} йил` || y.partial) && (
+        <div className="mb-2.5 flex flex-wrap items-center gap-1.5">
+          {y.sourceLabel !== `${y.year} йил` && <Pill>манбада: {y.sourceLabel}</Pill>}
+          {y.partial && <Pill status="warn">тўлиқ йил эмас — {y.quarterLabels.join(" + ")}</Pill>}
+        </div>
+      )}
+
+      <div className={GRID.g2}>
+        <Big label="Харидлар сони" value={y.count} unit="та">
+          {y.countMatches ? (
+            <p className="mt-1 text-[11px] leading-[1.45] text-ink-3">
+              Манбанинг ўз йиғиндиси билан мос келди.
+            </p>
+          ) : (
+            <p className="mt-1 text-[11px] leading-[1.45] text-ink-2">
+              ⚠ Манбанинг ўз «Жами харидлар:» қаторида{" "}
+              <b className="font-mono font-semibold">
+                {y.declaredCount === null ? NO_DATA : exact(y.declaredCount)}
+              </b>{" "}
+              турибди. Экранда <b>чораклардан ҳисобланган</b> сон — 10 та тур қаторида
+              ҳақиқатан турган нарса. Иккала сон ҳам сақланган, тенглаштирилмади.
+            </p>
+          )}
+        </Big>
+
+        <Big label="Шартнома суммаси" value={y.amount} unit="млн сўм" calc>
+          {/* ⚠️ Аномалия огоҳлантириши АЙНАН шу сонниг остида — пастдаги
+              йиғилган блокда эмас. */}
+          {y.outliers.map((o) => (
+            <p key={o.key} className="mt-1 text-[11px] leading-[1.45] text-warn-ink">
+              ⚠ Шундан <b className="font-mono font-semibold">{exact(o.value)}</b>
+              {y.outlierShare !== null && (
+                <> ({pctTxt(y.outlierShare * 100)} и)</>
+              )}{" "}
+              — битта шубҳали катак: «{o.type}», {o.period}. У шу турнинг қолган
+              чоракларидан {nf(o.ratio, 1)} марта катта. Манбада шундай,{" "}
+              <b>тузатилмади</b> — яъни бу йилнинг суммасига эҳтиёт билан қаранг.
+            </p>
+          ))}
+          {y.unitSuspect && (
+            <p className="mt-1 text-[11px] leading-[1.45] text-ink-3">
+              ⚠ Шу йилнинг «умумий» устунида манба ёрлиғи ёлғон («млрд» дейди, қиймат эса
+              млн) — қиймат қайта шкалаланмади.
+            </p>
+          )}
+          {y.outliers.length === 0 && !y.unitSuspect && y.amountMatches && (
+            <p className="mt-1 text-[11px] leading-[1.45] text-ink-3">
+              Манбанинг ўз йиғиндиси билан мос келди, аномал катак топилмади.
+            </p>
+          )}
+        </Big>
+      </div>
+    </Card>
   );
 }
 
@@ -194,7 +409,7 @@ function TypeCard({ t }: { t: ProcType }) {
               <div className="mt-0.5 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
                 <span className="w-[34px] flex-none" />
                 <span className="min-w-0 flex-1">
-                  сумма: ҳисобланган <V v={y.computedAmount} /> · эълон{" "}
+                  сумма: ҳисобланган <V v={y.computedAmount} calc /> · эълон{" "}
                   <V v={y.declaredAmount} />
                 </span>
                 {!y.amountMatches && <Pill status="warn">мос келмади</Pill>}
@@ -210,7 +425,7 @@ function TypeCard({ t }: { t: ProcType }) {
             <p key={m.key} className="text-[11.5px] leading-[1.5] text-ink-2">
               ⚠ <b>{m.period}</b> слотида «{m.measure}»: чораклардан ҳисобланган{" "}
               <b className="font-mono">
-                {m.computed === null ? NO_DATA : exact(m.computed)}
+                {m.computed === null ? NO_DATA : nf(m.computed, 2)}
               </b>
               , манбада эълон қилинган{" "}
               <b className="font-mono">
@@ -271,7 +486,7 @@ function QualitySection({ q }: { q: ProcQuality }) {
                     <V key="cm" v={m.computed} />,
                     <V key="dc" v={m.declared} />,
                     <b key="d" className="font-mono text-warn-ink">
-                      {m.diff === null ? NO_DATA : exact(m.diff)}
+                      {m.diff === null ? NO_DATA : nf(m.diff, 2)}
                     </b>,
                   ],
                 }))}
@@ -485,13 +700,13 @@ function QualitySection({ q }: { q: ProcQuality }) {
                 <div>
                   <div className={LBL}>Қолган чораклар медианаси</div>
                   <div className="mt-0.5 font-mono text-[15px] [font-weight:640] tabular-nums">
-                    {exact(o.medianOfOthers)}
+                    {nf(o.medianOfOthers, 2)}
                   </div>
                 </div>
                 <div>
                   <div className={LBL}>Медианадан катталиги</div>
                   <div className="mt-0.5 font-mono text-[15px] [font-weight:640] tabular-nums">
-                    {exact(o.ratio)}×
+                    {nf(o.ratio, 1)}×
                   </div>
                 </div>
                 <div>
@@ -626,6 +841,53 @@ function ProcurementBody({ data }: { data: StateProcurementDashboard }) {
     }));
   const amountHidden = v.quarters.length - amountRows.length;
 
+  // Харид турлари — сумма бўйича. Тартиб: каттадан кичикка, чунки савол
+  // «энг кўп пул қаерга кетди» — манбадаги `Т/р` тартиби бунга жавоб бермайди.
+  // ⚠️ `?? 0` ЙЎҚ: суммаси кўрсатилмаган тур диаграммага ТУШМАЙДИ (чорак
+  // диаграммалари билан айнан бир хил қоида), лекин жадвалда ўз ўрнида
+  // «маълумот йўқ» бўлиб қолади — у йўқолиб кетмайди.
+  const typesByAmount = [...v.types].sort((a, b) => {
+    if (a.quartersAmount === null) return b.quartersAmount === null ? 0 : 1;
+    if (b.quartersAmount === null) return -1;
+    return b.quartersAmount - a.quartersAmount;
+  });
+
+  const typeAmountRows = typesByAmount
+    .filter((x) => x.quartersAmount !== null)
+    .map((x) => ({
+      label: x.name,
+      v: x.quartersAmount as number,
+      color: x.hasOutlier ? pal.warn : pal.s3,
+      extra: [
+        "Сони",
+        x.quartersCount === null ? NO_DATA : `${nf(x.quartersCount)} та`,
+      ] as [string, string],
+    }));
+  const typesHidden = v.types.length - typeAmountRows.length;
+  const outlierTypeNames = [...new Set(q.outliers.map((o) => o.type))];
+
+  const typeRows: Row[] = typesByAmount.map((x) => ({
+    key: x.key,
+    cells: [
+      <span key="n">
+        {x.no !== null && <span className="mr-1.5 font-mono text-[11px] text-ink-3">{x.no}</span>}
+        {x.name}
+        {x.hasOutlier && (
+          <span className="ml-1.5 align-middle">
+            <Pill status="warn">аномал катак</Pill>
+          </span>
+        )}
+      </span>,
+      <V key="c" v={x.quartersCount} />,
+      <V key="a" v={x.quartersAmount} calc />,
+      x.quartersAmount === null || t.quartersAmount === null || t.quartersAmount === 0 ? (
+        <Muted key="s" />
+      ) : (
+        pctTxt((x.quartersAmount / t.quartersAmount) * 100)
+      ),
+    ],
+  }));
+
   const periodRows: Row[] = v.periods.map((p: ProcPeriod) => ({
     key: p.key,
     cells: [
@@ -667,76 +929,65 @@ function ProcurementBody({ data }: { data: StateProcurementDashboard }) {
 
   return (
     <>
-      {/* --- манба ва ёнидаги таблар билан фарқи ---------------------------- */}
-      <Banner tone="warn">
+      {/* --- манба ------------------------------------------------------------
+          Қисқа: манба, варақ ва импорт санаси. Сифат огоҳлантиришлари бу ерда
+          ЭМАС — улар тегишли СОННИНГ ёнида турибди (йил карточкаси), чунки
+          банердаги умумий огоҳлантириш қайси рақамга тегишли эканини
+          кўрсатмасди. */}
+      <Banner tone="info">
         Манба — <b>{v.source}</b>, варақ <b>{v.sheet}</b>
-        {v.importedAt && <> · охирги импорт: {dateLabel(v.importedAt.slice(0, 10))}</>}. Бўлимда{" "}
-        <b>{t.types} харид тури × {t.periods} давр слоти = {t.facts} факт</b>, устига манбанинг
-        ўз «Жами харидлар:» қатори ({t.totalFacts} слот) — у <b>алоҳида</b> кўрсатилади ва
-        ҳисобланган йиғиндига <b>қўшилмайди</b>.{" "}
-        {q.unitConflicts.map((u) => (
-          <span key={u.key}>
-            ⚠ Манбада «{u.period}» сумма устунининг ({u.column}) сарлавҳаси{" "}
-            <b>{u.declaredUnit}</b> дейди, лекин қиймат аслида <b>{u.observedUnit}</b> да — бу
-            арифметик исботланган, қиймат эса қайта шкалаланмади.{" "}
-          </span>
-        ))}
+        {v.importedAt && <> · охирги импорт: {dateLabel(v.importedAt.slice(0, 10))}</>}. Қуйидаги
+        рақамлар <b>чораклардан ҳисобланган</b>; манбанинг ўз «Жами харидлар:» қатори ва
+        «умумий» слотлари уларга <b>қўшилмайди</b> — улар аллақачон чоракларнинг йиғиндиси.
         Ёнидаги «Юридик бошқарма» билан адашмасин: у — ҳуқуқий иш юритиш, бу эса харид
         ҳажмлари.
       </Banner>
 
-      {/* --- 1. плиткалар --------------------------------------------------- */}
-      <Section title="Давлат харидлари 2025–2026" note="битта XLSX варағининг жорий ҳолати">
-        <div className={GRID.g4}>
-          <StatTile
-            label="Харид турлари"
-            value={nf(t.types)}
-            unit="та"
-            stripe="var(--s1)"
-            foot={<Pill>манбадаги тартибда</Pill>}
-          />
-          <StatTile
-            label="Давр слотлари"
-            value={nf(t.periods)}
-            unit="та"
-            stripe="var(--s2)"
-            foot={
-              <>
-                <Pill>{v.quarters.length} чорак</Pill>
-                <Pill>{t.periods - v.quarters.length} «умумий»</Pill>
-              </>
-            }
-          />
-          <StatTile
-            label="Чораклар бўйича сони"
-            value={t.quartersCount === null ? <Muted /> : nf(t.quartersCount)}
-            unit="та"
-            stripe="var(--s3)"
-            foot={
-              <>
-                <Pill>фақат чорак слотлари</Pill>
-                <Pill>«умумий» слотлар қўшилмади</Pill>
-              </>
-            }
-          />
-          <StatTile
-            label="Чораклар бўйича сумма"
-            value={t.quartersAmount === null ? <Muted /> : exact(t.quartersAmount)}
-            unit="млн сўм"
-            stripe="var(--s4)"
-            foot={
-              <>
-                <Pill>{t.amountUnitLabel}</Pill>
-                <Pill status="warn">⚠ 2025 умумий устунида ёрлиқ ёлғон</Pill>
-              </>
-            }
-          />
+      {/* --- 1. БОШ РАҚАМЛАР: йиллар кесими ---------------------------------- */}
+      <Section
+        title="Харидлар — йиллар кесими"
+        note="чораклардан ҳисобланган · манбанинг ўз йиғиндиси ёнида текширилади"
+      >
+        <div className={GRID.g2}>
+          {v.years.map((y) => (
+            <YearCard key={y.key} y={y} />
+          ))}
         </div>
+
+        {/* Сифат белгиларининг ҚИСҚА хулосаси — батафсили бўлим охирида. */}
+        {q.issues > 0 && (
+          <Card className="mt-3" stripe="var(--warn)">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+              <span className="text-[12.5px] [font-weight:650]">
+                Манбада {q.issues} та зиддият топилган
+              </span>
+              {q.outliers.length > 0 && (
+                <Pill status="crit">{q.outliers.length} аномал катак</Pill>
+              )}
+              {q.unitConflicts.length > 0 && (
+                <Pill status="crit">{q.unitConflicts.length} ўлчов бирлиги зиддияти</Pill>
+              )}
+              {q.totalMismatches.length > 0 && (
+                <Pill status="warn">{q.totalMismatches.length} йиғинди номувофиқлиги</Pill>
+              )}
+              {q.slotMismatches.length > 0 && (
+                <Pill status="warn">{q.slotMismatches.length} «умумий» слот зиддияти</Pill>
+              )}
+              {q.emptyColumns.length > 0 && (
+                <Pill status="warn">{q.emptyColumns.length} бутунлай бўш устун</Pill>
+              )}
+              <span className="flex-1" />
+              <span className="text-[11.5px] text-ink-3">
+                батафсили пастда — «Батафсил маълумот» бўлимида
+              </span>
+            </div>
+          </Card>
+        )}
       </Section>
 
-      {/* --- 2. даврлар кесими ---------------------------------------------- */}
+      {/* --- 2. чораклар динамикаси ------------------------------------------ */}
       <Section
-        title="Даврлар кесими"
+        title="Чораклар динамикаси"
         note="диаграммалар фақат ЧОРАК слотларидан — «умумий» слот чораклар йиғиндиси"
       >
         <div className={GRID.g2}>
@@ -778,8 +1029,16 @@ function ProcurementBody({ data }: { data: StateProcurementDashboard }) {
                 : undefined
             }
           >
+            {/* ⚠️ `padR` стандартдан катта: сумма яхлитланмайди ва қиймат
+                «738 342,889» каби узун бўлади — стандарт 74px да у карточка
+                четида кесилиб қоларди. */}
             <BarsH
               rows={amountRows}
+              padR={112}
+              /* Чораклар йиғиндиси — ҲИСОБЛАНГАН қиймат, шунинг учун
+                 стандарт `exact()` эмас: у сузувчи нуқта «думи»ни
+                 диаграммага олиб чиқарди (`466 115,14549`). */
+              vFmt={(x) => nf(x, 2)}
               vName="Шартнома суммаси, млн сўм"
               ariaLabel="Шартнома суммасининг чораклар бўйича тақсимоти"
             />
@@ -801,79 +1060,136 @@ function ProcurementBody({ data }: { data: StateProcurementDashboard }) {
           </Card>
         </div>
 
-        <Card
-          className="mt-3"
-          title="Давр бўйича: ҳисобланган ↔ манбада эълон қилинган"
-          sub={`${v.periods.length} слот`}
-          note="«Ҳисобланган» — 10 харид тури қаторларининг йиғиндиси. «Эълон қилинган» — манбанинг ўз «Жами харидлар:» қаторидаги сон. Иккаласи ЁНМА-ЁН турибди ва тенглаштирилмайди. Охирги устун: сони / суммаси кўрсатилган турлар сони (10 тадан)."
-        >
-          <DataTable
-            cols={[
-              { t: "Давр", wrap: true },
-              { t: "Сони — ҳисобланган", num: true },
-              { t: "Сони — эълон", num: true },
-              { t: "Сумма — ҳисобланган", num: true },
-              { t: "Сумма — эълон", num: true },
-              { t: "Мослик" },
-              { t: "Тўлдирилган турлар" },
-            ]}
-            rows={periodRows}
-            caption="Давр слотлари бўйича ҳисобланган ва эълон қилинган қийматлар"
-          />
-        </Card>
       </Section>
 
-      {/* --- 3. «Жами харидлар:» қатори ------------------------------------- */}
+      {/* --- 3. харид турлари — улуши ---------------------------------------- */}
       <Section
-        title="«Жами харидлар:» қатори"
-        note="манбанинг ўз йиғиндиси — эталон, ҳисобга қўшилмайди"
+        title="Харид турлари"
+        note={`${t.types} тур · иккала йилнинг чораклари бўйича`}
       >
-        <Card
-          title="Манбадаги 18-қатор"
-          sub={`${v.totalRow.length} слот`}
-          stripe="var(--s6)"
-          note="Бу қатор пастдаги харид турларининг СУММАСИ. Шунинг учун у `facts` рўйхатига умуман кирмайди ва бўлимдаги ҳеч бир ҳисобга қўшилмайди — фақат текшириш учун ёнма-ён кўрсатилади (`production-report` даги `isTotal` билан бир хил мантиқ)."
-        >
-          <DataTable
-            cols={[
-              { t: "Давр", wrap: true },
-              { t: "Сони", num: true },
-              { t: "Шартнома суммаси", num: true },
-              { t: "Манбадаги ёрлиқ", wrap: true },
-              { t: "Тасдиқланган ТМБ", num: true },
-            ]}
-            rows={totalRows}
-            caption="«Жами харидлар:» қаторининг давр слотлари"
-          />
-        </Card>
-      </Section>
+        <div className={GRID.g23}>
+          <Card
+            title="Сумма бўйича улуши"
+            sub="млн сўм"
+            note={
+              typesHidden > 0
+                ? `${typesHidden} та турда биронта чоракда ҳам сумма кўрсатилмаган — улар диаграммада йўқ (нол эмас, маълумот йўқ). Жадвалда улар ўз ўрнида.`
+                : undefined
+            }
+          >
+            <BarsH
+              rows={typeAmountRows}
+              padR={112}
+              vFmt={(x) => nf(x, 2)}
+              vName="Шартнома суммаси, млн сўм"
+              ariaLabel="Шартнома суммасининг харид турлари бўйича тақсимоти"
+            />
+            {outlierTypeNames.length > 0 && (
+              <p className="mt-2 text-[11.5px] leading-[1.5] text-ink-3">
+                ⚠ Белгиланган устун ичида аномал катак бор ({outlierTypeNames.join(", ")}) —
+                шунинг учун унинг улуши ҳақиқийдан катта кўриниши мумкин. Қиймат{" "}
+                <b>тузатилмади</b>.
+              </p>
+            )}
+          </Card>
 
-      {/* --- 4. тўлиқ матрица ----------------------------------------------- */}
-      <Section
-        title="Харид турлари — тўлиқ матрица"
-        note={`${t.types} тур × ${t.periods} слот = ${t.facts} факт, биттаси ҳам яширилмайди`}
-      >
-        <Banner tone="info">
-          Катакларни ўқиш: <b>сон</b> — манбадаги қиймат (яхлитланмаган);{" "}
-          <b>«{NO_DATA}»</b> — катак манбада бўш; <b>0</b> — ҳақиқий нол, ҳеч нарса харид
-          қилинмаган; <b>«{NO_COLUMN}»</b> — бу давр учун устуннинг ЎЗИ манбада йўқ
-          («умумий» слотларда ТМБ устуни 3 эмас, 2 та). <b>«матн»</b> белгиси — манбада
-          катак сон эмас, матн бўлган. Тўртта ҳолат атайин фарқланади: улар битта «0» остига
-          йиғилса манбадаги номувофиқликлар умуман кўринмасди.
-        </Banner>
-        <div className={GRID.g2}>
-          {v.types.map((type) => (
-            <TypeCard key={type.key} t={type} />
-          ))}
+          <Card
+            title="Турлар кесими"
+            sub="сони ва суммаси"
+            note="Йиғинди ФАҚАТ чорак слотларидан. Манбанинг «умумий» слотлари ва «Жами харидлар:» қатори қўшилмайди — улар аллақачон чоракларнинг суммаси. Улуш — шу турнинг барча чораклар суммасидаги ҳиссаси."
+          >
+            <DataTable
+              cols={[
+                { t: "Харид тури", wrap: true },
+                { t: "Сони", num: true },
+                { t: "Сумма", num: true },
+                { t: "Улуши", num: true },
+              ]}
+              rows={typeRows}
+              caption="Харид турлари бўйича сони ва шартнома суммаси"
+            />
+          </Card>
         </div>
       </Section>
 
-      {/* --- 5. маълумот сифати --------------------------------------------- */}
+      {/* --- 4. батафсил — иккинчи даража ------------------------------------
+          Бу ердаги ҳеч нарса олиб ташланмаган: ҳаммаси жойида, фақат ёпиқ
+          ҳолатда бошланади. Тугманинг ўзида ичкарида нима борлиги ва нечта
+          экани ёзилган. */}
       <Section
-        title="Маълумот сифати"
-        note={`манбадаги ${q.issues} та белги — яширилмайди, тузатилмайди`}
+        title="Батафсил маълумот"
+        note="манбадаги ҳар бир катак ва ҳар бир белги — керак бўлганда очилади"
       >
-        <QualitySection q={q} />
+        <Disclosure
+          label="Тўлиқ матрица — ҳар бир тур бўйича давр слотлари"
+          hint={`${t.types} тур × ${t.periods} слот = ${t.facts} факт`}
+        >
+          <Banner tone="info">
+            Катакларни ўқиш: <b>сон</b> — манбадаги қиймат (яхлитланмаган);{" "}
+            <b>«{NO_DATA}»</b> — катак манбада бўш; <b>0</b> — ҳақиқий нол, ҳеч нарса харид
+            қилинмаган; <b>«{NO_COLUMN}»</b> — бу давр учун устуннинг ЎЗИ манбада йўқ
+            («умумий» слотларда ТМБ устуни 3 эмас, 2 та). <b>«матн»</b> белгиси — манбада
+            катак сон эмас, матн бўлган. Тўртта ҳолат атайин фарқланади: улар битта «0»
+            остига йиғилса манбадаги номувофиқликлар умуман кўринмасди.
+          </Banner>
+          <div className={GRID.g2}>
+            {v.types.map((type) => (
+              <TypeCard key={type.key} t={type} />
+            ))}
+          </div>
+        </Disclosure>
+
+        <Disclosure
+          label="Давр слотлари ва манбанинг ўз «Жами харидлар:» қатори"
+          hint={`${v.periods.length} слот · эталон билан солиштирув`}
+        >
+          <Card
+            title="Давр бўйича: ҳисобланган ↔ манбада эълон қилинган"
+            sub={`${v.periods.length} слот`}
+            note="«Ҳисобланган» — харид турлари қаторларининг йиғиндиси. «Эълон қилинган» — манбанинг ўз «Жами харидлар:» қаторидаги сон. Иккаласи ЁНМА-ЁН турибди ва тенглаштирилмайди. Охирги устун: сони / суммаси кўрсатилган турлар сони."
+          >
+            <DataTable
+              cols={[
+                { t: "Давр", wrap: true },
+                { t: "Сони — ҳисобланган", num: true },
+                { t: "Сони — эълон", num: true },
+                { t: "Сумма — ҳисобланган", num: true },
+                { t: "Сумма — эълон", num: true },
+                { t: "Мослик" },
+                { t: "Тўлдирилган турлар" },
+              ]}
+              rows={periodRows}
+              caption="Давр слотлари бўйича ҳисобланган ва эълон қилинган қийматлар"
+            />
+          </Card>
+
+          <Card
+            className="mt-3"
+            title="«Жами харидлар:» қатори — манбадаги 18-қатор"
+            sub={`${v.totalRow.length} слот`}
+            stripe="var(--s6)"
+            note="Бу қатор пастдаги харид турларининг СУММАСИ. Шунинг учун у `facts` рўйхатига умуман кирмайди ва бўлимдаги ҳеч бир ҳисобга қўшилмайди — фақат текшириш учун ёнма-ён кўрсатилади (`production-report` даги `isTotal` билан бир хил мантиқ)."
+          >
+            <DataTable
+              cols={[
+                { t: "Давр", wrap: true },
+                { t: "Сони", num: true },
+                { t: "Шартнома суммаси", num: true },
+                { t: "Манбадаги ёрлиқ", wrap: true },
+                { t: "Тасдиқланган ТМБ", num: true },
+              ]}
+              rows={totalRows}
+              caption="«Жами харидлар:» қаторининг давр слотлари"
+            />
+          </Card>
+        </Disclosure>
+
+        <Disclosure
+          label="Маълумот сифати — манбадаги белгилар"
+          hint={`${q.issues} та белги · яширилмайди, тузатилмайди`}
+        >
+          <QualitySection q={q} />
+        </Disclosure>
       </Section>
     </>
   );
