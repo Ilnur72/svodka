@@ -83,12 +83,25 @@ export interface LegalDateView {
   label: string | null;
   /** `true` — манбада сана эмас, ХОМ МАТН турган. */
   asText: boolean;
+  /**
+   * ЎҚИЛГАН сана (`YYYY-MM-DD`) ёки `null`.
+   *
+   * ⚠️ Хом матн бу ерга ТУШМАЙДИ — у парс қилинмаган ва парс қилинмайди.
+   * Шунинг учун вақт кесимлари (диапазон, ойлар диаграммаси) фақат шу
+   * майдонга таянади, `label` га эмас: `label` форматланган матн ва ундан
+   * қайта сана ясаш манбада бўлмаган аниқликни ўйлаб топиш бўларди.
+   */
+  iso: string | null;
 }
 
 function dateView(iso: string | null, raw: string | null): LegalDateView {
-  if (iso !== null && iso.length >= 10) return { label: dateLabel(iso), asText: false };
+  if (iso !== null && iso.length >= 10) {
+    return { label: dateLabel(iso), asText: false, iso: iso.slice(0, 10) };
+  }
   const t = txt(raw);
-  return t === null ? { label: null, asText: false } : { label: t, asText: true };
+  return t === null
+    ? { label: null, asText: false, iso: null }
+    : { label: t, asText: true, iso: null };
 }
 
 /**
@@ -106,6 +119,8 @@ export interface LegalMonthView {
   monthOnly: boolean;
   /** `true` — йил устундаги кетма-кетликдан чиққан (манбада 2001). */
   yearSuspect: boolean;
+  /** ЎҚИЛГАН ой (`YYYY-MM`) ёки `null`. Хом матн бу ерга тушмайди. */
+  month: string | null;
 }
 
 function monthView(r: LegalContractReview): LegalMonthView {
@@ -115,6 +130,7 @@ function monthView(r: LegalContractReview): LegalMonthView {
       asText: false,
       monthOnly: r.reviewedDateIsMonthOnly,
       yearSuspect: r.reviewedDateYearSuspect,
+      month: r.reviewedDate.slice(0, 7),
     };
   }
   const t = txt(r.reviewedDateTextCyrillic);
@@ -123,6 +139,7 @@ function monthView(r: LegalContractReview): LegalMonthView {
     asText: t !== null,
     monthOnly: r.reviewedDateIsMonthOnly,
     yearSuspect: r.reviewedDateYearSuspect,
+    month: null,
   };
 }
 
@@ -244,6 +261,130 @@ export interface LegalReviewRow {
   extras: LegalExtra[];
 }
 
+/* -------------------------------------------------------------------------- */
+/* ҲИСОБЛАНГАН кесимлар — биринчи экран учун                                   */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Апелляция босқичига чиққан битта иш.
+ *
+ * ⚠️ «Чиққан» — иккита шикоят устунидан **камида биттаси** тўлдирилган.
+ * Иккита устунни алоҳида санаш адаштирарди: манбада 2 та ишда «шикоят
+ * мазмуни», 3 та ишда «шикоят кўриладиган сана» тўлдирилган, лекин булар
+ * бир-бирининг устига тушади — АМАЛДА 3 та иш апелляцияга чиққан.
+ */
+export interface LegalAppealRow {
+  key: string;
+  ordinal: number | null;
+  court: string | null;
+  lawyer: string | null;
+  /** «Суд қароридан норози томон шикояти қисқача мазмуни» тўлдирилганми. */
+  hasSummary: boolean;
+  /** «Шикоят кўриладиган сана ва натижаси» тўлдирилганми. */
+  hasHearing: boolean;
+}
+
+/**
+ * Суд ишларининг ВАҚТ ва БОСҚИЧ кесими — ҳаммаси `cases` дан ҳисобланади.
+ *
+ * ⚠️ Нега «суд натижаси» бўйича кесим ЙЎҚ: манбада `result` 23/23 тўлдирилган,
+ * лекин у **эркин матн** (22 ноёб қиймат, 78–701 белги) — «ютилган / ютқазилган»
+ * каби тасниф манбада умуман йўқ. Матндан тасниф чиқариш маълумот тўқиш
+ * бўларди, шунинг учун натижа фақат ТЎЛИҚ матн ҳолида рўйхатда туради.
+ * Ўрнига `resultDistinct` / `resultMinLen` / `resultMaxLen` — шу қарорнинг
+ * манбадан ўлчанган асоси.
+ */
+export interface LegalCaseFlow {
+  /** «Суд кўриладиган кун»: сана ўқилган / хом матн / устун бўш. */
+  hearingIso: number;
+  hearingAsText: number;
+  hearingMissing: number;
+  /** Энг эрта ва энг кеч мажлис (`YYYY-MM-DD`). `null` — сана умуман йўқ. */
+  hearingFirst: string | null;
+  hearingLast: string | null;
+  /** Солиштириш санаси — «кутилаётган» айнан шу кундан ҳисобланади. */
+  today: string;
+  /**
+   * ⚠️ Бугундан КЕЙИНГИ мажлислар. Манбада бўш чиқса панел блокни умуман
+   * чизмайди: «маълумот йўқ» деб турган бўш блок шовқиндан бошқа нарса эмас.
+   */
+  upcoming: Array<{ key: string; date: string; court: string | null; ordinal: number | null }>;
+  /**
+   * Ойлар бўйича тақсимот — биринчи ойдан охиргисигача УЗЛУКСИЗ ўқ.
+   *
+   * ⚠️ Оралиқдаги `0` — ҲАҚИҚИЙ нол: ўша ойда мажлис бўлмаган. Бу «маълумот
+   * йўқ» билан аралашмайди, чунки санаси ўқилмаган иш диаграммага умуман
+   * кирмайди — у `hearingAsText` / `hearingMissing` да алоҳида турибди.
+   */
+  byMonth: Array<{ key: string; month: string; cases: number }>;
+  /** «Иш тайинланган ажрим сана»: сана ўқилган / хом матн / устун бўш. */
+  rulingIso: number;
+  rulingAsText: number;
+  rulingMissing: number;
+  /** Энг кейинги ажрим санаси — маълумот қанчалик янгилигини кўрсатади. */
+  rulingLast: string | null;
+  /** Апелляция босқичига чиққан ишлар. */
+  appealed: LegalAppealRow[];
+  /** «Суд натижаси» матни ёзилган ишлар. */
+  resultFilled: number;
+  /** ⚠️ Ноёб натижа матнлари — тасниф йўқлигининг ўлчови. */
+  resultDistinct: number;
+  resultMinLen: number;
+  resultMaxLen: number;
+  /** «Изоҳ» устуни тўлдирилган ишлар. */
+  noteFilled: number;
+}
+
+/** Шартнома экспертизасининг вақт кесими — `reviews` дан ҳисобланади. */
+export interface LegalReviewFlow {
+  /** «Келиб тушган кун» устунида сана ўқилган ёзувлар. */
+  receivedIso: number;
+  receivedFirst: string | null;
+  receivedLast: string | null;
+  /**
+   * «Кўриб чиқилган» ойлар диапазони.
+   *
+   * ⚠️ Йили ШУБҲАЛИ ёзувлар (манбада 2001) диапазонга **қўшилмайди**: акс ҳолда
+   * бутун бўлим «Март 2001 — Август 2026» бўлиб кўринарди ва диапазон ҳеч нарса
+   * демасди. Қиймат манбада ўзгаришсиз қолади ва рўйхатда ⚠ белгиси билан
+   * кўринади — бу яшириш эмас, ҳисобдан ЧИҚАРИШ, сабаби шу ерда ёзилган.
+   */
+  reviewedFirst: string | null;
+  reviewedLast: string | null;
+  /** ⚠️ Йили кетма-кетликдан чиққан ёзувлар сони. */
+  yearSuspect: number;
+  /** Контрагент номи кўрсатилган ёзувлар. */
+  withCounterparty: number;
+  /** Merge сабабли фарқ: физик Excel қатори − мантиқий ёзув. */
+  mergedRows: number;
+}
+
+/**
+ * Учала бўлимдаги белгиларнинг ТУРИ бўйича йиғма ҳисоби.
+ *
+ * Биринчи экрандаги қисқа хулоса учун: «20 та белги» деган ялпи сон қайси
+ * турдаги муаммо эканини айтмайди, бу эса уни ўқишга арзимас қилиб қўярди.
+ */
+export interface LegalQualitySummary {
+  /** Устун манбада БОР, лекин биронта ёзувда тўлдирилмаган. */
+  emptyColumns: number;
+  /** Ярмидан ками тўлдирилган устунлар. */
+  sparseColumns: number;
+  /** Такрорий `Т/р` ва такрорий иш рақамлари. */
+  duplicates: number;
+  /** Сарлавҳа такрори + сарлавҳа мазмунга мос эмас. */
+  headerIssues: number;
+  unitConflicts: number;
+  dateAnomalies: number;
+  /** Устун «кун» ваъда қилади, қиймат эса ой белгиси. */
+  monthOnlyColumns: number;
+  /** Merge блокидан қутқарилган катаклар. */
+  extras: number;
+  mergedBlocks: number;
+  /** Бўлимлараро огоҳлантиришлар. */
+  warnings: number;
+}
+
 export interface LegalSectionQuality {
   key: LegalSectionKey;
   /** КИРИЛЛ */
@@ -335,6 +476,10 @@ export interface LegalView {
   cases: LegalCase[];
   claims: LegalClaimRow[];
   reviews: LegalReviewRow[];
+  /** ҲИСОБЛАНГАН: суд ишларининг вақт ва босқич кесими. */
+  caseFlow: LegalCaseFlow;
+  /** ҲИСОБЛАНГАН: шартнома экспертизасининг вақт кесими. */
+  reviewFlow: LegalReviewFlow;
   quality: {
     courtCases: LegalSectionQuality;
     claims: LegalSectionQuality;
@@ -343,6 +488,8 @@ export interface LegalView {
     warnings: string[];
     /** Учала бўлимдаги белгиларнинг умумий сони. */
     issues: number;
+    /** ҲИСОБЛАНГАН: белгиларнинг тури бўйича йиғма ҳисоби. */
+    summary: LegalQualitySummary;
   };
 }
 
@@ -444,6 +591,164 @@ function sectionQuality(key: LegalSectionKey, q: LegalSectionDataQuality): Legal
   return out;
 }
 
+/* -------------------------------------------------------------------------- */
+/* ҳисобланган кесимларни қуриш                                               */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Бугунги сана `YYYY-MM-DD` да — **локал** вақт бўйича.
+ *
+ * ⚠️ `toISOString()` ЭМАС: у UTC'га ўтказади ва Тошкент вақтида (UTC+5) кун
+ * эрталабки соатларда бир кунга орқага сурилиб кетарди. «Кутилаётган мажлис»
+ * шу сана билан солиштирилади, шунинг учун фарқ муҳим.
+ */
+function todayIso(): string {
+  const d = new Date();
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
+/**
+ * `"2025-07"` дан `"2026-06"` гача узлуксиз ойлар рўйхати.
+ *
+ * Нега узлуксиз: диаграммада фақат мажлис бўлган ойлар қолдирилса, ўқ вақт ўқи
+ * бўлмай қоларди ва «октябрда битта ҳам мажлис бўлмаган» деган ҳақиқат умуман
+ * кўринмасди. Оралиқдаги нол — маълумотнинг йўқлиги эмас, ҳақиқий нол.
+ */
+function monthSpan(first: string, last: string): string[] {
+  const out: string[] = [];
+  let y = Number(first.slice(0, 4));
+  let m = Number(first.slice(5, 7));
+  const ey = Number(last.slice(0, 4));
+  const em = Number(last.slice(5, 7));
+  // 600 — қўпол чегара: манбадаги бузуқ сана циклни абадий айлантирмаслиги учун.
+  for (let i = 0; i < 600 && (y < ey || (y === ey && m <= em)); i++) {
+    out.push(`${y}-${String(m).padStart(2, "0")}`);
+    m += 1;
+    if (m > 12) {
+      m = 1;
+      y += 1;
+    }
+  }
+  return out;
+}
+
+/** Рўйхатдаги энг кичик/катта қиймат — бўш рўйхатда `null`. */
+const minOf = (xs: string[]): string | null =>
+  xs.length === 0 ? null : xs.reduce((a, b) => (b < a ? b : a));
+const maxOf = (xs: string[]): string | null =>
+  xs.length === 0 ? null : xs.reduce((a, b) => (b > a ? b : a));
+
+function buildCaseFlow(cases: LegalCase[]): LegalCaseFlow {
+  const today = todayIso();
+
+  // ⚠️ Диаграмма ва диапазонга фақат ЎҚИЛГАН сана киради. Хом матн
+  // («23.06.2025 й») парс қилинмайди — форматни тахмин қилиш маълумот тўқиш
+  // бўларди. У ҳисобда алоҳида қатор бўлиб турибди ва рўйхатда ўз ҳолида,
+  // ⚠ белгиси билан кўринади, яъни ҳеч қаерга йўқолмайди.
+  const hearingIso = cases.map((c) => c.hearing.iso).filter((x): x is string => x !== null);
+  const rulingIso = cases.map((c) => c.ruling.iso).filter((x): x is string => x !== null);
+
+  const first = minOf(hearingIso);
+  const last = maxOf(hearingIso);
+
+  const counts = new Map<string, number>();
+  hearingIso.forEach((iso) => {
+    const m = iso.slice(0, 7);
+    counts.set(m, (counts.get(m) ?? 0) + 1);
+  });
+  const byMonth =
+    first === null || last === null
+      ? []
+      : monthSpan(first.slice(0, 7), last.slice(0, 7)).map((m) => ({
+          key: m,
+          month: m,
+          cases: counts.get(m) ?? 0,
+        }));
+
+  const upcoming = cases
+    .filter((c) => c.hearing.iso !== null && c.hearing.iso > today)
+    .map((c) => ({
+      key: c.key,
+      date: c.hearing.iso as string,
+      court: c.court,
+      ordinal: c.ordinal,
+    }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  const appealed: LegalAppealRow[] = cases
+    .filter((c) => c.appealSummary !== null || c.appealHearing !== null)
+    .map((c) => ({
+      key: c.key,
+      ordinal: c.ordinal,
+      court: c.court,
+      lawyer: c.lawyer,
+      hasSummary: c.appealSummary !== null,
+      hasHearing: c.appealHearing !== null,
+    }));
+
+  const results = cases.map((c) => c.result).filter((x): x is string => x !== null);
+  const lens = results.map((r) => r.length);
+
+  return {
+    hearingIso: hearingIso.length,
+    hearingAsText: cases.filter((c) => c.hearing.asText).length,
+    hearingMissing: cases.filter((c) => c.hearing.label === null).length,
+    hearingFirst: first,
+    hearingLast: last,
+    today,
+    upcoming,
+    byMonth,
+    rulingIso: rulingIso.length,
+    rulingAsText: cases.filter((c) => c.ruling.asText).length,
+    rulingMissing: cases.filter((c) => c.ruling.label === null).length,
+    rulingLast: maxOf(rulingIso),
+    appealed,
+    resultFilled: results.length,
+    resultDistinct: new Set(results).size,
+    resultMinLen: lens.length === 0 ? 0 : Math.min(...lens),
+    resultMaxLen: lens.length === 0 ? 0 : Math.max(...lens),
+    noteFilled: cases.filter((c) => c.note !== null).length,
+  };
+}
+
+function buildReviewFlow(reviews: LegalReviewRow[], mergedRows: number): LegalReviewFlow {
+  const received = reviews.map((r) => r.received.iso).filter((x): x is string => x !== null);
+  // ⚠️ Йили шубҳали ёзув диапазондан ЧИҚАРИЛАДИ — сабаби `LegalReviewFlow` да.
+  const reviewed = reviews
+    .filter((r) => !r.reviewed.yearSuspect)
+    .map((r) => r.reviewed.month)
+    .filter((x): x is string => x !== null);
+
+  return {
+    receivedIso: received.length,
+    receivedFirst: minOf(received),
+    receivedLast: maxOf(received),
+    reviewedFirst: minOf(reviewed),
+    reviewedLast: maxOf(reviewed),
+    yearSuspect: reviews.filter((r) => r.reviewed.yearSuspect).length,
+    withCounterparty: reviews.filter((r) => r.counterparty !== null).length,
+    mergedRows,
+  };
+}
+
+function qualitySummary(parts: LegalSectionQuality[], warnings: number): LegalQualitySummary {
+  const sum = (f: (s: LegalSectionQuality) => number) =>
+    parts.reduce((acc, s) => acc + f(s), 0);
+  return {
+    emptyColumns: sum((s) => s.emptyColumns.length),
+    sparseColumns: sum((s) => s.sparseColumns.length),
+    duplicates: sum((s) => s.duplicateOrdinals.length + s.duplicateCaseNumbers.length),
+    headerIssues: sum((s) => s.duplicateHeaders.length + s.headerConflicts.length),
+    unitConflicts: sum((s) => s.unitConflicts.length),
+    dateAnomalies: sum((s) => s.dateAnomalies.length),
+    monthOnlyColumns: sum((s) => (s.monthOnlyDates ? 1 : 0)),
+    extras: sum((s) => s.extras.length),
+    mergedBlocks: sum((s) => s.mergedBlocks.length),
+    warnings,
+  };
+}
+
 export function legalView(d: LegalAffairsDashboard): LegalView {
   const q = d.dataQuality;
 
@@ -508,18 +813,19 @@ export function legalView(d: LegalAffairsDashboard): LegalView {
     extras: extras(r.extras, `review-${r.id}`),
   }));
 
+  const courtCasesQ = sectionQuality("courtCases", q.courtCases);
+  const claimsQ = sectionQuality("claims", q.claims);
+  const reviewsQ = sectionQuality("contractReviews", q.contractReviews);
+
   const quality = {
-    courtCases: sectionQuality("courtCases", q.courtCases),
-    claims: sectionQuality("claims", q.claims),
-    contractReviews: sectionQuality("contractReviews", q.contractReviews),
+    courtCases: courtCasesQ,
+    claims: claimsQ,
+    contractReviews: reviewsQ,
     warnings: q.warnings,
-    issues: 0,
+    issues:
+      courtCasesQ.issues + claimsQ.issues + reviewsQ.issues + q.warnings.length,
+    summary: qualitySummary([courtCasesQ, claimsQ, reviewsQ], q.warnings.length),
   };
-  quality.issues =
-    quality.courtCases.issues +
-    quality.claims.issues +
-    quality.contractReviews.issues +
-    quality.warnings.length;
 
   return {
     source: d.meta.source,
@@ -557,6 +863,10 @@ export function legalView(d: LegalAffairsDashboard): LegalView {
     cases,
     claims,
     reviews,
+    caseFlow: buildCaseFlow(cases),
+    // Merge фарқи бўлим бўйича олинади: «10 ёзув, 16 физик қатор» — айнан шу
+    // варақнинг ҳолати, учала варақнинг йиғиндиси эмас.
+    reviewFlow: buildReviewFlow(reviews, reviewsQ.physicalRows - reviewsQ.records),
     quality,
   };
 }
