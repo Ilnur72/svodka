@@ -53,6 +53,18 @@ export interface RegistryProjectDetailProps {
   all: RegProject[];
   /** Реестрда бутунлай бўш устунлар — молия қаторини белгилаш учун. */
   emptyColumns: string[];
+  /**
+   * Ойна ХАРИТАДАГИ нуқта рўйхатидан очилган бўлса — ўша рўйхатга қайтиш.
+   *
+   * ⚠️ Нега модал устига модал очилмайди: `Modal` нинг `Esc` эшитувчиси
+   * `window` да, яъни икки ойна бирга турса битта `Esc` ИККОВИНИ ҳам
+   * ёпарди, орқадаги эса саҳифанинг скроллини ўз ҳолига қайтариб юборарди.
+   * Шунинг учун улар АЛМАШАДИ, йўл эса йўқолмайди: сарлавҳа устидаги
+   * «← ортга» тугмаси (`Modal` нинг `lead` сложи) нуқта рўйхатини қайта
+   * очади. Рўйхатдан ёки хаританинг «кўрсатиб бўлмайди» карточкасидан
+   * очилганда бундай тугма умуман чизилмайди.
+   */
+  back?: { label: string; onBack: () => void };
   onOpen: (id: number) => void;
   onClose: () => void;
 }
@@ -61,6 +73,7 @@ export function RegistryProjectDetail({
   p,
   all,
   emptyColumns,
+  back,
   onOpen,
   onClose,
 }: RegistryProjectDetailProps) {
@@ -73,6 +86,18 @@ export function RegistryProjectDetail({
     <Modal
       width="lg"
       title={p.name}
+      lead={
+        back && (
+          <button
+            type="button"
+            onClick={back.onBack}
+            className="inline-flex cursor-pointer items-center gap-1.5 rounded-[5px] border border-hair bg-surface-2 px-2.5 py-[3px] text-[11.5px] font-semibold text-ink-2 hover:text-ink"
+          >
+            <span aria-hidden="true">←</span>
+            {back.label}
+          </button>
+        )
+      }
       sub={
         <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1">
           {p.clusterNo && <span className="font-mono">{p.clusterNo}</span>}

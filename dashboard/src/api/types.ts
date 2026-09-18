@@ -2216,6 +2216,34 @@ export type ProjectRegistryFinanceSourceKey =
 export type ProjectRegistryGroupKind = "cluster" | "direction" | "grandTotal";
 
 /**
+ * Нуқтанинг аниқлиги. Реестрда амалда ФАҚАТ `region` учрайди (133/133) —
+ * координата `Ҳудуди` устунидаги матндан, яъни маъмурий марказ.
+ * `exact` тур сифатида қолдирилган: бэкенд шу қийматни ҳам беради.
+ */
+export type ProjectRegistryCoordsAccuracy = "exact" | "region";
+
+/**
+ * Координата НЕГА бор ёки НЕГА йўқ — бэкенддаги `RegistryCoordsStatus`.
+ *
+ * ⚠️ `notPlace` ва `unknown` битта «координата йўқ» остига йиғилмайди:
+ * биринчиси ҲАЛ ҚИЛИНГАН ҳолат (матн ҳудуд эмас — «Республика худудида»,
+ * «Хорижий давлатлар»), иккинчиси эса БАЖАРИЛМАГАН ИШ (реестрга жадвалда
+ * йўқ янги имло варианти кириб келган). Иккови бир хил кўрсатилса, янги
+ * имло жимгина «табиий ҳолат» бўлиб қолиб кетарди.
+ */
+export type ProjectRegistryCoordsStatus =
+  /** Матнда битта ҳудуд — координата ўшаники. */
+  | "resolved"
+  /** Матнда бир нечта ҳудуд — координата БИРИНЧИСИНИКИ. */
+  | "multiRegion"
+  /** Матн ҳудуд эмас. */
+  | "notPlace"
+  /** `region` устуни бўш. */
+  | "missing"
+  /** Матн жадвалда ЙЎҚ — бэкендда қўшилиши керак. */
+  | "unknown";
+
+/**
  * Битта лойиҳа — `GET /project-registry/dashboard` жавобидаги тўлиқ шакл
  * (138 майдон). Қисқартирилган варианти йўқ: реестрнинг ўзи битта варақ ва
  * дашборд жавоби бутунлигича ~400 КБ, иккинчи сўровга бўлишни оқламайди.
@@ -2257,6 +2285,28 @@ export interface ProjectRegistryProject {
   nameCyrillic: string;
   region: string | null;
   regionCyrillic: string | null;
+
+  /* ─── Координата (`region` МАТНИДАН) ─── */
+  /**
+   * Кенглик/узунлик. `null` — матн ҳудуд эмас, бўш, ёки жадвалга ҳали
+   * қўшилмаган; НЕГА айнан шундай экани `coordsStatus` да.
+   *
+   * ⚠️ Нуқта — ТУМАН/ШАҲАР МАРКАЗИ, лойиҳанинг ўз жойи ЭМАС. Шунинг учун
+   * `coordsAccuracy` доим `'region'` ва буни экранда очиқ ёзиш шарт.
+   */
+  lat: number | null;
+  lon: number | null;
+  coordsAccuracy: ProjectRegistryCoordsAccuracy | null;
+  /** Координата қайси ҳудудники — каноник ном, ЛОТИН. */
+  coordsPlace: string | null;
+  coordsPlaceCyrillic: string | null;
+  /**
+   * Матнда АТАЛГАН ҳудудлар сони: 0 — жой эмас ёки бўш, 1 — битта,
+   * >1 — бир нечта (координата БИРИНЧИСИНИКИ).
+   */
+  coordsPlaceCount: number;
+  coordsStatus: ProjectRegistryCoordsStatus;
+
   goal: string | null;
   goalCyrillic: string | null;
   kind: string;

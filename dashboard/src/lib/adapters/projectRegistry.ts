@@ -1,4 +1,5 @@
 import type {
+  ProjectRegistryCoordsStatus,
   ProjectRegistryDashboard,
   ProjectRegistryFinanceSourceKey,
   ProjectRegistryGroupStat,
@@ -125,6 +126,43 @@ function textOrNum(t: string | null, n: number | null, unit?: string): string | 
   return unit ? `${exact(n)} ${unit}` : exact(n);
 }
 
+/* -------------------------------------------------------------------------- */
+/* координата                                                                 */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Координата НЕГА йўқ (ёки қандай олингани) — бўлим бўйлаб ЯГОНА матн.
+ *
+ * ⚠️ `notPlace` ва `unknown` бир хил ёзилмайди: биринчиси ҳал қилинган ҳолат
+ * (матн ҳудуд эмас, нуқта ҳеч қачон бўлмайди), иккинчиси эса бэкендда
+ * бажарилмаган иш. Иккови битта «координата йўқ» бўлиб кўринса, реестрга
+ * янги имло варианти кириб келгани жимгина сезилмай қоларди.
+ */
+export const REG_COORDS_REASON: Record<ProjectRegistryCoordsStatus, string> = {
+  resolved: "ҳудуд матнидан аниқланган",
+  multiRegion: "матнда бир нечта ҳудуд аталган — нуқта биринчисиники",
+  notPlace: "«Ҳудуди» устунида жой эмас, иш кўлами ёзилган",
+  missing: "«Ҳудуди» устуни бўш",
+  unknown: "⚠ бу ҳудуд матни бэкенд жадвалида йўқ — қўшилиши керак",
+};
+
+/**
+ * Тафсилот ойнасидаги «Харитадаги нуқта» катаги.
+ *
+ * Координата бўлмаса ҳам катак «кўрсатилмаган» бўлиб қолмайди: сабаби
+ * ёзилади. Координата бор бўлса — каноник жой номи ва аниқлиги, чунки нуқта
+ * лойиҳанинг ўз жойи ЭМАС.
+ */
+function coordsFact(r: ProjectRegistryProject): string | null {
+  const place = txt(r.coordsPlaceCyrillic);
+  if (r.lat === null || r.lon === null || place === null) {
+    return REG_COORDS_REASON[r.coordsStatus];
+  }
+  const multi =
+    r.coordsPlaceCount > 1 ? ` (манбада ${r.coordsPlaceCount} ҳудуд аталган — нуқта биринчисиники)` : "";
+  return `${place} — маъмурий марказ, лойиҳанинг ўз жойи эмас${multi}`;
+}
+
 /**
  * Файл номидаги ҳолат санаси: `ТМК_Лойиҳалари_16_09_2026_…` → `16.09.2026`.
  *
@@ -166,6 +204,21 @@ export interface RegProject {
   /** Млн АҚШ доллари. */
   totalCost: number | null;
   jobs: number | null;
+  /** КИРИЛЛ, манбадагидек — эркин матн («Самарканд вилояти, Нуробод ва Пахтачи тумани»). */
+  region: string | null;
+  /**
+   * Харитадаги нуқта. `null` — матн ҳудуд эмас ёки устун бўш; сабаби
+   * `coordsStatus` да. ⚠️ Нуқта — ТУМАН/ШАҲАР МАРКАЗИ, лойиҳанинг ўз жойи эмас.
+   */
+  lat: number | null;
+  lon: number | null;
+  /** Каноник ҳудуд номи (КИРИЛЛ) — координата ўшаники. */
+  coordsPlace: string | null;
+  /** Матнда аталган ҳудудлар сони; >1 бўлса нуқта БИРИНЧИСИНИКИ. */
+  coordsPlaceCount: number;
+  coordsStatus: ProjectRegistryCoordsStatus;
+  /** Харитада агрегация калити: `"<lat>,<lon>"`. Координата бўлмаса `null`. */
+  placeKey: string | null;
   /** Хом қиймат — манбадагидек (0.8 ёки 82). */
   progressRaw: number | null;
   /** Бэкенднинг ТАХМИНИ: `progressRaw <= 1` бўлса ×100. */
@@ -349,6 +402,16 @@ function toProject(r: ProjectRegistryProject): RegProject {
     commissioning: txt(r.commissioningTextCyrillic),
     totalCost: r.totalCostMlnUsd,
     jobs: r.jobs,
+    region: txt(r.regionCyrillic),
+    // Координата бэкенддан АЙНАН шундайлигича олинади: у `Ҳудуди` устунидаги
+    // матндан аниқланган маъмурий марказ. Фронтенд уни на силжитади, на
+    // номдан «тахмин қилиб» тўлдиради — нуқта йўқ бўлса, йўқ бўлиб қолади.
+    lat: r.lat,
+    lon: r.lon,
+    coordsPlace: txt(r.coordsPlaceCyrillic),
+    coordsPlaceCount: r.coordsPlaceCount,
+    coordsStatus: r.coordsStatus,
+    placeKey: r.lat === null || r.lon === null ? null : `${r.lat},${r.lon}`,
     progressRaw: r.progressRaw,
     progressPercent: r.progressPercent,
     progressScale: r.progressRaw === null ? null : r.progressRaw <= 1 ? "share" : "percent",
@@ -638,21 +701,43 @@ export interface RegFilter {
   clusters: string[];
   /** Лойиҳа турлари; бўш массив — барчаси. */
   kinds: string[];
+  /**
+   * Харитадаги нуқталар (`RegProject.placeKey`); бўш массив — барчаси.
+   *
+   * Фильтр CheckSelect'дан эмас, ХАРИТАдан келади: маркер босилганда рўйхат
+   * шу нуқтадаги лойиҳаларга тораяди. Шунинг учун ёнида доим олиб ташлаш
+   * тугмаси бор чип чизилади — акс ҳолда фойдаланувчи рўйхат нега қисқариб
+   * қолганини тополмасди.
+   */
+  places: string[];
   query: string;
 }
 
-export const REG_FILTER_EMPTY: RegFilter = { clusters: [], kinds: [], query: "" };
+export const REG_FILTER_EMPTY: RegFilter = {
+  clusters: [],
+  kinds: [],
+  places: [],
+  query: "",
+};
 
 export const regFilterDirty = (f: RegFilter): boolean =>
-  f.clusters.length > 0 || f.kinds.length > 0 || f.query.trim() !== "";
+  f.clusters.length > 0 ||
+  f.kinds.length > 0 ||
+  f.places.length > 0 ||
+  f.query.trim() !== "";
 
 export function regFilter(projects: RegProject[], f: RegFilter): RegProject[] {
   const q = f.query.trim().toLocaleLowerCase();
   const cl = new Set(f.clusters);
   const kd = new Set(f.kinds);
+  const pl = new Set(f.places);
   return projects.filter((p) => {
     if (cl.size > 0 && !cl.has(p.cluster)) return false;
     if (kd.size > 0 && !kd.has(p.kind)) return false;
+    // Координатаси йўқ лойиҳа ҳеч қайси нуқтага тегишли эмас: нуқта
+    // танланганда у рўйхатдан чиқади, лекин «Харитада кўрсатиб бўлмайди»
+    // блокида ўз жойида қолади.
+    if (pl.size > 0 && (p.placeKey === null || !pl.has(p.placeKey))) return false;
     if (q !== "" && !p.haystack.includes(q)) return false;
     return true;
   });
@@ -835,6 +920,9 @@ export function regDetail(
       facts: [
         { k: "Мақсади", v: txt(r.goalCyrillic) },
         { k: "Ҳудуди", v: txt(r.regionCyrillic) },
+        // Харитадаги нуқта манбадаги матндан АНИҚЛАНГАН қиймат, шунинг учун
+        // у «Ҳудуди» ўрнига эмас, ЁНИГА қўйилади ва аниқлиги ёзилади.
+        { k: "Харитадаги нуқта", v: coordsFact(r) },
         { k: "Масъул шахс", v: txt(r.responsibleCyrillic) },
         { k: "Объект тури", v: txt(r.objectKindCyrillic) },
         { k: "Ҳозирги ҳолати", v: txt(r.stateCyrillic) },

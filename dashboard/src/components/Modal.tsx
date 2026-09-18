@@ -38,7 +38,7 @@ export interface ModalProps {
   /** Пастки қатор: ҳаракат тугмалари. Бўлмаса чизилмайди. */
   foot?: ReactNode;
   /** Ойна кенглиги — узун матнли тафсилот учун кенгроқ вариант. */
-  width?: "md" | "lg";
+  width?: "md" | "lg" | "xl";
   onClose: () => void;
   children: ReactNode;
 }
@@ -47,9 +47,20 @@ export interface ModalProps {
 const FOCUSABLE =
   'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
 
-const WIDTH: Record<"md" | "lg", string> = {
+/**
+ * ⚠️ Мавжуд қийматлар ЎЗГАРМАЙДИ — уларга бошқа ойналар таянади
+ * (`md` — тасдиқлаш саволлари, `lg` — лойиҳа тафсилоти).
+ *
+ * `xl` кейин қўшилди: харитадаги битта нуқтада 63 тагача лойиҳа туради ва
+ * уларнинг ҳар бири олтита устунда (Т/р · ном+йўналиш · қиймат · иш ўрни ·
+ * муддат · ишга тушириш) ёзилади. 900px да ном устуни ≈300px га тушиб,
+ * 156 белгили номлар олти қаторга ёйиларди. `max-w-*` — ЮҚОРИ чегара:
+ * тор экранда ойна барибир `w-full` бўлиб қолади.
+ */
+const WIDTH: Record<"md" | "lg" | "xl", string> = {
   md: "max-w-[620px]",
   lg: "max-w-[900px]",
+  xl: "max-w-[1180px]",
 };
 
 export function Modal({ title, sub, lead, foot, width = "lg", onClose, children }: ModalProps) {

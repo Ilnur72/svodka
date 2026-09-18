@@ -26,7 +26,10 @@ import { ShareBar } from "../components/ShareBar";
 import { CheckSelect } from "../components/CheckSelect";
 import { DataTable, type Row } from "../components/DataTable";
 import { EmptyState, Loader } from "../components/states";
+import { registryMapVM } from "../lib/adapters/registryMap";
 import { Muted, Num, SourceDot } from "./projectRegistry/parts";
+import { RegistryMap } from "./projectRegistry/RegistryMap";
+import { RegistryPlaceModal } from "./projectRegistry/RegistryPlaceModal";
 import { RegistryProjectDetail } from "./projectRegistry/RegistryProjectDetail";
 
 /**
@@ -55,7 +58,19 @@ import { RegistryProjectDetail } from "./projectRegistry/RegistryProjectDetail";
  *     бирлигида, алоҳида карточкада) ва кластер → йўналиш дарахти. Кластер
  *     босилса пастдаги рўйхат шу кластерга фильтрланади.
  *  3. Молиялаштириш манбалари.
- *  4. Лойиҳалар рўйхати — кластер → йўналиш бўйича гуруҳланган.
+ *  4. География — харита. Иккинчи навигация: маркер босилса рўйхат шу
+ *     нуқтадаги лойиҳаларга фильтрланади.
+ *  5. Лойиҳалар рўйхати — кластер → йўналиш бўйича гуруҳланган.
+ *
+ * ═══ Харита: битта маркер — битта НУҚТА ═════════════════════════════════
+ *
+ * Координата бэкенддан келади (`lat`/`lon`, `Ҳудуди` устунидаги матндан
+ * аниқланган) ва у **туман/шаҳар маркази**. Шу сабабли 133 лойиҳа атиги 20
+ * нуқтага тушади — фақат Чирчиқда 63 та. Ҳар бир лойиҳа алоҳида маркер
+ * бўлса экран ёлғон гапирарди, шунинг учун маркерлар нуқта бўйича
+ * ЙИҒИЛАДИ (`lib/adapters/registryMap.ts`), нуқта эса ҳеч қаерга
+ * силжитилмайди ва номдан тахмин қилинмайди. Хаританинг ўзи —
+ * `panels/investMap/MapCanvas`, янгиси ёзилмаган.
  *
  * «Маълумот сифати» ва «Маълумот тўлиқлиги» бўлимлари фойдаланувчи талаби
  * билан олиб ташланган. Адаптердаги `quality` ва `filled` ҳисоби ЖОЙИДА
@@ -289,6 +304,34 @@ function RegistryBody({ data }: { data: ProjectRegistryDashboard }) {
   const v = useMemo(() => registryView(data), [data]);
   const [filter, setFilter] = useState<RegFilter>(REG_FILTER_EMPTY);
   const listRef = useRef<HTMLDivElement>(null);
+  /**
+   * Очиқ турган НУҚТА ойнаси (`RegProject.placeKey`).
+   *
+   * ⚠️ Бу харитадаги танловдан (`filter.places`) АЛОҲИДА ҳолат ва улар
+   * атайин бир хил эмас: ойна ёпилгач танлов ҳам, рўйхат фильтри ҳам ўз
+   * жойида қолади (маркер ёниб туради, рўйхат устида чип кўринади). Иккови
+   * битта ҳолатда сақланса, ойнани ёпиш фильтрни ҳам бекор қилар эди.
+   */
+  const [placeOpen, setPlaceOpen] = useState<string | null>(null);
+  /**
+   * Лойиҳа тафсилоти НУҚТА ойнасидан очилган бўлса — қайси нуқтадан.
+   * Фақат шунда тафсилот устида «← ортга» тугмаси чизилади.
+   */
+  const [placeBack, setPlaceBack] = useState<string | null>(null);
+
+  /**
+   * Харита ДОИМ барча лойиҳалардан ясалади, фильтрланганидан эмас.
+   *
+   * ⚠️ Бу атайин: `MapCanvas` `vm` ўзгарганда MapLibre объектини бутунлай
+   * қайта яратади (маркерлар, плиткалар, кўриниш). Харита фильтрга
+   * боғланганда маркер босилиши ўша фильтрни ўзгартирар, у эса хаританинг
+   * ўзини қайта юклаб, зум ва суриш ҳолатини йўқотарди. Фильтр бир
+   * йўналишда оқади: харита → рўйхат.
+   */
+  const mapVm = useMemo(
+    () => registryMapVM(v.projects, import.meta.env.BASE_URL),
+    [v.projects],
+  );
 
   // Очиқ лойиҳа — хэшнинг иккинчи сегментида (`#registry/61`), рўйхат ҳолати
   // эса шу компонентда. Шунинг учун ойна ёпилганда фильтр ва қидирув ўз
@@ -308,12 +351,60 @@ function RegistryBody({ data }: { data: ProjectRegistryDashboard }) {
     if (sub !== null && open === null) goSub(null, true);
   }, [sub, open, goSub]);
 
+  /**
+   * Тафсилот ёпилиши билан «← ортга» нинг мўлжали ҳам ўчади.
+   *
+   * Эффект керак, чунки ёпилиш ЙЎЛЛАРИ битта эмас: «Ёпиш», `Esc`, перда,
+   * ва браузернинг «орқага» тугмаси (хэш `#registry/61` → `#registry`).
+   * Охиргиси компонентдан ташқарида содир бўлади — уни фақат шу ердан
+   * тутиш мумкин. Усиз мўлжал сақланиб қолар ва кейинроқ РЎЙХАТдан
+   * очилган лойиҳада ҳам ёлғон «← ортга» кўринарди.
+   */
+  useEffect(() => {
+    if (sub === null) setPlaceBack(null);
+  }, [sub]);
+
   const pickCluster = (name: string) => {
     setFilter((f) => ({
       ...f,
       clusters: f.clusters.length === 1 && f.clusters[0] === name ? [] : [name],
     }));
     listRef.current?.scrollIntoView({ block: "start" });
+  };
+
+  /**
+   * Танланган нуқта — алоҳида `useState` ЭМАС, фильтрнинг ўзи.
+   *
+   * Иккита ҳолат бўлганда улар ажралиб кетарди: карточка бир нуқтани
+   * кўрсатиб турганда рўйхат бошқасига фильтрланган бўлиши мумкин эди.
+   * Ягона манба буни умуман имконсиз қилади. Хаританинг бўш жойи босилса
+   * `MapCanvas` `null` беради — карточка ҳам, фильтр ҳам бирга бекор бўлади.
+   *
+   * ⚠️ Бу ерда `listRef.scrollIntoView` ЙЎҚ: харитани кўздан кечираётган
+   * фойдаланувчи ҳар маркер босилишида саҳифа сакрашини кутмайди.
+   */
+  const place = filter.places[0] ?? null;
+  const placeName = mapVm.pins.find((p) => p.id === place)?.name ?? null;
+  const pickPlace = (key: string | null) => {
+    setFilter((f) => ({ ...f, places: key === null ? [] : [key] }));
+    // Маркер босилса нуқтанинг ТЎЛИҚ рўйхати ойнада очилади — 63 лойиҳали
+    // нуқта харита устидаги карточкага сиғмайди. Хаританинг бўш жойи
+    // босилганда (`key === null`) ойна ҳам ёпилади.
+    setPlaceOpen(key);
+  };
+
+  const openPlace = placeOpen === null ? null : (mapVm.placeList.find((p) => p.key === placeOpen) ?? null);
+  const backPlace = placeBack === null ? null : (mapVm.placeList.find((p) => p.key === placeBack) ?? null);
+
+  /**
+   * Нуқта ойнасидан лойиҳа тафсилотига ўтиш — ойналар АЛМАШАДИ, устма-уст
+   * турмайди (сабаби: `RegistryProjectDetail` → `back`). Қайтиш йўли
+   * `placeBack` да сақланади.
+   */
+  const openFromPlace = (id: number) => {
+    setPlaceBack(placeOpen);
+    setPlaceOpen(null);
+    goSub(String(id));
   };
 
   // Диаграмма қаторлари: учта ўлчов — учта алоҳида карточка.
@@ -531,7 +622,20 @@ function RegistryBody({ data }: { data: ProjectRegistryDashboard }) {
         </div>
       </Section>
 
-      {/* --- 4. лойиҳалар рўйхати ------------------------------------------- */}
+      {/* --- 4. география --------------------------------------------------- */}
+      <Section
+        title="Лойиҳалар географияси"
+        note="иккинчи кесим — маркер босилса нуқтадаги барча лойиҳалар ойнада очилади ва пастдаги рўйхат ҳам шу нуқтага фильтрланади"
+      >
+        <RegistryMap
+          vm={mapVm}
+          selected={place}
+          onSelect={pickPlace}
+          onOpen={(id) => goSub(String(id))}
+        />
+      </Section>
+
+      {/* --- 5. лойиҳалар рўйхати ------------------------------------------- */}
       <div ref={listRef}>
         <Section title="Лойиҳалар">
           <div className="mb-3 flex flex-wrap items-center gap-2.5">
@@ -572,6 +676,21 @@ function RegistryBody({ data }: { data: ProjectRegistryDashboard }) {
               onChange={(ev) => setFilter((f) => ({ ...f, query: ev.target.value }))}
             />
 
+            {/* Харитадан келган фильтр — CheckSelect'да кўринмайди, шунинг
+                учун у АЛОҲИДА чип билан ёзилади. Усиз рўйхат «ўз-ўзидан»
+                қисқариб қолгандай кўринар ва сабабини топиб бўлмасди. */}
+            {place !== null && (
+              <button
+                type="button"
+                onClick={() => pickPlace(null)}
+                aria-label="Харитадаги нуқта фильтрини олиб ташлаш"
+                className="inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-[color-mix(in_srgb,var(--s1)_38%,transparent)] bg-[color-mix(in_srgb,var(--s1)_12%,transparent)] px-2.5 py-0.5 text-[11.5px] font-semibold text-ink-2 hover:text-ink"
+              >
+                Харитадаги нуқта: {placeName ?? place}
+                <span aria-hidden="true">✕</span>
+              </button>
+            )}
+
             {dirty && (
               <button
                 type="button"
@@ -599,6 +718,19 @@ function RegistryBody({ data }: { data: ProjectRegistryDashboard }) {
         </Section>
       </div>
 
+      {/* Иккита ойна ҲЕЧ ҚАЧОН бирга турмайди: нуқта ойнасидан лойиҳа
+          очилганда биринчиси ёпилади (`openFromPlace`), қайтиш эса «← ортга»
+          билан. Сабаби `RegistryProjectDetail` → `back` изоҳида. */}
+      {openPlace && !open && (
+        <RegistryPlaceModal
+          place={openPlace}
+          onOpenProject={openFromPlace}
+          // Ойнани ёпиш ХАРИТАДАГИ танловни бекор қилмайди: маркер ёниб
+          // туради, рўйхат эса ўша нуқтага фильтрланганича қолади.
+          onClose={() => setPlaceOpen(null)}
+        />
+      )}
+
       {open && (
         <RegistryProjectDetail
           p={open}
@@ -606,6 +738,17 @@ function RegistryBody({ data }: { data: ProjectRegistryDashboard }) {
           // «Маълумот сифати» бўлими олиб ташланди, лекин бу рўйхат ойнада
           // керак: «реестрда бу устун бўш» белгиси шундан ясалади.
           emptyColumns={v.quality.emptyColumns}
+          back={
+            backPlace === null
+              ? undefined
+              : {
+                  label: `${backPlace.short} · ${nf(backPlace.projects)} лойиҳа`,
+                  onBack: () => {
+                    goSub(null);
+                    setPlaceOpen(backPlace.key);
+                  },
+                }
+          }
           onOpen={(id) => goSub(String(id))}
           onClose={() => goSub(null)}
         />

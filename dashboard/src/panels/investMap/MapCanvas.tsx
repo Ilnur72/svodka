@@ -26,7 +26,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Map as MapLibreMap, Marker, Popup, type PositionAnchor } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import type { MapPin, MapVM } from "../../lib/adapters/mapObjects";
+import type { MapPin } from "../../lib/adapters/mapObjects";
 import {
   INVEST_MAP_BOUNDS,
   INVEST_MAP_HOME,
@@ -83,8 +83,26 @@ import { nf } from "../../lib/format";
  * Шунинг учун режим ҳам, `localStorage` калити ҳам олиб ташланди.
  */
 
+/**
+ * Харитага КЕРАКЛИ минимум.
+ *
+ * ⚠️ Атайин `MapVM` нинг ўзи эмас: `MapCanvas` унинг легендаси, `offMap`
+ * рўйхати ва сифат ҳисобларини умуман ишлатмайди — уларни саҳифа чизади.
+ * Иккинчи истеъмолчи («Лойиҳалар реестри» бўлимидаги харита) бу майдонларни
+ * тўлдира олмасди: унинг манбаси бошқа endpoint ва легендаси бошқача.
+ * Шунинг учун prop шу учта майдонга ТОРАЙТИРИЛГАН — `MapVM` унга структуравий
+ * мос келади, яъни `/investmap` саҳифасида ҳеч нарса ўзгармайди.
+ */
+export interface MapCanvasVM {
+  /** Маркер расмининг нисбати — экранда чўзилмаслиги учун. */
+  markerRatio: number;
+  /** Лангар нуқтаси, баландликнинг улуши сифатида. */
+  markerAnchorY: number;
+  pins: MapPin[];
+}
+
 export interface MapCanvasProps {
-  vm: MapVM;
+  vm: MapCanvasVM;
   /** Очиқ карточканинг объект `id` си; `null` — ёпиқ. */
   selected: string | null;
   onSelect: (id: string | null) => void;
@@ -98,6 +116,27 @@ export interface MapCanvasProps {
    * нисбат берилмайди. Алоҳида саҳифа (`/investmap`) шу режимда ишлатади.
    */
   fill?: boolean;
+  /**
+   * Маркер босилганда нима бўлади. Иккала истеъмолчи бир хил компонентни
+   * ишлатади, лекин уларнинг МАЪЛУМОТИ бир хил эмас, шунинг учун хатти-
+   * ҳаракат ҳам пропдан бошқарилади:
+   *
+   *  · `"card"` (сукут) — харита УСТИДА карточка очилади, ўша маркер қайта
+   *    босилса ёпилади, `Esc` ҳам ёпади. `/investmap` шу режимда: у ерда
+   *    битта маркер — битта объект (47 та), карточка унинг бор маълумотини
+   *    тўлиқ сиғдиради.
+   *
+   *  · `"select"` — карточка УМУМАН чизилмайди ва `Esc` бу ерда ушланмайди;
+   *    босиш ДОИМ танлайди (қайта босиш бекор қилмайди), қолгани
+   *    чақирувчининг иши. «Лойиҳалар реестри» бўлими шу режимда: унда битта
+   *    маркер — 63 тагача лойиҳанинг тўплами, улар карточкага сиғмасди ва
+   *    «яна 57 та» деб кесиларди. Ўрнига панел модал ойна очади.
+   *
+   * ⚠️ Икковини бирга ёқиб бўлмайди (`Esc` ҳам, танловни бекор қилиш ҳам
+   * ойнанинг ўз ишига қарши ишлаб қоларди), шунинг учун бу иккита эмас,
+   * БИТТА ўзгарувчи.
+   */
+  pinClick?: "card" | "select";
 }
 
 /**
@@ -118,6 +157,21 @@ const CARD_W = 320;
  * эни устига қўшилади, шунда карточка расмга тегиб турмайди.
  */
 const CARD_GAP = 14;
+
+/**
+ * Карточка билан хаританинг ЮҚОРИ ва ҚУЙИ қирраси орасидаги энг кичик
+ * бўшлиқ, px.
+ *
+ * Тепаси каттароқ: қатлам БЕЛГИСИ карточканинг юқори қиррасидан чиқиб
+ * туради (`.map-pop__badge`, `top: -21px`) — 10 px бўлганда карточканинг
+ * ўзи сиғар, лекин белги кесилиб қоларди.
+ *
+ * ⚠️ `index.css` даги `max-height: min(78vh, 100cqh - 40px)` билан
+ * КЕЛИШИЛГАН: 40 = 26 + 10 дан катта, шунинг учун карточка ҳеч қачон
+ * иккала бўшлиқни ҳам эгаллаб қўя олмайди ва суриш доим ёрдам беради.
+ */
+const CARD_EDGE_TOP = 26;
+const CARD_EDGE_BOTTOM = 10;
 
 /**
  * Карточка маркернинг ЁНИДА очилиши учун керакли жой (эни + бўшлиқ).
@@ -358,10 +412,12 @@ function PinCard({ pin, onClose }: { pin: MapPin; onClose: () => void }) {
         </dl>
 
         {/* Боғланиш ЭВРИСТИК (ном бўйича), шунинг учун у «маълумот» эмас,
-            «шу объектга алоқадор бўлиши мумкин» деб ёзилади. */}
+            «шу объектга алоқадор бўлиши мумкин» деб ёзилади. Реестр
+            харитасида эса бу рўйхат бошқа нарса — шу нуқтадаги лойиҳаларнинг
+            ўз номлари, шунинг учун сарлавҳани маркер ўзи беради. */}
         {pin.links.length > 0 && (
           <p className="map-pop__links">
-            <b>Боғланган объектлар:</b> {pin.links.join(" · ")}
+            <b>{pin.linksTitle ?? "Боғланган объектлар"}:</b> {pin.links.join(" · ")}
           </p>
         )}
 
@@ -399,7 +455,14 @@ const hits = (a: Box, b: Box): boolean =>
 /* харита                                                                     */
 /* -------------------------------------------------------------------------- */
 
-export function MapCanvas({ vm, selected, onSelect, focusNonce, fill = false }: MapCanvasProps) {
+export function MapCanvas({
+  vm,
+  selected,
+  onSelect,
+  focusNonce,
+  fill = false,
+  pinClick = "card",
+}: MapCanvasProps) {
   const boxRef = useRef<HTMLDivElement>(null);
   const hostRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
@@ -414,6 +477,11 @@ export function MapCanvas({ vm, selected, onSelect, focusNonce, fill = false }: 
   // Императив ҳодиса ишловчилари доим охирги қийматни кўриши учун.
   const selectedRef = useRef(selected);
   const onSelectRef = useRef(onSelect);
+  // Маркер ишловчиси маркерлар билан БИРГА ясалади (эффект `[vm, markerW]` га
+  // боғланган), шунинг учун режим ҳам реф орқали ўқилади — акс ҳолда уни
+  // деп рўйхатига қўшиш керак бўларди ва режим ўзгарса бутун харита
+  // (плиткалар, зум, суриш) қайта яратиларди.
+  const pinClickRef = useRef(pinClick);
   const hoveredRef = useRef<string | null>(null);
   /** `layoutLabels` эффектлар ичидан чақирилади, лекин у маркерлардан кейин ясалади. */
   const layoutRef = useRef<() => void>(() => {});
@@ -436,7 +504,8 @@ export function MapCanvas({ vm, selected, onSelect, focusNonce, fill = false }: 
   useEffect(() => {
     selectedRef.current = selected;
     onSelectRef.current = onSelect;
-  }, [selected, onSelect]);
+    pinClickRef.current = pinClick;
+  }, [selected, onSelect, pinClick]);
 
   /* --- ёрлиқ тўқнашуви -------------------------------------------------- */
 
@@ -671,6 +740,21 @@ export function MapCanvas({ vm, selected, onSelect, focusNonce, fill = false }: 
       const el = buildPinElement(pin, markerW, vm.markerAnchorY);
       el.addEventListener("click", (ev) => {
         ev.stopPropagation();
+        if (pinClickRef.current === "select") {
+          // Фокус ҚЎЛДА берилади. macOS'даги Safari ва Firefox тугмани
+          // босганда уни фокусламайди, шунинг учун шу маркердан очилган
+          // модал ойна «чақирувчи»ни топа олмас ва ёпилгач фокус `<body>`
+          // га тушиб қоларди — клавиатура билан ишлаётган фойдаланувчи ўз
+          // ўрнини йўқотарди (қаранг: `components/Modal.tsx` → `openerRef`).
+          // `preventScroll` — харита `overflow: hidden`, фокус уни суриб
+          // қўймаслиги керак.
+          el.focus({ preventScroll: true });
+          // Танлов БЕКОР қилинмайди: ойна ёпилгач ўша маркер яна босилса,
+          // у қайта очилиши керак. Бекор қилиш хаританинг бўш жойидан
+          // ёки рўйхат устидаги чипдан бўлади.
+          onSelectRef.current(pin.id);
+          return;
+        }
         const cur = selectedRef.current;
         onSelectRef.current(cur === pin.id ? null : pin.id);
       });
@@ -746,21 +830,23 @@ export function MapCanvas({ vm, selected, onSelect, focusNonce, fill = false }: 
   useEffect(() => {
     const map = mapRef.current;
     const portal = portalRef.current;
-    if (!map || !portal || selected === null) return;
+    // `"select"` режимида карточка умуман йўқ — ойнани панелнинг ўзи очади.
+    if (!map || !portal || selected === null || pinClick !== "card") return;
     const marker = markersRef.current.get(selected);
     if (!marker) return;
 
     const ll = marker.getLngLat();
     const box = map.getContainer();
     const w = box.clientWidth;
-    const px = map.project(ll).x;
+    const h = box.clientHeight;
+    const pt = map.project(ll);
     // Карточка маркернинг қайси ёнида: бўш жойи кўпроқ томонда.
-    const side: PositionAnchor = px < w / 2 ? "left" : "right";
+    const side: PositionAnchor = pt.x < w / 2 ? "left" : "right";
 
     // Жой етармикан? Етмаса харитани бир оз суриб қўямиз — карточка ҳам,
     // маркер ҳам экранда қолсин. Марказлаштириш ЭМАС: харита керагидан
     // ортиқ сакрамаслиги учун фақат етишмаган пиксел қадар сурилади.
-    const room = side === "left" ? w - px : px;
+    const room = side === "left" ? w - pt.x : pt.x;
     if (room < CARD_ROOM) {
       const by = CARD_ROOM - room;
       map.panBy([side === "left" ? by : -by, 0], { duration: 300 });
@@ -785,10 +871,47 @@ export function MapCanvas({ vm, selected, onSelect, focusNonce, fill = false }: 
       .setDOMContent(portal)
       .addTo(map);
 
+    /**
+     * ═══ Вертикал жойлаштириш — ЛАНГАР билан, суриш билан ЭМАС ══════════
+     *
+     * Ён лангарда карточка маркерга нисбатан вертикал МАРКАЗЛАШАДИ, харита
+     * эса `overflow: hidden`: юқори қиррага яқин маркернинг карточкаси
+     * кесилади. Бутун экранли `/investmap` да бу камдан-кам сезиларди,
+     * лекин харита саҳифанинг бир бўлаги бўлганда (реестр бўлими, ≈490px)
+     * карточканинг боши — қатлам белгиси, сарлавҳа ва биринчи қаторлар —
+     * бутунлай кўринмай қоларди.
+     *
+     * ⚠️ Бу ерда `panBy` ИШЛАМАЙДИ. Ўлчанди: 110 px керак бўлганда харита
+     * сурилгач карточка атиги 79 px кўчди. Сабаби — `pitch: 52`: перспектива
+     * туфайли марказни N пиксел суриш кадрнинг ЮҚОРИСИДАГИ нуқтани шунча
+     * силжитмайди, яъни бир марталик ҳисоб доим кам чиқади (иккинчи, учинчи
+     * итерация керак бўларди ва харита сакраб турарди).
+     *
+     * Шунинг учун карточканинг ЎЗИ силжитилади — ойнанинг лангари экран
+     * пикселида берилади, у эса перспективага боғлиқ эмас. Қўшимча фойда:
+     * харита вертикал йўналишда умуман ҚИМИРЛАМАЙДИ (горизонталда эса
+     * эски хатти-ҳаракат сақланган: у ерда бир марталик суриш етарли).
+     *
+     * Баландлик фақат карточка чизилгандан кейин маълум — шунинг учун ўлчов
+     * `addTo` дан КЕЙИН.
+     */
+    const cardH = portal.offsetHeight;
+    if (cardH > 0) {
+      const mid = pt.y + offset[1];
+      const top = mid - cardH / 2;
+      const bottom = mid + cardH / 2;
+      let dy = 0;
+      if (bottom > h - CARD_EDGE_BOTTOM) dy = h - CARD_EDGE_BOTTOM - bottom;
+      // Тепа устун: карточканинг боши ҳеч қачон кесилмаслиги керак, пастки
+      // қисми эса керак бўлса `.map-pop__body` ичида сурилади.
+      if (top + dy < CARD_EDGE_TOP) dy = CARD_EDGE_TOP - top;
+      if (dy !== 0) popup.setOffset([offset[0], offset[1] + dy]);
+    }
+
     return () => {
       popup.remove();
     };
-  }, [selected, vm.pins, markerW]);
+  }, [selected, vm.pins, markerW, pinClick]);
 
   /* --- ташқи сигналлар --------------------------------------------------- */
 
@@ -810,14 +933,23 @@ export function MapCanvas({ vm, selected, onSelect, focusNonce, fill = false }: 
     return () => window.removeEventListener("resize", onResize);
   }, []);
 
+  /**
+   * `Esc` — фақат карточка режимида: ёпиладиган нарса ўша карточка.
+   *
+   * ⚠️ `"select"` режимида бу эшитувчи БЎЛМАСЛИГИ шарт. Ўша ерда `Esc`
+   * очиқ модал ойнага тегишли, иккови эса `window` да ва бир хил ҳодисани
+   * эшитарди (`stopPropagation` бир элементдаги бошқа эшитувчиларни
+   * тўхтатмайди) — натижада битта `Esc` ойнани ҳам ёпиб, харитадаги
+   * танловни ҳам, у билан бирга рўйхат фильтрини ҳам бекор қиларди.
+   */
   useEffect(() => {
-    if (selected === null) return;
+    if (selected === null || pinClick !== "card") return;
     const onKey = (ev: KeyboardEvent) => {
       if (ev.key === "Escape") onSelect(null);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [selected, onSelect]);
+  }, [selected, onSelect, pinClick]);
 
   useEffect(() => {
     if (focusNonce === 0 || selected === null) return;
@@ -845,7 +977,10 @@ export function MapCanvas({ vm, selected, onSelect, focusNonce, fill = false }: 
     else void node.requestFullscreen?.();
   }, []);
 
-  const active = selected === null ? null : (vm.pins.find((p) => p.id === selected) ?? null);
+  const active =
+    pinClick === "card" && selected !== null
+      ? (vm.pins.find((p) => p.id === selected) ?? null)
+      : null;
   const atMin = zoom <= INVEST_MAP_MIN_ZOOM + ZOOM_EPS;
   const atMax = zoom >= INVEST_MAP_MAX_ZOOM - ZOOM_EPS;
   // Фақат ЭКРАНДАГИ маркерлар ҳисобга олинади — қаранг: `labelStat` изоҳи.
