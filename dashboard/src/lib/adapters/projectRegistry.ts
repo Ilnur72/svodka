@@ -5,7 +5,8 @@ import type {
   ProjectRegistryGroupStat,
   ProjectRegistryProject,
 } from "../../api/types";
-import { exact } from "../format";
+import type { Status } from "../../types";
+import { exact, nf } from "../format";
 
 /**
  * «Лойиҳалар реестри 2026–2030» — `/project-registry/dashboard` жавобидан
@@ -833,7 +834,43 @@ export function regById(projects: RegProject[], sub: string | null): RegProject 
 /* тафсилот                                                                   */
 /* -------------------------------------------------------------------------- */
 
-/** Тафсилотдаги битта катак. `value === null` — реестрда тўлдирилмаган. */
+/**
+ * Битта лойиҳанинг тафсилоти — «Инвестиция лойиҳалари» паспорти билан
+ * БИТТА шаблонда.
+ *
+ * ═══ Нега шаблон бир хил ════════════════════════════════════════════════
+ *
+ * Иккала бўлим ҳам битта саволга жавоб беради: «бу лойиҳа нима, қаерда,
+ * қанча туради ва қай босқичда». Тузилиши ҳам бир хил бўлса, бир бўлимда
+ * ўрганилган кўз ҳаракати иккинчисида қайтадан ўрганилмайди:
+ * ҳалқалар → тўртта плитка → уч устун (муддат ва пул · майдон ва сурат ·
+ * маҳсулот ва тайёргарлик) → тавсиф тасмаси.
+ *
+ * ═══ Лекин маълумот БИР ХИЛ ЭМАС ════════════════════════════════════════
+ *
+ * Паспортда еттита лойиҳа тўлиқ тўлдирилган, реестрда эса 144 та қатор
+ * ЖУДА нотекис: `progressPercent` — 5/144, `disbursedMlnUsd` — 2/144,
+ * `objectKind` — 1/144. Шунинг учун шаблон ўзгаришсиз кўчирилмайди:
+ *
+ *   · қиймати йўқ ҲАЛҚА умуман чизилмайди — нол фоизли ҳалқа «ҳеч нарса
+ *     қилинмаган» деган ЁЛҒОН хулоса берарди, ҳолбуки реестрда шунчаки
+ *     устун тўлдирилмаган;
+ *   · плиткаларга реестрнинг ЎЗИДА тўлдириладиган тўртта кўрсаткич
+ *     олинган (қиймат 144/144, муддат 144/144, иш ўрни 100/144, ишга
+ *     тушириш 98/144), паспортдаги «Бошланиш санаси» (31/144) эса
+ *     «Муддатлар» блокида қолди;
+ *   · биронта катаги тўлмаган блок чизилмайди, номи эса пастда очиқ
+ *     ёзилади (`missing`).
+ *
+ * Ҳар бир плитка ва ҳалқа ёнида «нечта лойиҳада тўлдирилган» деб ёзилади —
+ * бўш катак шу ерда камчилик эмас, реестрнинг ҳолати.
+ *
+ * `prev`/`next` рўйхатнинг ўз тартибидан ҳисобланади — бэкендга иккинчи
+ * сўров юборилмайди (`GET /project-registry/:id` дан келадиган `neighbors`
+ * айнан шу тартибда ҳисобланган).
+ */
+
+/** Тафсилотдаги битта катак. `v === null` — реестрда тўлдирилмаган. */
 export interface RegFact {
   k: string;
   v: string | null;
@@ -859,13 +896,103 @@ export interface RegFinanceLine {
   empty: boolean;
 }
 
+/**
+ * Юқоридаги тўртта плитка.
+ *
+ * Бирлик қийматдан АЖРАТИЛГАН: плиткада сон катта ҳарфда, бирлик ёнида
+ * кичик ёзилади (`StatTile` шундай тузилган). Қолган жойларда бирлик
+ * қиймат матнининг ичида қолади.
+ */
+export interface RegTile {
+  k: string;
+  /** Тайёр матн; `null` — реестрда кўрсатилмаган. */
+  v: string | null;
+  unit?: string;
+  /** Плитканинг чап чизиғи учун CSS ранг токени. */
+  stripe: string;
+  /** Пастки қатор: бу устун реестрда нечта лойиҳада тўлдирилган. */
+  foot: string;
+}
+
+/**
+ * Иккита мустақил ўлчов — жисмоний бажарилиш ва молиявий ўзлаштириш.
+ *
+ * Улар ҚЎШИЛМАЙДИ, ўртачаси олинмайди ва бир-бирига тенглаштирилмайди
+ * («Инвестиция лойиҳалари» бўлимидаги билан бир хил қоида). Фарқи алоҳида
+ * майдонда, лекин у ФАҚАТ иккови ҳам бор бўлганда ҳисобланади.
+ *
+ * `null` — реестрда устун тўлдирилмаган. У нолга айлантирилмайди: нол
+ * фоиз «иш бошланмаган» дегани, тўлдирилмаган катак эса «билмаймиз».
+ */
+export interface RegProgress {
+  /** Жисмоний бажарилиш, фоизда. Бэкенднинг шкала ТАХМИНИ. */
+  physPct: number | null;
+  /** Хом қиймат — манбадагидек (0,8 ёки 82). */
+  raw: number | null;
+  scale: "share" | "percent" | null;
+  /** Ўзлаштирилган маблағнинг умумий қийматдаги улуши, фоизда. */
+  finPct: number | null;
+  disbursed: number | null;
+  /** Фарқ, п.п. — фақат иккови ҳам бор бўлса. */
+  gapPp: number | null;
+  gapText: string | null;
+  status: Status;
+  /** Реестр бўйича тўлдирилганлик — ҳалқа остидаги изоҳ учун. */
+  physFilled: number;
+  finFilled: number;
+  total: number;
+}
+
+/**
+ * Марказдаги «Лойиҳа майдони» блоки: сурат ва тўртта кўрсаткич.
+ *
+ * ⚠️ Сурат лойиҳа НОМИГА ҚАРАБ танланмайди. Файл номи фақат база
+ * идентификатори бўйича ясалади (`public/registry/<id>.jpg`), чунки
+ * реестрда 144 лойиҳа бор ва уларнинг номи «Инвестиция лойиҳалари»
+ * бўлимидаги еттита сурат номи билан ўхшаш бўлиши мумкин — ўхшашликка
+ * қараб бириктирилган сурат бутунлай бошқа объектни кўрсатиб қўярди ва
+ * буни экрандан сезиб бўлмасди (координата билан бир хил ҳолат, қаранг:
+ * `project-registry.regions.ts`). Файл бўлмаса `AreaPhoto` хотиржам
+ * плашка кўрсатади, кўрсаткичлар эса барибир чизилади.
+ */
+export interface RegArea {
+  /** `public/registry/<id>.jpg` манзили. Файл бўлмаса — плашка кўринади. */
+  src: string;
+  alt: string;
+  /** Сурат остидаги қаторлар: ер майдони · ҳудуд · харитадаги нуқта · қувват. */
+  fields: RegFact[];
+  /** Блок сарлавҳаси остидаги изоҳ. */
+  note: string;
+  /** Плашканинг иккинчи қатори — расм йўқлигида нима кўринаётгани. */
+  photoNote: string;
+}
+
 export interface RegDetail {
   project: RegProject;
+  /** Сарлавҳа остидаги қатор: ҳудуд · масъул шахс. */
+  head: { region: string | null; responsible: string | null };
+  progress: RegProgress;
+  tiles: RegTile[];
+  /** Лойиҳа мақсади — узун матн, абзац бўлиб чизилади. `null` — йўқ. */
+  goal: string | null;
+  area: RegArea;
+  /** Чап устун: муддатлар. */
+  terms: RegBlock | null;
+  /** Чап устун: самарадорлик кўрсаткичлари. */
+  effect: RegBlock | null;
+  /** Ўнг устун: нима ишлаб чиқарилади. */
+  product: RegBlock | null;
+  /** Ўнг устун: лойиҳа қай босқичда. */
+  readiness: RegBlock | null;
+  /** Пастдаги кенг блок — 12 та катак, уч устунга ёйилади. */
+  infra: RegBlock | null;
+  /** Пастки тасма: лойиҳанинг умумий тавсифи. Бўш бўлса — чизилмайди. */
+  strip: RegFact[];
   finance: RegFinanceLine[];
   financeSum: number | null;
   financeGap: number | null;
-  /** Тўлган блоклар — экранда шулар чизилади. */
-  blocks: RegBlock[];
+  /** Ўзлаштирилган маблағ — молия блокининг остидаги қатор. */
+  disbursed: number | null;
   /** Бирорта катаги тўлмаган блоклар номи — очиқ ёзиб қўйиш учун. */
   missing: string[];
   /** Қўшни лойиҳалар (база id) — рўйхатнинг ўз тартиби бўйича. */
@@ -874,23 +1001,38 @@ export interface RegDetail {
 }
 
 /**
+ * Фарқнинг чегаралари — «Инвестиция лойиҳалари» бўлимидагиси билан АЙНАН
+ * бир хил: 3 п.п. гача «мос келади», 10 п.п. дан ортиғи «кескин фарқ».
+ * Улар молиявий стандарт эмас, фақат диққатни қаратиш учун; ранг ёлғиз
+ * маъно ташимайди — фарқнинг ўзи доим сон билан ёзилади.
+ */
+const GAP_NOTICE = 3;
+const GAP_SEVERE = 10;
+
+/** Ишорали пункт матни: «−35,1 п.п.». */
+const ppText = (pp: number): string => (pp >= 0 ? "+" : "−") + nf(Math.abs(pp), 1) + " п.п.";
+
+/** Реестрда шу катак нечта лойиҳада тўлдирилган. */
+const filledCount = (all: RegProject[], has: (r: ProjectRegistryProject) => boolean): number =>
+  all.filter((x) => has(x.raw)).length;
+
+/** `null` ва бўш сатр — иккови ҳам «тўлдирилмаган». */
+const isSet = (v: string | number | null): boolean =>
+  v !== null && (typeof v === "number" || v.trim() !== "");
+
+/**
  * Битта лойиҳанинг тафсилоти.
  *
  * Блоклар **аввал йиғилади, кейин фильтрланади**: биронта катаги тўлмаган
  * блок умуман чизилмайди ва номи `missing` да қолади. Шунда «бўш жадвал»
  * билан «манбада бу маълумот йўқ» экранда аралашмайди — реестрнинг ярмидан
  * кўпи тўлдирилмагани учун бу ҳолат кўп учрайди.
- *
- * `prev`/`next` рўйхатнинг ўз тартибидан ҳисобланади — бэкендга иккинчи
- * сўров юборилмайди (`GET /project-registry/:id` дан келадиган `neighbors`
- * айнан шу тартибда ҳисобланган).
  */
-export function regDetail(
-  p: RegProject,
-  all: RegProject[],
-  emptyColumns: string[],
-): RegDetail {
+export function regDetail(p: RegProject, all: RegProject[], emptyColumns: string[]): RegDetail {
   const r = p.raw;
+  const total = all.length;
+
+  /* --- молиялаштириш ---------------------------------------------------- */
 
   const offtakeEmpty = emptyColumns.some((c) => c.includes("офф-тейк"));
   const eurobondEmpty = emptyColumns.some((c) => c.includes("евробонд"));
@@ -913,147 +1055,217 @@ export function regDetail(
     color: REGISTRY_SOURCE_TOKEN[f.key],
   }));
 
-  const groups: Array<{ key: string; title: string; facts: RegFact[] }> = [
+  /* --- иккита ҳалқа ------------------------------------------------------ */
+
+  // Молиявий ўзлаштириш реестрда алоҳида устун сифатида турмайди — у
+  // ўзлаштирилган маблағнинг умумий қийматга нисбати. Умумий қиймат нол ёки
+  // йўқ бўлса улуш ҲИСОБЛАНМАЙДИ: нолга бўлиш ўрнига катак бўш қолади.
+  const finPct =
+    r.disbursedMlnUsd === null || p.totalCost === null || p.totalCost === 0
+      ? null
+      : (r.disbursedMlnUsd / p.totalCost) * 100;
+  const physPct = p.progressPercent;
+  const gapPp = physPct === null || finPct === null ? null : finPct - physPct;
+  const status: Status =
+    gapPp === null
+      ? "mute"
+      : gapPp <= -GAP_SEVERE
+        ? "crit"
+        : Math.abs(gapPp) <= GAP_NOTICE
+          ? "mute"
+          : "warn";
+
+  const progress: RegProgress = {
+    physPct,
+    raw: p.progressRaw,
+    scale: p.progressScale,
+    finPct,
+    disbursed: r.disbursedMlnUsd,
+    gapPp,
+    gapText: gapPp === null ? null : Math.abs(gapPp) <= GAP_NOTICE ? "мос келади" : ppText(gapPp),
+    status,
+    physFilled: filledCount(all, (x) => x.progressPercent !== null),
+    finFilled: filledCount(all, (x) => x.disbursedMlnUsd !== null),
+    total,
+  };
+
+  /* --- тўртта плитка ----------------------------------------------------- */
+
+  const tileFoot = (n: number): string => `${nf(n)} / ${nf(total)} лойиҳада кўрсатилган`;
+
+  const tiles: RegTile[] = [
     {
-      key: "about",
-      title: "Лойиҳа ҳақида",
-      facts: [
-        { k: "Мақсади", v: txt(r.goalCyrillic) },
-        { k: "Ҳудуди", v: txt(r.regionCyrillic) },
-        // Харитадаги нуқта манбадаги матндан АНИҚЛАНГАН қиймат, шунинг учун
-        // у «Ҳудуди» ўрнига эмас, ЁНИГА қўйилади ва аниқлиги ёзилади.
-        { k: "Харитадаги нуқта", v: coordsFact(r) },
-        { k: "Масъул шахс", v: txt(r.responsibleCyrillic) },
-        { k: "Объект тури", v: txt(r.objectKindCyrillic) },
-        { k: "Ҳозирги ҳолати", v: txt(r.stateCyrillic) },
-        { k: "Муҳимлилиги", v: r.priority === null ? null : exact(r.priority) },
-      ],
+      k: "Умумий қиймати",
+      v: p.totalCost === null ? null : exact(p.totalCost),
+      unit: "млн $",
+      stripe: "var(--s2)",
+      foot: tileFoot(filledCount(all, (x) => x.totalCostMlnUsd !== null)),
     },
     {
-      key: "terms",
-      title: "Муддатлар",
-      facts: [
-        { k: "Амалга ошириш муддати", v: txt(r.deadlineTextCyrillic) },
-        { k: "Бошланиш санаси", v: txt(r.startDateTextCyrillic) },
-        { k: "Тугаш санаси (режа)", v: txt(r.endDateTextCyrillic) },
-        { k: "Давомийлиги", v: textOrNum(r.durationTextCyrillic, r.durationMonths, "ой") },
-        { k: "Қурилиш бошланиши", v: txt(r.buildStartTextCyrillic) },
-        { k: "Монтаж ишлари", v: txt(r.assemblyTextCyrillic) },
-        { k: "Ишга тушириш", v: txt(r.commissioningTextCyrillic) },
-      ],
+      k: "Иш ўринлари",
+      v: p.jobs === null ? null : exact(p.jobs),
+      unit: "та",
+      stripe: "var(--s1)",
+      foot: tileFoot(filledCount(all, (x) => x.jobs !== null)),
     },
     {
-      key: "capacity",
-      title: "Қувват ва маҳсулот",
-      facts: [
-        { k: "Қуввати", v: txt(r.capacityCyrillic) },
-        { k: "Қайта ишлаш қуввати", v: txt(r.processingCapacityCyrillic) },
-        { k: "Маъдан захираси", v: textOrNum(r.oreReserveTextCyrillic, r.oreReserveMlnT, "млн т") },
-        { k: "Маҳсулот", v: txt(r.productCyrillic) },
-        {
-          k: "Йиллик ҳажми",
-          v: textOrNum(r.annualOutputTextCyrillic, r.annualOutputMlnUsd, "млн $"),
-        },
-        // ⚠️ Бу устунда ўлчов АРАЛАШ (тонна/дона) — шунинг учун у ҳеч қандай
-        // йиғиндига қўшилмайди ва бирлиги ёзилмайди: манбадаги ёзув қандай
-        // бўлса шундай қолади.
-        {
-          k: "Йиллик ҳажми (миқдор)",
-          v: textOrNum(r.annualOutputQtyTextCyrillic, r.annualOutputQty),
-        },
-      ],
+      k: "Амалга ошириш муддати",
+      v: p.deadline,
+      stripe: "var(--rule)",
+      foot: tileFoot(filledCount(all, (x) => isSet(x.deadlineTextCyrillic))),
     },
     {
-      key: "effect",
-      title: "Самарадорлик",
-      facts: [
-        { k: "IRR", v: textOrNum(r.irrTextCyrillic, r.irrPercent, "%") },
-        { k: "NPV", v: textOrNum(r.npvTextCyrillic, r.npvMlnUsd, "млн $") },
-        { k: "Қопланиш муддати", v: textOrNum(r.paybackTextCyrillic, r.paybackYears, "йил") },
-        { k: "Иш ўринлари", v: r.jobs === null ? null : exact(r.jobs), unit: "та" },
-        { k: "Ўзлаштирилган маблағ", v: r.disbursedMlnUsd === null ? null : exact(r.disbursedMlnUsd), unit: "млн $" },
-        { k: "Кутилаётган натижа", v: txt(r.expectedResultsCyrillic) },
-      ],
-    },
-    {
-      key: "docs",
-      title: "Ҳужжатлар ва қурилиш",
-      facts: [
-        { k: "ТИА/ТИХ ҳолати", v: txt(r.fsStateCyrillic) },
-        { k: "Қурилиш ҳужжатлари ҳолати", v: txt(r.docStateCyrillic) },
-        { k: "Лойиҳачи ташкилот", v: txt(r.designerCyrillic) },
-        { k: "Пудратчи", v: txt(r.contractorCyrillic) },
-        {
-          k: "EPC шартнома қиймати",
-          v: textOrNum(r.epcContractTextCyrillic, r.epcContractMlnUsd, "млн $"),
-        },
-        { k: "Ер майдони", v: textOrNum(r.areaTextCyrillic, r.areaHa, "га") },
-        { k: "Ускуналар", v: txt(r.equipmentCyrillic) },
-        { k: "Ускуна тўлов шартлари", v: txt(r.equipmentPaymentCyrillic) },
-        { k: "Харажат тақсимоти", v: txt(r.costBreakdownCyrillic) },
-        { k: "Таклифлар қабули", v: txt(r.proposalsOpenCyrillic) },
-      ],
-    },
-    {
-      key: "infra",
-      title: "Инфратузилма",
-      facts: [
-        { k: "Электр тармоғи", v: txt(r.powerGridCyrillic) },
-        {
-          k: "Электр энергия эҳтиёжи",
-          v: textOrNum(r.powerDemandTextCyrillic, r.powerDemandKwhYear, "кВт·соат/йил"),
-        },
-        { k: "Табиий газ тармоғи", v: txt(r.gasGridCyrillic) },
-        { k: "Газ эҳтиёжи", v: textOrNum(r.gasDemandTextCyrillic, r.gasDemandMlnM3, "млн м³") },
-        { k: "Ичимлик суви", v: txt(r.drinkWaterGridCyrillic) },
-        {
-          k: "Ичимлик сув эҳтиёжи",
-          v: textOrNum(r.drinkWaterDemandTextCyrillic, r.drinkWaterDemandThsM3, "минг м³"),
-        },
-        { k: "Техник сув", v: txt(r.techWaterGridCyrillic) },
-        {
-          k: "Техник сув эҳтиёжи",
-          v: textOrNum(r.techWaterDemandTextCyrillic, r.techWaterDemandThsM3, "минг м³"),
-        },
-        { k: "Темир йўл", v: txt(r.railwayCyrillic) },
-        {
-          k: "Темир йўлгача масофа",
-          v: textOrNum(r.railwayDistanceTextCyrillic, r.railwayDistanceKm, "км"),
-        },
-        { k: "Автомобиль йўли", v: txt(r.roadCyrillic) },
-        {
-          k: "Аҳоли пунктигача масофа",
-          v: textOrNum(r.settlementDistanceTextCyrillic, r.settlementDistanceKm, "км"),
-        },
-      ],
-    },
-    {
-      key: "partner",
-      title: "Ҳамкор",
-      facts: [{ k: "Ҳамкор компания", v: txt(r.partnerCompanyCyrillic) }],
+      k: "Ишга тушириш",
+      v: p.commissioning,
+      stripe: "var(--s3)",
+      foot: tileFoot(filledCount(all, (x) => isSet(x.commissioningTextCyrillic))),
     },
   ];
 
-  const blocks: RegBlock[] = [];
+  /* --- марказдаги «Лойиҳа майдони» --------------------------------------- */
+
+  const areaFilled = filledCount(all, (x) => isSet(x.areaTextCyrillic) || x.areaHa !== null);
+  const area: RegArea = {
+    // `import.meta.env.BASE_URL` — илова илдиз каталогда турмаса ҳам манзил
+    // тўғри бўлиши учун (`vite.config.ts` да `base: "./"`).
+    src: `${import.meta.env.BASE_URL}registry/${p.id}.jpg`,
+    alt: `${p.name} — лойиҳа майдонининг сурати`,
+    fields: [
+      { k: "Ер майдони", v: textOrNum(r.areaTextCyrillic, r.areaHa, "га") },
+      { k: "Ҳудуди", v: txt(r.regionCyrillic) },
+      // Харитадаги нуқта манбадаги матндан АНИҚЛАНГАН қиймат, шунинг учун у
+      // «Ҳудуди» ўрнига эмас, ЁНИГА қўйилади ва аниқлиги ёзилади.
+      { k: "Харитадаги нуқта", v: coordsFact(r) },
+      { k: "Қуввати", v: txt(r.capacityCyrillic) },
+    ],
+    note: `Ер майдони реестрда ${nf(areaFilled)} / ${nf(total)} лойиҳада тўлдирилган`,
+    photoNote:
+      "Бу лойиҳанинг сурати ҳали қўйилмаган. Қуйидаги кўрсаткичлар реестрдан олинган ва суратга боғлиқ эмас.",
+  };
+
+  /* --- блоклар ------------------------------------------------------------ */
+
   const missing: string[] = [];
-  for (const b of groups) {
-    const filled = b.facts.filter((f) => f.v !== null).length;
+
+  /** Блок ясайди; биронта катаги тўлмаса `null` қайтади ва номи `missing` га тушади. */
+  const mk = (key: string, title: string, facts: RegFact[]): RegBlock | null => {
+    const filled = facts.filter((f) => f.v !== null).length;
     if (filled === 0) {
-      missing.push(b.title.toLocaleLowerCase());
-      continue;
+      missing.push(title.toLocaleLowerCase());
+      return null;
     }
     // Тўлмаган катаклар ташлаб юборилмайди: блок ичида «кўрсатилмаган» бўлиб
     // қолади, шунда ҳар бир лойиҳа бир хил тузилишда ўқилади.
-    blocks.push({ key: b.key, title: b.title, facts: b.facts, filled });
-  }
+    return { key, title, facts, filled };
+  };
+
+  const terms = mk("terms", "Муддатлар", [
+    { k: "Бошланиш санаси", v: txt(r.startDateTextCyrillic) },
+    { k: "Тугаш санаси (режа)", v: txt(r.endDateTextCyrillic) },
+    { k: "Давомийлиги", v: textOrNum(r.durationTextCyrillic, r.durationMonths, "ой") },
+    { k: "Қурилиш бошланиши", v: txt(r.buildStartTextCyrillic) },
+    { k: "Монтаж ишлари", v: txt(r.assemblyTextCyrillic) },
+  ]);
+
+  const effect = mk("effect", "Самарадорлик", [
+    { k: "IRR", v: textOrNum(r.irrTextCyrillic, r.irrPercent, "%") },
+    { k: "NPV", v: textOrNum(r.npvTextCyrillic, r.npvMlnUsd, "млн $") },
+    { k: "Қопланиш муддати", v: textOrNum(r.paybackTextCyrillic, r.paybackYears, "йил") },
+    { k: "Иш ўринлари", v: r.jobs === null ? null : exact(r.jobs), unit: "та" },
+    { k: "Кутилаётган натижа", v: txt(r.expectedResultsCyrillic) },
+  ]);
+
+  const product = mk("product", "Маҳсулот ва ҳажм", [
+    { k: "Маҳсулот", v: txt(r.productCyrillic) },
+    { k: "Йиллик ҳажми", v: textOrNum(r.annualOutputTextCyrillic, r.annualOutputMlnUsd, "млн $") },
+    // ⚠️ Бу устунда ўлчов АРАЛАШ (тонна/дона) — шунинг учун у ҳеч қандай
+    // йиғиндига қўшилмайди ва бирлиги ёзилмайди: манбадаги ёзув қандай
+    // бўлса шундай қолади.
+    { k: "Йиллик ҳажми (миқдор)", v: textOrNum(r.annualOutputQtyTextCyrillic, r.annualOutputQty) },
+    { k: "Қайта ишлаш қуввати", v: txt(r.processingCapacityCyrillic) },
+    { k: "Маъдан захираси", v: textOrNum(r.oreReserveTextCyrillic, r.oreReserveMlnT, "млн т") },
+  ]);
+
+  const readiness = mk("readiness", "Тайёргарлик", [
+    { k: "ТИА/ТИХ ҳолати", v: txt(r.fsStateCyrillic) },
+    { k: "Қурилиш ҳужжатлари ҳолати", v: txt(r.docStateCyrillic) },
+    { k: "Лойиҳачи ташкилот", v: txt(r.designerCyrillic) },
+    { k: "Пудратчи", v: txt(r.contractorCyrillic) },
+    {
+      k: "EPC шартнома қиймати",
+      v: textOrNum(r.epcContractTextCyrillic, r.epcContractMlnUsd, "млн $"),
+    },
+    { k: "Ускуналар", v: txt(r.equipmentCyrillic) },
+    { k: "Ускуна тўлов шартлари", v: txt(r.equipmentPaymentCyrillic) },
+    { k: "Харажат тақсимоти", v: txt(r.costBreakdownCyrillic) },
+    { k: "Таклифлар қабули", v: txt(r.proposalsOpenCyrillic) },
+  ]);
+
+  const infra = mk("infra", "Инфратузилма", [
+    { k: "Электр тармоғи", v: txt(r.powerGridCyrillic) },
+    {
+      k: "Электр энергия эҳтиёжи",
+      v: textOrNum(r.powerDemandTextCyrillic, r.powerDemandKwhYear, "кВт·соат/йил"),
+    },
+    { k: "Табиий газ тармоғи", v: txt(r.gasGridCyrillic) },
+    { k: "Газ эҳтиёжи", v: textOrNum(r.gasDemandTextCyrillic, r.gasDemandMlnM3, "млн м³") },
+    { k: "Ичимлик суви", v: txt(r.drinkWaterGridCyrillic) },
+    {
+      k: "Ичимлик сув эҳтиёжи",
+      v: textOrNum(r.drinkWaterDemandTextCyrillic, r.drinkWaterDemandThsM3, "минг м³"),
+    },
+    { k: "Техник сув", v: txt(r.techWaterGridCyrillic) },
+    {
+      k: "Техник сув эҳтиёжи",
+      v: textOrNum(r.techWaterDemandTextCyrillic, r.techWaterDemandThsM3, "минг м³"),
+    },
+    { k: "Темир йўл", v: txt(r.railwayCyrillic) },
+    {
+      k: "Темир йўлгача масофа",
+      v: textOrNum(r.railwayDistanceTextCyrillic, r.railwayDistanceKm, "км"),
+    },
+    { k: "Автомобиль йўли", v: txt(r.roadCyrillic) },
+    {
+      k: "Аҳоли пунктигача масофа",
+      v: textOrNum(r.settlementDistanceTextCyrillic, r.settlementDistanceKm, "км"),
+    },
+  ]);
+
+  /* --- пастки тасма ------------------------------------------------------- */
+
+  // Тасмада фақат ТЎЛГАН катаклар қолади: бу ерда «кўрсатилмаган» сўзи
+  // тўрт-беш марта такрорланса, тасма маълумот эмас, шовқин бўларди.
+  // Блоклардан фарқи шунда — блок тузилишни сақлайди, тасма эса қисқа
+  // тавсиф беради. Ҳаммаси бўш бўлса тасма умуман чизилмайди.
+  //
+  // «Лойиҳа тури» бу ерда ЙЎҚ: у 144/144 тўлдирилган ва сарлавҳа
+  // карточкасидаги нишонда турибди — иккинчи марта ёзилса, кўпчилик
+  // лойиҳада тасма ўша битта такрордан иборат бўлиб қоларди.
+  const strip: RegFact[] = [
+    { k: "Ҳозирги ҳолати", v: txt(r.stateCyrillic) },
+    { k: "Объект тури", v: txt(r.objectKindCyrillic) },
+    { k: "Муҳимлилиги", v: r.priority === null ? null : exact(r.priority) },
+    { k: "Ҳамкор компания", v: txt(r.partnerCompanyCyrillic) },
+  ].filter((f) => f.v !== null);
 
   const idx = all.findIndex((x) => x.id === p.id);
   return {
     project: p,
+    head: { region: p.region, responsible: p.responsible },
+    progress,
+    tiles,
+    goal: txt(r.goalCyrillic),
+    area,
+    terms,
+    effect,
+    product,
+    readiness,
+    infra,
+    strip,
     finance,
     financeSum: p.financeSum,
     financeGap: p.financeGap,
-    blocks,
+    disbursed: r.disbursedMlnUsd,
     missing,
     prev: idx > 0 ? all[idx - 1].id : null,
     next: idx !== -1 && idx < all.length - 1 ? all[idx + 1].id : null,

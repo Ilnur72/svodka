@@ -18,6 +18,7 @@ import {
   type InvestVal,
 } from "../lib/adapters/invest";
 import { GRID } from "../components/layout";
+import { AreaPhoto } from "../components/AreaPhoto";
 import { Card, Section } from "../components/Card";
 import { StatTile } from "../components/StatTile";
 import { Pill } from "../components/Pill";
@@ -293,67 +294,28 @@ function PassportBlock({
 /**
  * Паспорт марказидаги «Лойиҳа майдони» блоки: сурат ва тўртта кўрсаткич.
  *
- * ═══ Расм бор-йўқлиги фақат браузерда маълум ════════════════════════════
- *
- * Файл `public/invest/` да туради — у бандлга кирмайди, шунинг учун build
- * пайтида ҳам, рендер пайтида ҳам «бор ёки йўқ» деб текшириб бўлмайди.
- * Ягона ишончли сигнал — браузернинг ўзи: `onLoad` ёки `onError`.
- *
- * Учта ҳолат бор ва учаласи бошқача кўринади:
- *   - `load` — жавоб ҳали келмаган: жойни нейтрал майдон эгаллаб туради,
- *     расм эса шаффоф. Айнан шу сабабли синиқ расм иконкаси ҳам, `alt`
- *     матни ҳам экранга чиқмайди;
- *   - `ok`   — расм кўринади;
- *   - `fail` — расм умуман чизилмайди, ўрнида хотиржам плашка туради.
+ * Суратнинг ўзи `AreaPhoto` да: расм бор-йўқлиги фақат браузерда маълум
+ * бўлади ва учта ҳолат (`load`/`ok`/`fail`) ўша ерда, бир марта ёзилган —
+ * «Лойиҳалар реестри» тафсилоти ҳам айнан шу компонентни ишлатади.
  *
  * Ҳар қандай ҳолатда ҳам остидаги кўрсаткичлар ўзгармайди: улар реестрдан
  * келади ва суратга боғлиқ эмас.
- *
- * `aspect-[16/10]` — расмнинг энг кичик баландлиги, қатъий ўлчов эмас.
- * Устун грид қатори баландлигига чўзилади, ортиқча жойни эса айнан расм
- * ютади (`grow`): у шу блокнинг асосий мазмуни, шунинг учун бўш оралиқ
- * ҳосил қилгандан кўра расмни каттароқ кўрсатган маъқул. Кўрсаткичлар
- * ҳар доим расм остида, ўз жойида қолади.
  *
  * Расм устига ҳеч нарса қўйилмайди: реестрда координата ҳам, харита ҳам,
  * геологик маълумот ҳам йўқ.
  */
 function AreaBlock({ area }: { area: InvestArea }) {
-  const [st, setSt] = useState<"load" | "ok" | "fail">("load");
-
   return (
     <Card
       className="flex h-full flex-col"
       title={<BlockHead tone="var(--s2)">Лойиҳа майдони</BlockHead>}
       note={area.note}
     >
-      <div className="relative aspect-[16/10] w-full grow overflow-hidden rounded-card border border-grid bg-sunken">
-        {st !== "fail" && (
-          <img
-            src={area.src}
-            alt={area.alt}
-            loading="lazy"
-            onLoad={() => setSt("ok")}
-            onError={() => setSt("fail")}
-            className={
-              "h-full w-full object-cover" + (st === "ok" ? "" : " opacity-0")
-            }
-          />
-        )}
-        {st === "fail" && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 px-5 text-center">
-            <span
-              aria-hidden="true"
-              className="h-px w-10 bg-rule"
-            />
-            <span className="text-[12px] text-ink-2">Сурат юкланмаган</span>
-            <span className="max-w-[42ch] text-[11px] leading-[1.45] text-ink-3">
-              Лойиҳа майдонининг сурати ҳали қўйилмаган. Қуйидаги кўрсаткичлар реестрдан
-              олинган ва суратга боғлиқ эмас.
-            </span>
-          </div>
-        )}
-      </div>
+      <AreaPhoto
+        src={area.src}
+        alt={area.alt}
+        note="Лойиҳа майдонининг сурати ҳали қўйилмаган. Қуйидаги кўрсаткичлар реестрдан олинган ва суратга боғлиқ эмас."
+      />
       <FieldList fields={area.fields} />
     </Card>
   );
