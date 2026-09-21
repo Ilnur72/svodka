@@ -7,6 +7,7 @@ import { UNASSIGNED_PLANT_NOTE } from "../lib/dataQuality";
 import {
   FILTER_ALL,
   NARASTAYKA_LAST_DAY_LIMIT,
+  countPositions,
   dailyFromNarastayka,
   DEFAULT_VALUE_FILTER,
   VALUE_FILTERS,
@@ -14,6 +15,7 @@ import {
   filterByValue,
   filterItems,
   fromTree,
+  groupCards,
   lastDayFacts,
   narastaykaLimit,
   prodStats,
@@ -28,6 +30,7 @@ import { usePalette } from "../lib/theme";
 import { GRID } from "../components/layout";
 import { Card, Section } from "../components/Card";
 import { ProductCard } from "../components/ProductCard";
+import { ProductGroupCard } from "../components/ProductGroupCard";
 import { CheckSelect } from "../components/CheckSelect";
 import { StatTile } from "../components/StatTile";
 import { Pill } from "../components/Pill";
@@ -182,6 +185,14 @@ export function ProdPanel({ period, months }: PanelProps) {
   const allCards = useMemo(() => productCards(rows, lastDay), [rows, lastDay]);
   const cards = useMemo(() => filterByValue(allCards, valueSel), [allCards, valueSel]);
   const hiddenByValue = allCards.length - cards.length;
+  // Бир хил номдан бошланадиган позициялар (масалан «Резец …» — 132 та)
+  // битта карточкага йиғилади. Йиғиш **фильтрдан кейин** бажарилади, шунда
+  // гуруҳ ичида айнан экранда кўринадиган позициялар қолади ва юқоридаги
+  // саноқлар (`valueCounts`, `hiddenByValue`) ўзгармайди.
+  const entries = useMemo(() => groupCards(cards), [cards]);
+  const groupCount = entries.filter((e) => e.kind === "group").length;
+  // Гуруҳларга йиғилган позициялар сони — «нима қисқарди» деб ёзиб турилади.
+  const foldedPositions = countPositions(entries.filter((e) => e.kind === "group"));
   // Ҳар бир шарт нечта позицияга тушади — рўйхатда сон бўлиб кўринади.
   const valueCounts = useMemo(() => {
     const c = { planSet: 0, planNone: 0, faktSet: 0, faktNone: 0 };
@@ -203,7 +214,7 @@ export function ProdPanel({ period, months }: PanelProps) {
     filter.process,
     filter.query,
   ].join("|");
-  const cardsShown = expandedSig === filterSig ? cards : cards.slice(0, CARD_PAGE);
+  const shown = expandedSig === filterSig ? entries : entries.slice(0, CARD_PAGE);
 
   const metShare = stats.met / (stats.withPlan || 1);
   const hasUnassigned = (flat?.plants ?? []).some((x) => x.unassigned);
@@ -376,7 +387,7 @@ export function ProdPanel({ period, months }: PanelProps) {
           <Section
             className="mt-5"
             title="Маҳсулот карточкалари"
-            note="ҳар бир позиция бўйича режа, факт ва бажарилиш · тартиб: энг орқада қолгани биринчи"
+            note="ҳар бир позиция бўйича режа, факт ва бажарилиш · тартиб: бажарилиш фоизи бўйича камайиш — энг юқориси биринчи"
           >
             {cards.length === 0 ? (
               <Card>
@@ -403,18 +414,41 @@ export function ProdPanel({ period, months }: PanelProps) {
                     </span>
                   </p>
                 )}
+                {/* Нима йиғилгани ҳам ёзиб турилади — бу яшириш эмас:
+                    гуруҳ карточкасидаги тугма таркибни тўлиқ очади. */}
+                {groupCount > 0 && (
+                  <p className="mb-2.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11.5px] text-ink-3">
+                    <Pill>
+                      {nf(foldedPositions)} та позиция {nf(groupCount)} та карточкага йиғилди
+                    </Pill>
+                    <span>
+                      Бир хил номдан бошланадиган ва ўлчов бирлиги битта бўлган позициялар
+                      (масалан «Резец …») битта карточкада турибди — жами режа, жами факт ва
+                      улардан қайта ҳисобланган фоиз билан. Таркиби карточкадаги тугма билан
+                      очилади, бирорта позиция йўқолмайди.
+                    </span>
+                  </p>
+                )}
                 <div className={GRID.g4}>
-                  {cardsShown.map((c) => (
-                    <ProductCard key={c.key} card={c} showWorkshop={!oneWorkshop} />
-                  ))}
+                  {shown.map((e) =>
+                    e.kind === "group" ? (
+                      <ProductGroupCard
+                        key={e.key}
+                        group={e.group}
+                        showWorkshop={!oneWorkshop}
+                      />
+                    ) : (
+                      <ProductCard key={e.key} card={e.card} showWorkshop={!oneWorkshop} />
+                    ),
+                  )}
                 </div>
-                {cards.length > cardsShown.length && (
+                {entries.length > shown.length && (
                   <button
                     type="button"
                     onClick={() => setExpandedSig(filterSig)}
                     className="mt-3 cursor-pointer rounded-[5px] border border-hair bg-surface-2 px-[13px] py-[6px] text-[12px] font-semibold text-ink-2 hover:text-ink"
                   >
-                    Яна {nf(cards.length - cardsShown.length)} та позицияни кўрсатиш
+                    Яна {nf(entries.length - shown.length)} та карточкани кўрсатиш
                   </button>
                 )}
               </>

@@ -371,23 +371,61 @@ export interface ProdCard {
 }
 
 /**
+ * Карточка ва гуруҳларни бир хил қоида билан саралаш учун калит.
+ * Иккови ҳам шу учта сон билан солиштирилади — рўйхат аралаш бўлса ҳам
+ * тартиб битта мантиқда қолади.
+ */
+interface SortKey {
+  /** Режа қўйилганми (`plan > 0`). */
+  planned: boolean;
+  percent: number | null;
+  fakt: number;
+}
+
+/**
+ * Тартиб — бажарилиш фоизи бўйича **камайиш**: энг юқори фоиз биринчи
+ * (фойдаланувчи талаби, аввал тескари эди).
+ *
+ * ⚠️ `percent === null` **нол эмас** — у «режа қўйилмаган, фоизни ҳисоблаб
+ * бўлмайди» дегани. Шунинг учун у `0%` ли позициялар билан аралаштирилмайди
+ * ва `?? 0` билан ҳам тенглаштирилмайди: фоизи борлар ўз ичида камайиш
+ * тартибида, фоизи йўқлари эса **алоҳида**, улардан кейин, факт бўйича
+ * камайиш тартибида туради.
+ *
+ * Режаси борлар доим тепада: режасиз позицияни фоиз билан солиштириб
+ * бўлмайди, улар рўйхатнинг охирида ўз блоки бўлиб қолади (аввалгидек).
+ */
+function compareByPerformance(a: SortKey, b: SortKey): number {
+  if (a.planned !== b.planned) return a.planned ? -1 : 1;
+  if (a.percent === null || b.percent === null) {
+    if (a.percent !== null) return -1;
+    if (b.percent !== null) return 1;
+    return b.fakt - a.fakt;
+  }
+  return b.percent - a.percent;
+}
+
+const cardSortKey = (c: ProdCard): SortKey => ({
+  planned: c.plan > 0,
+  percent: c.percent,
+  fakt: c.fakt,
+});
+
+/**
  * Фильтр бўйича маҳсулот карточкалари.
  *
  * `isTotal` («…, всего») сатрлари **киритилмайди** — улар пастдаги
  * позицияларнинг йиғиндиси, gridга қўшилса битта миқдор икки марта кўринарди.
  * Улар панелда алоҳида «Йиғинди сатрлар» карточкасида қолади.
  *
- * Тартиб: аввал режаси бор позициялар бажарилиш фоизи бўйича **ўсиш**
- * тартибида (энг орқада қолгани биринчи — раҳбар шуни биринчи кўриши керак),
- * кейин режасиз позициялар факт бўйича камайиш тартибида.
+ * Тартиб — `compareByPerformance()` да.
  */
 export function productCards(rows: ProdItem[], lastDay: LastDayVM | null): ProdCard[] {
-  const planned: ProdCard[] = [];
-  const noPlan: ProdCard[] = [];
+  const cards: ProdCard[] = [];
   for (const x of rows) {
     if (x.isTotal) continue;
     const d = lastDay?.byProduct.get(normName(x.name));
-    const card: ProdCard = {
+    cards.push({
       key: x.key,
       name: x.name,
       workshop: x.workshop,
@@ -401,13 +439,190 @@ export function productCards(rows: ProdItem[], lastDay: LastDayVM | null): ProdC
       faktSet: x.faktSet,
       percent: x.percent,
       day: d && lastDay ? { label: lastDay.label, plan: d.plan, fakt: d.fakt } : null,
-    };
-    (x.plan > 0 ? planned : noPlan).push(card);
+    });
   }
-  planned.sort((a, b) => (a.percent ?? 0) - (b.percent ?? 0));
-  noPlan.sort((a, b) => b.fakt - a.fakt);
-  return [...planned, ...noPlan];
+  cards.sort((a, b) => compareByPerformance(cardSortKey(a), cardSortKey(b)));
+  return cards;
 }
+
+/* -------------------------------------------------------------------------- */
+/* бир оиладаги позицияларни битта карточкага йиғиш                           */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Рус тилидаги кўплик шакли битта оилани иккига бўлиб юбормаслиги учун
+ * қўлда ёзилган мослик. Манбада «Резец 2101-0015 ВК6 ГОСТ 18879-73 (…)» ва
+ * «Резцы ток. Проходной прямой ВК6 2101-0015» — айни бир маҳсулот оиласи
+ * (манбанинг ўзидаги «Резцы всего» йиғинди сатри иккисини ҳам қамрайди),
+ * лекин биринчи сўз ҳар хил ёзилган.
+ *
+ * Бу — морфология эмас, **ўлчанган** рўйхат: фақат ҳақиқатан учраган
+ * жуфтликлар ёзилади.
+ */
+const FAMILY_ALIAS: Record<string, string> = {
+  резцы: "резец",
+  сверла: "сверло",
+  фрезы: "фреза",
+};
+
+/**
+ * Оила калити — номнинг **биринчи сўзи** (катта-кичик ҳарф ва охиридаги
+ * тиниш белгиси ҳисобга олинмайди).
+ *
+ * Манбада битта маҳсулот ўнлаб вариант бўлиб такрорланади: «Резец» оиласида
+ * бир хил код (2101-0013) тўртта қаттиқ қотишма маркаси (ВК6 · ВК8 · Т15К6 ·
+ * Т5К10) билан келади — 2026-09 да 132 позиция, 37 та код.
+ */
+export function familyKey(name: string): string {
+  const first = normName(name).split(" ")[0] ?? "";
+  const word = first.replace(/[^\p{L}\p{N}]+$/u, "");
+  return FAMILY_ALIAS[word] ?? word;
+}
+
+/**
+ * Шунча позициядан кам оила йиғилмайди.
+ *
+ * Чегара ўлчов билан танланган: 8 да фақат ҳақиқатан «бир маҳсулот — кўп
+ * ўлчам/марка» оилалари йиғилади (`резец` 132, `сверло` 21, `фреза` 14,
+ * `буровые` 8, `установка` 8), 6 га туширилса эса `рений металлический`
+ * каби бир-бирини ичига олиши мумкин бўлган қаторлар ҳам тушиб қоларди.
+ * Уч-тўртта карточка ўқишга халақит бермайди — уларни йиғиш фойда бермайди.
+ */
+export const FAMILY_MIN = 8;
+
+export interface ProdGroup {
+  key: string;
+  /** Кўринадиган ном: `резец` → «Резец». */
+  label: string;
+  /** Таркибий позициялар — ҳеч бири йўқолмайди, очилганда ҳаммаси кўринади. */
+  items: ProdCard[];
+  /** Оиланинг **ягона** ўлчов бирлиги — гуруҳ фақат шу шартда тузилади. */
+  unit: string;
+  /** Таркибдаги цехлар (такрорсиз, алифбо тартибида). */
+  workshops: string[];
+  /** Таркибдаги заводлар (такрорсиз). */
+  plants: string[];
+  /** Жами режа — **ҳисобланган** сон (`nf(v, 2)` билан кўрсатилади). */
+  plan: number;
+  /** Жами факт — **ҳисобланган** сон. */
+  fakt: number;
+  /** Режаси кўрсатилган позициялар сони — «N тадан M таси». */
+  planSetCount: number;
+  /** Факти қайд этилган позициялар сони. */
+  faktSetCount: number;
+  /**
+   * Гуруҳ бажарилиши — **жами факт / жами режа**.
+   *
+   * Алоҳида фоизларнинг ўртачаси эмас: у бутунлай бошқа кўрсаткич бўларди
+   * (20 донали ва 3 300 донали позиция тенг вазн оларди). Жами режа нол
+   * бўлса `null` — «ҳисоблаб бўлмайди», `0%` эмас.
+   */
+  percent: number | null;
+}
+
+/** Рўйхат элементи: якка позиция ёки бир оилага йиғилган гуруҳ. */
+export type ProdEntry =
+  | { kind: "card"; key: string; card: ProdCard }
+  | { kind: "group"; key: string; group: ProdGroup };
+
+function buildGroup(key: string, unit: string, items: ProdCard[]): ProdGroup {
+  let plan = 0;
+  let fakt = 0;
+  let planSetCount = 0;
+  let faktSetCount = 0;
+  for (const c of items) {
+    // ⚠️ Қиймат **қўйилган** позициялар қўшилади. Режаси кўрсатилмаган
+    // қатор нол деб қўшилмайди — у йиғиндига ҳам, саноққа ҳам кирмайди.
+    if (c.planSet) {
+      plan += c.plan;
+      planSetCount += 1;
+    }
+    if (c.faktSet) {
+      fakt += c.fakt;
+      faktSetCount += 1;
+    }
+  }
+  // Ўнлик қийматли оилаларда (`рений`: 4776,7 кг) сузувчи нуқта «думи»
+  // қолмасин — `cumulative()` ва `lastDayFacts()` билан бир хил қоида.
+  plan = Number(plan.toFixed(3));
+  fakt = Number(fakt.toFixed(3));
+  return {
+    key: `family:${key}`,
+    label: key.charAt(0).toUpperCase() + key.slice(1),
+    items,
+    unit,
+    workshops: [...new Set(items.map((c) => c.workshop))].sort((a, b) => a.localeCompare(b, "ru")),
+    plants: [...new Set(items.map((c) => c.plantLabel))].sort((a, b) => a.localeCompare(b, "ru")),
+    plan,
+    fakt,
+    planSetCount,
+    faktSetCount,
+    percent: plan > 0 ? (fakt / plan) * 100 : null,
+  };
+}
+
+/**
+ * Бир хил номдан бошланадиган позицияларни битта карточкага йиғади.
+ *
+ * Нега керак: 2026-09 да экрандаги 278 карточканинг **132 таси** «Резец …»
+ * эди ва биринчи саҳифадаги 48 тадан 43 таси ўша оилага тегишли бўлиб
+ * қолган — бўлим ўқилмас ҳолга келган.
+ *
+ * Иккита қатъий шарт:
+ *  - оилада камида `FAMILY_MIN` та позиция бўлиши керак;
+ *  - **ўлчов бирлиги битта** бўлиши шарт. `Выпуск …` (т · шт · кг · тн) ёки
+ *    `Огнеупорные …` (шт · т.шт) каби оилалар йиғилмайди — турли бирликни
+ *    қўшиб бўлмайди, улар аввалгидек алоҳида карточка бўлиб қолади.
+ *
+ * Ҳеч нарса йўқолмайди: йиғилган позициялар `ProdGroup.items` да тўлиқ
+ * туради ва карточкадаги тугма билан очилади.
+ */
+export function groupCards(cards: ProdCard[]): ProdEntry[] {
+  const byFamily = new Map<string, ProdCard[]>();
+  for (const c of cards) {
+    const k = familyKey(c.name);
+    if (!k) continue;
+    const arr = byFamily.get(k);
+    if (arr) arr.push(c);
+    else byFamily.set(k, [c]);
+  }
+
+  const entries: ProdEntry[] = [];
+  const grouped = new Set<string>();
+  for (const [k, arr] of byFamily) {
+    if (arr.length < FAMILY_MIN) continue;
+    const units = new Set(arr.map((c) => c.unit ?? ""));
+    if (units.size !== 1) continue;
+    const unit = arr[0].unit;
+    if (!unit) continue;
+    entries.push({ kind: "group", key: `family:${k}`, group: buildGroup(k, unit, arr) });
+    grouped.add(k);
+  }
+  // Кирувчи рўйхат аллақачон сараланган — гуруҳ ичидаги тартиб ўшандан
+  // мерос қолади.
+  for (const c of cards) {
+    if (grouped.has(familyKey(c.name))) continue;
+    entries.push({ kind: "card", key: c.key, card: c });
+  }
+
+  entries.sort((a, b) =>
+    compareByPerformance(
+      a.kind === "group" ? groupSortKey(a.group) : cardSortKey(a.card),
+      b.kind === "group" ? groupSortKey(b.group) : cardSortKey(b.card),
+    ),
+  );
+  return entries;
+}
+
+const groupSortKey = (g: ProdGroup): SortKey => ({
+  planned: g.plan > 0,
+  percent: g.percent,
+  fakt: g.fakt,
+});
+
+/** Рўйхатда нечта позиция бор — гуруҳлар ичидагиси билан бирга. */
+export const countPositions = (entries: readonly ProdEntry[]): number =>
+  entries.reduce((n, e) => n + (e.kind === "group" ? e.group.items.length : 1), 0);
 
 /* -------------------------------------------------------------------------- */
 /* битта позициянинг кунлик динамикаси (/narastayka)                          */
