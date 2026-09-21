@@ -274,11 +274,12 @@ function ScheduleBody({ data }: { data: ProjectScheduleDashboard }) {
         )}
       </Section>
 
-      {/* Манбанинг охирги янгиланиши — битта қисқа қатор. */}
-      <p className="text-[11.5px] text-ink-3">
-        Манба: 5 та Gantt-график xlsx файли
-        {v.lastImportedAt !== null && ` · охирги импорт ${dateLabel(v.lastImportedAt.slice(0, 10))}`}
-      </p>
+      {/* «Манба: 5 та Gantt-график xlsx файли · охирги импорт …» қатори шу ерда
+          эди — фойдаланувчи талаби билан олиб ташланди (бутун дашборд бўйлаб
+          манба мета-қаторлари экрандан чиқарилган). Адаптердаги
+          `v.lastImportedAt` ЎЧИРИЛМАДИ, шунчаки бу ерда ўқилмайди. Лойиҳа
+          тафсилоти ойнасидаги импорт санаси бошқа майдон — ҳар лойиҳанинг ўз
+          `p.importedAt` и (`schedule/ScheduleProjectDetail.tsx`), у тегилмади. */}
     </>
   );
 }

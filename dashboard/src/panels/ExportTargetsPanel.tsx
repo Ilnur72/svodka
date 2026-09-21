@@ -533,7 +533,9 @@ function ExportTargetsBody({ data }: { data: ExportTargetsDashboard }) {
   return (
     <>
       {/* --- 1. плиткалар --------------------------------------------------- */}
-      <Section title="Экспортнинг мақсадли кўрсаткичлари" note={`манба: ${v.source}`}>
+      {/* `note` да манба файлининг номи турар эди — фойдаланувчи талаби билан
+          олиб ташланди. Бўлимнинг ўз сарлавҳа матни (`v.title`) пастда қолди. */}
+      <Section title="Экспортнинг мақсадли кўрсаткичлари">
         <p className="mb-3 max-w-[110ch] text-[12.5px] leading-[1.5] text-ink-2">{v.title}</p>
 
         {v.gaps.length > 0 && (

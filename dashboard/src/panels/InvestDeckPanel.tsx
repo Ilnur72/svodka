@@ -489,9 +489,8 @@ function InvestDeckBody({ data }: { data: InvestDeckDashboard }) {
               </div>
             );
           })}
-          <p className="mt-2.5 border-t border-grid pt-2.5 text-[11.5px] leading-[1.5] text-ink-3">
-            Манба: {v.source}
-          </p>
+          {/* «Манба: <файл>» қатори шу ерда эди — фойдаланувчи талаби билан
+              олиб ташланди. Адаптердаги `v.source` жойида қолди. */}
         </Card>
       </Section>
 
