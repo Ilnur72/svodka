@@ -186,6 +186,14 @@ const groupKeyOf = (cluster: string, direction: string | null): string =>
 
 export interface RegProject {
   id: number;
+  /**
+   * Бэкенддаги барқарор калит (`ном → slug + hash`) — ҳаволаларда эмас,
+   * ТАШҚИ манба билан боғлашда ишлатилади: қурилиш мониторинги графиги
+   * шу калит бўйича топилади (`lib/registryScheduleLinks.ts`). `id` дан
+   * фарқи — у базани қайта тўлдирганда ўзгариши мумкин, `key` эса
+   * лойиҳа номидан ҳосил бўлади.
+   */
+  key: string;
   /** Файлдаги `Т/р`. Барқарор эмас — фақат манбадаги қаторни топиш учун. */
   ordinal: number | null;
   excelRow: number | null;
@@ -389,6 +397,7 @@ function toProject(r: ProjectRegistryProject): RegProject {
   const direction = txt(r.directionNameCyrillic);
   return {
     id: r.id,
+    key: r.key,
     ordinal: r.ordinal,
     excelRow: r.excelRow,
     name: r.nameCyrillic,

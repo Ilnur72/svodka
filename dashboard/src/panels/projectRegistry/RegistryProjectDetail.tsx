@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useCallback, useEffect, useId, useMemo, useState, type KeyboardEvent } from "react";
 import { exact, nf, pctTxt } from "../../lib/format";
 import { usePalette } from "../../lib/theme";
 import {
@@ -8,6 +8,10 @@ import {
   type RegFact,
   type RegProject,
 } from "../../lib/adapters/projectRegistry";
+import {
+  registryScheduleLink,
+  warnLostRegistryScheduleLinks,
+} from "../../lib/registryScheduleLinks";
 import { GRID } from "../../components/layout";
 import { AreaPhoto } from "../../components/AreaPhoto";
 import { Card } from "../../components/Card";
@@ -16,6 +20,7 @@ import { Pill } from "../../components/Pill";
 import { PercentRing } from "../../components/PercentRing";
 import { StatTile } from "../../components/StatTile";
 import { ClusterChip, Muted, Num, SourceDot } from "./parts";
+import { RegistryScheduleTab } from "./RegistryScheduleTab";
 
 /**
  * Битта лойиҳанинг тафсилоти — модал ойнада, «Инвестиция лойиҳалари»
@@ -52,7 +57,26 @@ import { ClusterChip, Muted, Num, SourceDot } from "./parts";
  * тўлдирилган. Қиймати йўқ ҳалқа **нол фоиз билан чизилмайди** — у «иш
  * бошланмаган» деган ёлғон хулоса берарди. Иккови ҳам йўқ бўлса ҳалқалар
  * ўрнида нима учун йўқлиги ёзилади.
+ *
+ * ═══ Иккинчи таб — фақат олтита лойиҳада ════════════════════════════════
+ *
+ * 144 лойиҳадан олтитасининг қурилиш мониторинги графиги бор
+ * (`lib/registryScheduleLinks.ts` даги аниқ жадвал). Ўшаларда ойна
+ * тепасида иккита таб пайдо бўлади; қолган 138 тасида таб қатори УМУМАН
+ * чизилмайди — «график йўқ» деган бўш таб фойдаланувчига янги маълумот
+ * бермасди, ойна эса бугунги кўринишида қолади.
+ *
+ * Иккинчи табнинг мазмуни фақат таб биринчи марта очилганда монтаж
+ * қилинади: `/project-schedule/dashboard` жавоби оғир (6 график, 750 иш)
+ * ва уни ҳар бир реестр лойиҳаси учун тортиб олиш исроф бўларди.
  */
+
+type RegTabId = "passport" | "schedule";
+
+const REG_TABS: { id: RegTabId; label: string }[] = [
+  { id: "passport", label: "Лойиҳа паспорти" },
+  { id: "schedule", label: "Лойиҳа графиги" },
+];
 
 /**
  * Блок сарлавҳаси: кичик белги ва ном — «Инвестиция лойиҳалари»
@@ -197,6 +221,59 @@ export function RegistryProjectDetail({
   const pal = usePalette();
   const pr = d.progress;
 
+  // График жадвалда борми — мослик реестр `key` сининг тўлиқ тенглиги
+  // бўйича. Йўқ бўлса таб қатори умуман чизилмайди.
+  const link = registryScheduleLink(p.key);
+
+  const uid = useId();
+  const [tab, setTab] = useState<RegTabId>("passport");
+  /**
+   * График таби бир марта очилгандан кейин ҳам монтаж қилинган ҳолда
+   * қолади: жавоб лойиҳага боғлиқ эмас (битта дашборд), шунинг учун
+   * табга қайта кирганда сўров такрорланмайди. Бошланғич қиймати `false`
+   * — ойна очилишининг ўзи сўров юбормайди.
+   */
+  const [schedSeen, setSchedSeen] = useState(false);
+
+  const selectTab = useCallback((id: RegTabId) => {
+    setTab(id);
+    if (id === "schedule") setSchedSeen(true);
+  }, []);
+
+  // «Олдинги/кейинги» билан бошқа лойиҳага ўтилганда ойна қайта монтаж
+  // қилинмайди — шунинг учун таб қўлда паспортга қайтарилади (янги
+  // лойиҳада график умуман бўлмаслиги мумкин). Ойна ёпилиб қайта
+  // очилганда буни `useState` нинг бошланғич қиймати бажаради: `Modal`
+  // фақат очиқ ҳолатда монтаж қилинади.
+  useEffect(() => setTab("passport"), [p.id]);
+
+  // Жадвалдаги реестр калити юкланган лойиҳалар орасида топилмаса (Excel
+  // номи ўзгарса `key` нинг hash қисми ҳам ўзгаради) таб ЖИМГИНА
+  // йўқоларди — dev режимида консолга ёзилади.
+  useEffect(() => warnLostRegistryScheduleLinks(all.map((x) => x.key)), [all]);
+
+  // WAI-ARIA tabs: стрелкалар таблар орасида юради, Home/End четларга.
+  // Фокус `getElementById` билан кўчирилади: `useId()` берган
+  // идентификаторда CSS селекторига ярамайдиган белгилар бор.
+  const onTabKeyDown = (ev: KeyboardEvent<HTMLDivElement>) => {
+    if (!["ArrowRight", "ArrowLeft", "Home", "End"].includes(ev.key)) return;
+    ev.preventDefault();
+    const n = REG_TABS.length;
+    const i = REG_TABS.findIndex((t) => t.id === tab);
+    const next =
+      ev.key === "ArrowRight"
+        ? (i + 1) % n
+        : ev.key === "ArrowLeft"
+          ? (i - 1 + n) % n
+          : ev.key === "Home"
+            ? 0
+            : n - 1;
+    const id = REG_TABS[next].id;
+    selectTab(id);
+    const btn = document.getElementById(`${uid}-t-${id}`);
+    if (btn instanceof HTMLElement) btn.focus();
+  };
+
   const navBtn =
     "cursor-pointer rounded-[5px] border border-hair bg-surface-2 px-[11px] py-[5px] text-[12px] font-semibold text-ink-2 hover:text-ink disabled:cursor-default disabled:opacity-45";
 
@@ -253,6 +330,71 @@ export function RegistryProjectDetail({
         </>
       }
     >
+      {/* --- таб қатори: ФАҚАТ графиги бор лойиҳада ------------------------
+          Ёпишқоқ, чунки паспорт узун — пастга тушганда табларга қайтиш учун
+          ойнани бошига скролл қилиш керак бўларди. `-mx-4 -mt-3` ойна
+          мазмунининг ўз ички отступини бекор қилади, шунда тасма ойнанинг
+          чеккасидан чеккасигача боради ва орқасидан мазмун ўтади.
+
+          ⚠️ `top-[-12px]`, `top-0` эмас: ёпишқоқ элемент скролл қутисининг
+          МАЗМУН қутисига нисбатан ҳисобланади, идишда эса `py-3` бор. `top-0`
+          да тасма 12px пастда тўхтарди ва унинг устидаги шу 12px да қаторлар
+          кўриниб ўтарди (ўлчанган: қути 117,44 — тасма 129,44). Манфий
+          қиймат уни айнан ойна сарлавҳасининг остига олиб келади; `pt-5` эса
+          тугмаларни ўз жойида қолдиради. */}
+      {link && (
+        <div className="sticky top-[-12px] z-20 -mx-4 -mt-3 mb-3 border-b border-grid bg-surface px-4 pt-5">
+          <div
+            role="tablist"
+            aria-label="Лойиҳа кўриниши"
+            className="flex gap-0.5"
+            onKeyDown={onTabKeyDown}
+          >
+            {REG_TABS.map((t) => {
+              const on = t.id === tab;
+              return (
+                <button
+                  key={t.id}
+                  id={`${uid}-t-${t.id}`}
+                  type="button"
+                  role="tab"
+                  aria-selected={on}
+                  aria-controls={`${uid}-p-${t.id}`}
+                  tabIndex={on ? 0 : -1}
+                  onClick={() => selectTab(t.id)}
+                  className={
+                    "flex cursor-pointer items-center gap-[7px] border-b-2 px-3 pt-[7px] pb-[7px] text-[12.5px] whitespace-nowrap " +
+                    (on
+                      ? "border-s1 text-ink [font-weight:650]"
+                      : "border-transparent font-medium text-ink-2 hover:text-ink")
+                  }
+                >
+                  {/* Ранг ёлғиз маъно ташимайди: нуқта ёнида доим таб номи. */}
+                  <span
+                    aria-hidden="true"
+                    className={
+                      "h-[7px] w-[7px] flex-none rounded-full " + (on ? "bg-s1" : "bg-rule")
+                    }
+                  />
+                  {t.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* --- биринчи таб: паспорт. Мазмуни ЎЗГАРМАГАН — фақат ўралган.
+          Графиги йўқ лойиҳада бу оддий `<div>`: ARIA атрибутлари ҳам,
+          `hidden` ҳам қўйилмайди, яъни бугунги кўриниш сақланади. */}
+      <div
+        role={link ? "tabpanel" : undefined}
+        id={link ? `${uid}-p-passport` : undefined}
+        aria-labelledby={link ? `${uid}-t-passport` : undefined}
+        tabIndex={link ? 0 : undefined}
+        hidden={link ? tab !== "passport" : undefined}
+        className="outline-none"
+      >
       {/* --- 1. сарлавҳа карточкаси ва иккита ҳалқа ------------------------- */}
       <Card className="mb-3">
         <div className="flex flex-wrap items-start justify-between gap-x-5 gap-y-2">
@@ -505,6 +647,24 @@ export function RegistryProjectDetail({
         «Т/р» барқарор калит эмас: реестрга янги қатор қўшилса ундан кейинги ҳамма рақам
         сурилади, шунинг учун ҳавола база идентификатори бўйича ясалади.
       </p>
+      </div>
+
+      {/* --- иккинчи таб: қурилиш мониторинги графиги ----------------------
+          Мазмун таб БИРИНЧИ МАРТА очилгандан кейингина монтаж қилинади
+          (`schedSeen`) — сўров ойна очилиши билан эмас, фойдаланувчи
+          графикни сўраганда юборилади. */}
+      {link && (
+        <div
+          role="tabpanel"
+          id={`${uid}-p-schedule`}
+          aria-labelledby={`${uid}-t-schedule`}
+          tabIndex={0}
+          hidden={tab !== "schedule"}
+          className="outline-none"
+        >
+          {schedSeen && <RegistryScheduleTab p={p} link={link} active={tab === "schedule"} />}
+        </div>
+      )}
     </Modal>
   );
 }

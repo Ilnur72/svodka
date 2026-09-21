@@ -204,9 +204,25 @@ export interface ScheduleGanttProps {
   /** Фильтрдан ўтган иш сони / жами — сарлавҳа остидаги қатор учун. */
   shown: number;
   total: number;
+  /**
+   * Скролл қутисининг баландлик чегараси — Tailwind синфи.
+   *
+   * Одатда керак эмас: бўлим саҳифасида `max-h-[72vh]` тўғри ўлчам. Лекин
+   * график модал ойна ичида (реестр тафсилотининг «Лойиҳа графиги» таби)
+   * чизилганда ойнанинг ўзи ҳам 92dvh билан чекланган ва 72vh лик ички
+   * скролл ойнанинг деярли ҳаммасини эгаллаб, иккита скролл бир-бирига
+   * тақалиб қоларди. Чақирувчи шунда кичикроқ чегара беради.
+   */
+  maxH?: string;
 }
 
-export function ScheduleGantt({ axis, groups, shown, total }: ScheduleGanttProps) {
+export function ScheduleGantt({
+  axis,
+  groups,
+  shown,
+  total,
+  maxH = "max-h-[72vh]",
+}: ScheduleGanttProps) {
   const headRef = useRef<HTMLDivElement>(null);
   const headW = useElementWidth(headRef);
 
@@ -242,7 +258,7 @@ export function ScheduleGantt({ axis, groups, shown, total }: ScheduleGanttProps
         </span>
       </div>
 
-      <div className="max-h-[72vh] overflow-y-auto rounded-[6px] border border-hair">
+      <div className={`${maxH} overflow-y-auto rounded-[6px] border border-hair`}>
         {/* Ой ўқи — скролл ичида ёпишқоқ: 164 қаторли графикда пастга
             тушганда ҳам қайси ой кўрилаётгани кўриниб туради. */}
         <div className="sticky top-0 z-10 border-b border-hair bg-surface px-2.5 pt-2 pb-1.5">
