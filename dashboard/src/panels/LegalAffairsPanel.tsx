@@ -16,6 +16,7 @@ import {
   type LegalExtra,
   type LegalReviewRow,
   type LegalSectionQuality,
+  type LegalView,
 } from "../lib/adapters/legalAffairs";
 import { GRID } from "../components/layout";
 import { Card, Section } from "../components/Card";
@@ -32,37 +33,51 @@ import { EmptyState, Loader } from "../components/states";
  * `1. СУД ИШЛАРИ` (23 иш), `2. ПРЕТЕНЗИЯЛАР` (2 ёзув),
  * `3. ШАРТНОМА ЭКСПЕРТИЗАСИ` (10 экспертиза) — жами 35 мантиқий ёзув.
  *
+ * ═══ ИККИ ҚАВАТ: аввал ИШ, сўнг МАНБА ═══════════════════════════════════
+ *
+ * Бўлим икки қаватга бўлинган ва қайси нарса қайси қаватда туриши БИТТА
+ * мезон билан ҳал қилинади:
+ *
+ *   ХУЛОСА қавати (биринчи экран) — **ҳуқуқий иш** ҳақида: нечта суд иши
+ *     бор ва улар НИМА ҲАҚИДА, ким олиб боряпти, қайси босқичда, қачон
+ *     кўрилган;
+ *
+ *   МАНБА қавати (`Disclosure`, ёпиқ) — **Excel файли** ҳақида: физик
+ *     қаторлар, merge блоклари, бўш ва сийрак устунлар, такрорий `Т/р`,
+ *     сарлавҳа зиддиятлари, сана аномалиялари.
+ *
+ * ⚠️ Мезоннинг чегараси: «бу СОН шубҳали» — юқорида қолади; «Excel'да 5 та
+ * бўш устун бор» — пастга тушади. Пастга тушган нарсанинг биттаси ҳам
+ * ЎЧИРИЛМАГАН: аввал плиткалар остида, бўлим `note` ларида ва диаграммалар
+ * тагида турган ҳар бир жумла «Манба ҳақида» ёки «Манбадаги белгилар»
+ * блокида ТЎЛИҚ сақланган.
+ *
+ * ═══ Иш мазмуни ЭКРАНГА ЧИҚАРИЛГАН ══════════════════════════════════════
+ *
+ * Аввал 23 ишнинг ҳаммаси «Батафсил маълумот» ичидаги ёпиқ блокда эди —
+ * яъни бўлимнинг ЯГОНА мазмунли қисми бир босиш ортида турарди ва экранда
+ * фақат ном-рақам кўринарди. Энди улар иккинчи бўлимнинг ўзида, ўқиладиган
+ * рўйхат бўлиб туради: ҳар бир иш — мазмуни (икки қаторгача қисқартирилган),
+ * суди, юристи, босқичи ва мажлис куни. Босилганда ЎША ЖОЙДА тўлиқ матн
+ * очилади: иш мазмунининг тўлиғи, суд натижаси, шикоят матнлари, изоҳ ва
+ * манбадаги катаклар.
+ *
+ * ⚠️ «Қарама-қарши томон» устуни ЯСАЛМАДИ. Манбада бундай устун ЙЎҚ: томонлар
+ * иш мазмуни матнининг ичида («даъвогар … жавобгар …»). Уни матндан ажратиб
+ * олиш маълумот тўқиш бўларди — Ўзбек ҳуқуқий матнида даъвогар, жавобгар ва
+ * учинчи шахс аралашган (22- ва 23-ишда жавобгар «Olmaliq KMK», УзТМК эса
+ * учинчи шахс). Шунинг учун томонлар МАТННИНГ ЎЗИДА, манбадагидек кўринади.
+ *
+ * ⚠️ Суд ишида даъво СУММАСИ учун ҳам алоҳида устун йўқ — у ҳам мазмун
+ * матнининг ичида. Сумма устуни фақат «Претензиялар» варағида бор.
+ *
  * ═══ Ёнидаги «Давлат харидлари» билан адашмасин ═════════════════════════
  *
  * Иккови ҳам бошқарма ҳужжатидан келади ва иккови ҳам вақт қатори эмас,
  * лекин мазмуни умуман кесишмайди: бу — ҲУҚУҚИЙ иш юритиш (суд ишлари,
  * претензиялар, шартнома экспертизаси), у эса ХАРИД ҳажмлари (тур × чорак).
- * Алоҳида бэкенд модуллари: `legal-affairs` ва `state-procurement`.
- *
- * Экранда бу фарқ биринчи бўлимнинг `note` ида битта қисқа қатор бўлиб
- * турибди. Аввал у манба банери ичида эди — банер фойдаланувчи талаби
- * билан олиб ташланди, манба файли ва импорт санаси энди ёзилмайди.
- *
- * ═══ ИККИ ДАРАЖА: аввал жавоб, сўнг тафсилот ════════════════════════════
- *
- * Бўлим атайин икки қаватга бўлинган. Манбада 35 ёзув бор, лекин уларнинг
- * ҳажми ТЕНГ ЭМАС: битта суд иши — 12 майдон, натижа матни эса 78 дан 701
- * белиггача. 23 ишни тўлиқ ҳолда бирданига чизиш «юридик бошқармада ҳозир
- * нима бўляпти» деган АСОСИЙ саволни кўмиб юборарди.
- *
- *   БИРИНЧИ ЭКРАН — жавоб:
- *     1. Плиткалар: учала бўлимнинг ёзувлар сони + жами, ёнида сифат хулосаси;
- *     2. Суд ишлари — юрист ва суд кесимлари, мажлисларнинг ой кесими ва
- *        апелляция босқичи;
- *     3. Претензиялар — **2 та ёзув**, тўлиқ ҳолда (улар кам);
- *     4. Шартнома экспертизаси — 10 ёзувнинг қисқа кесими.
- *
- *   ИККИНЧИ ДАРАЖА (`Disclosure`, ёпиқ ҳолатда):
- *     23 ишнинг тўлиқ рўйхати · 10 экспертизанинг тўлиқ рўйхати ·
- *     «Маълумот сифати» · «Устунлар тўлдирилганлиги».
- *
- * ⚠️ Тафсилот ЯШИРИЛМАЙДИ — у бир босишда очилади ва ҳеч нарса олиб
- * ташланмаган. Ёпиқ ҳолат фақат биринчи экранни ўқилади қилади.
+ * Алоҳида бэкенд модуллари: `legal-affairs` ва `state-procurement`. Экранда
+ * бу фарқ «Манба ҳақида» блокида ёзилган — биринчи экранда унга жой йўқ.
  *
  * ═══ Нега «суд натижаси» бўйича кесим ЙЎҚ ═══════════════════════════════
  *
@@ -357,79 +372,136 @@ function AppealRow({ a }: { a: LegalAppealRow }) {
 /* 1. суд иши                                                                 */
 /* -------------------------------------------------------------------------- */
 
+/** Мажлис куни — қисқа чип. Манбада хом матн бўлса ⚠ билан, ўзгаришсиз. */
+function HearingPill({ d }: { d: LegalDateView }) {
+  if (d.label === null) return <Pill status="warn">мажлис куни кўрсатилмаган</Pill>;
+  return (
+    <Pill status={d.asText ? "warn" : "mute"}>
+      мажлис: {d.label}
+      {d.asText ? " ⚠" : ""}
+    </Pill>
+  );
+}
+
 /**
- * Битта суд иши — тўлиқ шаклда.
+ * Битта суд иши — ЎҚИЛАДИГАН қатор.
  *
- * Атайин қисқартирилмайди: бўлимда 23 ёзув бор ва фойдаланувчига керак
- * бўлгани иш мазмуни билан суд натижасининг ТЎЛИҚ матни. Жадвалга сиқиш
- * матнни кесарди.
+ * ⚠️ Бу бўлимнинг энг муҳим бўлаги: «юридик бошқармада нима бўляпти» деган
+ * саволга жавоб АЙНАН шу ерда. Шунинг учун у иккинчи бўлимнинг ўзида
+ * туради, «Батафсил маълумот» ичидаги ёпиқ блокда эмас.
+ *
+ * Ёпиқ ҳолатда — иш НИМА ҲАҚИДА (мазмун матни икки қаторгача), КИМ БИЛАН
+ * ва ҚАЕРДА (суд), КИМ олиб боряпти (юрист), ҚАЙСИ БОСҚИЧДА, ҚАЧОН
+ * кўрилган. Очиқ ҳолатда — ўша жойда манбадаги ҲАММА майдон.
+ *
+ * ⚠️ Мазмун матни `line-clamp-2` билан фақат ЭКРАНДА қисқаради: матннинг
+ * ўзи кесилмайди ва бир босишда тўлиқ очилади. Уни манбада қисқартириш
+ * ҳужжатнинг ҳуқуқий маъносини йўқотарди.
+ *
+ * ⚠️ Натижа матни бўйича «ютилди / ютқазилди» деган тасниф ЯСАЛМАЙДИ:
+ * манбада бундай устун йўқ (23 ёзувда 22 ноёб эркин матн), уни матндан
+ * чиқариш маълумот тўқиш бўларди.
  */
-function CaseRow({ c, fillOf }: { c: LegalCase; fillOf: (field: string) => string }) {
+function CaseCard({ c, fillOf }: { c: LegalCase; fillOf: (field: string) => string }) {
+  const [open, setOpen] = useState(false);
+  const uid = useId();
+  const panelId = `la-case-${uid}`;
+
   // Ёрлиқдаги «N / M» API'дан келади — қаттиқ ёзилган сон эскириб қолмаслиги
   // учун (манба тўлдирилганда ёрлиқ ҳам ўзи ўзгаради).
   const at = (field: string) => {
     const f = fillOf(field);
     return f === "" ? "" : ` (${f})`;
   };
+
   return (
-    <div className="border-t border-grid py-3 first:border-t-0">
+    <div className="border-t border-grid py-2.5 first:border-t-0">
       <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
-        <span className="w-[26px] flex-none font-mono text-[11px] tabular-nums text-ink-3">
+        <span className="w-[24px] flex-none font-mono text-[11px] tabular-nums text-ink-3">
           {c.ordinal === null ? "—" : nf(c.ordinal)}
         </span>
-        <span className="min-w-0 flex-1 text-[12.5px] leading-[1.5] [font-weight:600] break-words">
+        <p
+          className={
+            "min-w-0 flex-1 text-[12.5px] leading-[1.45] break-words " +
+            (open ? "" : "line-clamp-2")
+          }
+        >
           {c.subject}
-        </span>
+        </p>
       </div>
 
-      <div className="mt-1.5 flex flex-wrap items-center gap-1.5 pl-[26px]">
+      <div className="mt-1.5 flex flex-wrap items-center gap-1.5 pl-[24px]">
         {c.court === null ? <Pill status="warn">суд {NO_DATA}</Pill> : <Pill>{c.court}</Pill>}
         {c.lawyer === null ? (
           <Pill status="warn">юрист {NO_DATA}</Pill>
         ) : (
           <Pill>юрист: {c.lawyer}</Pill>
         )}
-        {c.caseNumber !== null && (
-          <Pill status={c.caseNumberDuplicate ? "warn" : "mute"}>
-            иш № {c.caseNumber}
-            {c.caseNumberDuplicate ? " · такрорланган" : ""}
-          </Pill>
+        {c.inAppeal && <Pill status="warn">апелляция босқичида</Pill>}
+        <HearingPill d={c.hearing} />
+        <span className="flex-1" />
+        <button
+          type="button"
+          aria-expanded={open}
+          aria-controls={panelId}
+          onClick={() => setOpen((v) => !v)}
+          className={
+            "flex-none cursor-pointer rounded-[5px] border px-2 py-[3px] text-[11px] font-semibold " +
+            (open
+              ? "border-s1 bg-surface-2 text-ink"
+              : "border-hair bg-surface-2 text-ink-2 hover:text-ink")
+          }
+        >
+          {open ? "− яшириш" : "+ тўлиқ матн"}
+        </button>
+      </div>
+
+      <div id={panelId} hidden={!open} className="pl-[24px]">
+        {open && (
+          <>
+            <div className="mt-2 flex flex-wrap items-center gap-1.5">
+              {c.caseNumber !== null && (
+                <Pill status={c.caseNumberDuplicate ? "warn" : "mute"}>
+                  иш № {c.caseNumber}
+                  {c.caseNumberDuplicate ? " · такрорланган" : ""}
+                </Pill>
+              )}
+              {c.rowSpan > 1 && (
+                <Pill status="warn">
+                  манбада {c.excelRow}–{c.excelRowEnd} қатор (бирлаштирилган)
+                </Pill>
+              )}
+            </div>
+
+            <div className={"mt-2 " + GRID.g2}>
+              <DateField label="Иш тайинланган ажрим сана" d={c.ruling} />
+              <DateField label="Суд кўриладиган кун" d={c.hearing} />
+            </div>
+
+            <div className="mt-2">
+              <Field label="Суд натижаси">{c.result}</Field>
+            </div>
+
+            {/* Шикоят устунлари манбада ЖУДА сийрак тўлдирилган (2/23, 3/23
+                ва 0/23). Улар шу ерда ҳам кўринади: «устун бор, лекин бўш»
+                ҳолати фақат сифат бўлимида турса, рўйхатни ўқиётган одам
+                устуннинг умуман йўқлигини ўйларди. */}
+            <div className={"mt-2 " + GRID.g2}>
+              <Field label={`Суд қароридан норози томон шикояти${at("appealSummary")}`}>
+                {c.appealSummary}
+              </Field>
+              <Field label={`Шикоят кўриладиган сана ва натижаси${at("appealHearingText")}`}>
+                {c.appealHearing}
+              </Field>
+              <Field label={`Шикоят иши қолдирилган кун${at("appealPostponedText")}`}>
+                {c.appealPostponed}
+              </Field>
+              <Field label={`Изоҳ${at("note")}`}>{c.note}</Field>
+            </div>
+
+            <Extras list={c.extras} />
+          </>
         )}
-        {c.rowSpan > 1 && (
-          <Pill status="warn">
-            манбада {c.excelRow}–{c.excelRowEnd} қатор (бирлаштирилган)
-          </Pill>
-        )}
-      </div>
-
-      <div className={"mt-2 pl-[26px] " + GRID.g2}>
-        <DateField label="Иш тайинланган ажрим сана" d={c.ruling} />
-        <DateField label="Суд кўриладиган кун" d={c.hearing} />
-      </div>
-
-      <div className="mt-2 pl-[26px]">
-        <Field label="Суд натижаси">{c.result}</Field>
-      </div>
-
-      {/* Шикоят устунлари манбада ЖУДА сийрак тўлдирилган (2/23, 3/23 ва
-          0/23). Улар шу ерда ҳам кўринади: «устун бор, лекин бўш» ҳолати
-          фақат сифат бўлимида турса, рўйхатни ўқиётган одам устуннинг
-          умуман йўқлигини ўйларди. */}
-      <div className={"mt-2 pl-[26px] " + GRID.g2}>
-        <Field label={`Суд қароридан норози томон шикояти${at("appealSummary")}`}>
-          {c.appealSummary}
-        </Field>
-        <Field label={`Шикоят кўриладиган сана ва натижаси${at("appealHearingText")}`}>
-          {c.appealHearing}
-        </Field>
-        <Field label={`Шикоят иши қолдирилган кун${at("appealPostponedText")}`}>
-          {c.appealPostponed}
-        </Field>
-        <Field label={`Изоҳ${at("note")}`}>{c.note}</Field>
-      </div>
-
-      <div className="pl-[26px]">
-        <Extras list={c.extras} />
       </div>
     </div>
   );
@@ -784,6 +856,165 @@ function QualityCard({ q }: { q: LegalSectionQuality }) {
 }
 
 /* -------------------------------------------------------------------------- */
+/* манба ҳақида — биринчи экрандан тушган изоҳлар                             */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Манба ва методология — биринчи экрандан ТУШГАН матнлар.
+ *
+ * ⚠️ Бу ерда ҳеч нарса ўчирилмаган. Аввал плиткалар остида чип бўлиб турган
+ * («42 физик Excel қатори», «фарқ 7 қатор — merge», «5 бирлаштирилган блок»,
+ * «такрорий Т/р бор», «8 устундан 4 таси бўш»), бўлим сарлавҳасининг ёнида
+ * турган («учала тур алоҳида…») ва диаграмма тагида уч қатор бўлиб ётган
+ * ҳар бир жумла шу ерда ТЎЛИҚ ҳолида сақланган. Ўзгаргани фақат ЖОЙИ.
+ */
+function LegalSourceCard({ v }: { v: LegalView }) {
+  const t = v.totals;
+  const cf = v.caseFlow;
+  const merged = t.physicalRows - t.records;
+  return (
+    <Card
+      title="Манба ва методология"
+      sub={`${t.records} мантиқий ёзув · ${t.physicalRows} физик Excel қатори`}
+      note="Биринчи экрандаги ҳар бир сон айнан шу манбадан ва айнан шу қоидалар билан ҳисобланган."
+    >
+      <div className="border-t border-grid pt-2">
+        <div className={LBL}>Нега учала тур АЛОҲИДА</div>
+        <p className="mt-1 text-[12px] leading-[1.5] text-ink-2">
+          Манбада учта варақ бор ва уларнинг устунлари <b>Т/р</b> дан бошқа жойда умуман
+          кесишмайди, шунинг учун улар битта «универсал» жадвалга йиғилмайди. Йиғилса «бу
+          майдон бу тур учун МАВЖУД ЭМАС» билан «бу майдон ТЎЛДИРИЛМАГАН» фарқланмай
+          қоларди — бу бутун сводка бўйлаб амал қиладиган асосий қоидани бузарди.
+        </p>
+      </div>
+
+      <div className="mt-2 border-t border-grid pt-2">
+        <div className={LBL}>Варақлар ва қаторлар</div>
+        <DataTable
+          className="mt-1.5"
+          cols={[
+            { t: "Бўлим", wrap: true },
+            { t: "Варақ", wrap: true },
+            { t: "Ёзув", num: true },
+            { t: "Физик қатор", num: true },
+            { t: "Merge блок", num: true },
+            { t: "Устун", num: true },
+            { t: "Бўш устун", num: true },
+          ]}
+          rows={[v.quality.courtCases, v.quality.claims, v.quality.contractReviews].map((s) => ({
+            key: s.key,
+            cells: [
+              s.title,
+              s.sheet,
+              nf(s.records),
+              nf(s.physicalRows),
+              nf(s.mergedBlocks.length),
+              nf(s.columns.length),
+              s.emptyColumns.length === 0 ? (
+                <span key="e" className="font-mono text-ink-3">
+                  0
+                </span>
+              ) : (
+                <b key="e" className="text-warn-ink">
+                  {nf(s.emptyColumns.length)}
+                </b>
+              ),
+            ],
+          }))}
+          caption="Варақлар бўйича ёзув, қатор ва устунлар ҳисоби"
+        />
+        {merged > 0 && (
+          <p className="mt-1.5 text-[12px] leading-[1.5] text-ink-2">
+            Жами фарқ <b className="font-mono">{nf(merged)}</b> қатор — бирлаштирилган
+            (merge) блоклар сабабли. Бу фарқ импорт блокларни ТЎҒРИ ҳал қилганининг далили:
+            акс ҳолда бир нечта ёзув икки марта ҳисобланарди.
+          </p>
+        )}
+      </div>
+
+      <div className="mt-2 border-t border-grid pt-2">
+        <div className={LBL}>Мажлислар диаграммаси қандай ўқилади</div>
+        <p className="mt-1 text-[12px] leading-[1.5] text-ink-2">
+          Ўқ узлуксиз: оралиқдаги нол — ҲАҚИҚИЙ нол, ўша ойда мажлис бўлмаган. Санаси
+          ўқилмаган иш диаграммага УМУМАН кирмайди — нол баландлик билан турса «мажлис
+          бўлмаган» дегандай кўринарди, бу эса бутунлай бошқа гап. Диаграммада{" "}
+          <b className="font-mono">{nf(cf.hearingIso)}</b> та иш бор;{" "}
+          <b className="font-mono">{nf(cf.hearingAsText)}</b> та ишда сана ўрнида хом матн
+          турибди (бэкенд уни атайин парс қилмаган — форматни тахмин қилиш маълумот тўқиш
+          бўларди) ва <b className="font-mono">{nf(cf.hearingMissing)}</b> та ишда мажлис
+          куни умуман кўрсатилмаган. Иккинчиси нол эмас, маълумотнинг йўқлиги.
+        </p>
+      </div>
+
+      <div className="mt-2 border-t border-grid pt-2">
+        <div className={LBL}>Нега «суд натижаси» бўйича диаграмма йўқ</div>
+        <p className="mt-1 text-[12px] leading-[1.5] text-ink-2">
+          «Суд натижаси» устуни{" "}
+          <b className="font-mono">
+            {nf(cf.resultFilled)} / {nf(t.courtCases)}
+          </b>{" "}
+          тўлдирилган, лекин у <b>эркин матн</b>: {nf(cf.resultDistinct)} ноёб қиймат,
+          узунлиги {nf(cf.resultMinLen)}–{nf(cf.resultMaxLen)} белги. «Ютилган /
+          ютқазилган» каби тасниф манбада умуман ЙЎҚ, уни матндан чиқариш эса маълумот
+          тўқиш бўларди — шунинг учун натижа диаграммага айлантирилмади ва ҳар бир ишнинг
+          ичида тўлиқ матн ҳолида турибди.
+        </p>
+        <p className="mt-1.5 text-[12px] leading-[1.5] text-ink-2">
+          Шу сабабдан «қарама-қарши томон» устуни ҳам ясалмади: манбада бундай устун йўқ,
+          томонлар иш мазмуни матнининг ичида («даъвогар … жавобгар …»). Суд ишида даъво
+          СУММАСИ учун ҳам алоҳида устун йўқ — сумма устуни фақат «Претензиялар» варағида.
+        </p>
+      </div>
+
+      <div className="mt-2 border-t border-grid pt-2">
+        <div className={LBL}>Ёнидаги «Давлат харидлари» билан фарқи</div>
+        <p className="mt-1 text-[12px] leading-[1.5] text-ink-2">
+          Иккови ҳам бошқарма ҳужжатидан келади ва иккови ҳам вақт қатори эмас, лекин
+          мазмуни умуман кесишмайди: бу — ҲУҚУҚИЙ иш юритиш (суд ишлари, претензиялар,
+          шартнома экспертизаси), у эса ХАРИД ҳажмлари (тур × чорак). Алоҳида бэкенд
+          модуллари.
+        </p>
+      </div>
+    </Card>
+  );
+}
+
+/**
+ * Манбадаги белгиларнинг ЯЛПИ ҳисоби — тури бўйича.
+ *
+ * ⚠️ Бу чизиқ аввал БИРИНЧИ ЭКРАНДА, плиткаларнинг остида, бутун кенглик
+ * бўйлаб турарди ва саҳифадаги иккинчи энг кўзга ташланадиган элемент эди —
+ * ҳолбуки ундаги саккизта чипнинг биттаси ҳам юридик иш ҳақида эмас. Ҳар
+ * бир чип шу ерда сақланган, фақат жойи ўзгарди.
+ */
+function LegalQualitySummaryCard({ v }: { v: LegalView }) {
+  const qy = v.quality;
+  const qs = qy.summary;
+  if (qy.issues === 0) return null;
+  return (
+    <Card className="mb-3" stripe="var(--warn)">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+        <span className="text-[12.5px] [font-weight:650]">
+          Манбада {qy.issues} та белги топилган
+        </span>
+        {qs.unitConflicts > 0 && (
+          <Pill status="crit">{qs.unitConflicts} ўлчов бирлиги зиддияти</Pill>
+        )}
+        {qs.dateAnomalies > 0 && <Pill status="crit">{qs.dateAnomalies} сана аномалияси</Pill>}
+        {qs.emptyColumns > 0 && <Pill status="warn">{qs.emptyColumns} бутунлай бўш устун</Pill>}
+        {qs.sparseColumns > 0 && <Pill status="warn">{qs.sparseColumns} сийрак устун</Pill>}
+        {qs.duplicates > 0 && <Pill status="warn">{qs.duplicates} такрорий қиймат</Pill>}
+        {qs.headerIssues > 0 && <Pill status="warn">{qs.headerIssues} сарлавҳа муаммоси</Pill>}
+        {qs.monthOnlyColumns > 0 && <Pill>{qs.monthOnlyColumns} устун: кун эмас, ой</Pill>}
+        {qs.mergedBlocks > 0 && <Pill>{qs.mergedBlocks} бирлаштирилган блок</Pill>}
+        {qs.extras > 0 && <Pill>{qs.extras} қутқарилган катак</Pill>}
+        {qs.warnings > 0 && <Pill>{qs.warnings} импорт огоҳлантириши</Pill>}
+      </div>
+    </Card>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
 /* панел                                                                      */
 /* -------------------------------------------------------------------------- */
 
@@ -800,7 +1031,6 @@ function LegalBody({ data }: { data: LegalAffairsDashboard }) {
   const v = useMemo(() => legalView(data), [data]);
   const t = v.totals;
   const qy = v.quality;
-  const qs = qy.summary;
   const cf = v.caseFlow;
   const rf = v.reviewFlow;
 
@@ -818,7 +1048,6 @@ function LegalBody({ data }: { data: LegalAffairsDashboard }) {
   }));
 
   const noLawyer = v.cases.filter((c) => c.lawyer === null).length;
-  const mergedTotal = t.physicalRows - t.records;
   const columnsTotal =
     qy.courtCases.columns.length + qy.claims.columns.length + qy.contractReviews.columns.length;
 
@@ -894,22 +1123,12 @@ function LegalBody({ data }: { data: LegalAffairsDashboard }) {
   return (
     <>
       {/* --- 1. БОШ РАҚАМЛАР: учала бўлим бир қарашда -----------------------
-          Юқоридаги манба банери (файл, «учта варақ», импорт санаси)
-          фойдаланувчи талаби билан олиб ташланган. Ундаги УЧТА мазмунли
-          жумла йўқолмади:
-            · «35 мантиқий ёзув: 23 суд иши, 2 претензия, 10 экспертиза» —
-              у қуйидаги тўртта плиткада ва бўлимларнинг `note` ларида
-              («Суд ишлари», «Претензиялар», «Шартнома экспертизаси»)
-              аллақачон турибди, такрори керак эмас;
-            · «учала варақнинг устунлари Т/р дан бошқа жойда кесишмайди» —
-              бу изоҳ бошқа ҳеч қаерда йўқ эди, шунинг учун шу бўлимнинг
-              `note` ига кўчирилди: айнан у учала турни алоҳида ушлаб
-              туришни асослайди;
-            · ёнидаги «Давлат харидлари» таби билан фарқи — ўша `note` да. */}
-      <Section
-        title="Юридик бошқарма"
-        note="ҳуқуқий иш юритиш (ёнидаги «Давлат харидлари» — харид ҳажмлари) · учала тур алоҳида: варақларнинг устунлари Т/р дан бошқа жойда кесишмайди, шунинг учун битта «универсал» жадвалга йиғилмайди"
-      >
+          ⚠️ Плиткаларнинг ости аввал файл механикаси билан тўла эди («42
+          физик Excel қатори», «фарқ 7 қатор — merge», «5 бирлаштирилган
+          блок», «такрорий Т/р бор», «8 устундан 4 таси бўш»). Ўша чипларнинг
+          ҳаммаси «Батафсил маълумот → Манба ва методология» жадвалида
+          сақланган; бу ерда эса ўрнига ИШ ҳақидаги факт турибди. */}
+      <Section title="Юридик бошқарма" note="ҳуқуқий иш юритиш — жорий ҳолат">
         <div className={GRID.g4}>
           <StatTile
             label="Суд ишлари"
@@ -919,10 +1138,10 @@ function LegalBody({ data }: { data: LegalAffairsDashboard }) {
             foot={
               <>
                 <Pill>
-                  {v.byLawyer.length} юрист · {v.byCourt.length} суд
+                  {v.byCourt.length} суд · {v.byLawyer.length} юрист
                 </Pill>
                 {cf.appealed.length > 0 && (
-                  <Pill>{cf.appealed.length} таси апелляцияда</Pill>
+                  <Pill status="warn">{cf.appealed.length} таси апелляцияда</Pill>
                 )}
                 {noLawyer > 0 && <Pill status="warn">{noLawyer} тада юрист йўқ</Pill>}
               </>
@@ -935,13 +1154,13 @@ function LegalBody({ data }: { data: LegalAffairsDashboard }) {
             stripe="var(--s2)"
             foot={
               <>
-                {/* Бу «маълумот йўқ» ЭМАС — манбада ҳақиқатан 2 та ёзув бор. */}
-                <Pill>манбада {t.claims} та ёзув бор</Pill>
-                {qy.claims.emptyColumns.length > 0 && (
-                  <Pill status="warn">
-                    {qy.claims.columns.length} устундан {qy.claims.emptyColumns.length} таси бўш
-                  </Pill>
-                )}
+                {/* Даъво суммаси МАНБАДАГИ хом қиймат билан — қайта
+                    шкалаланмайди. Ёрлиқ тасдиқланмагани соннинг ЎЗИГА
+                    тегади, шунинг учун огоҳлантириш шу ерда қолади. */}
+                <Pill>
+                  сумма: {t.claimsAmountRawSum === null ? NO_DATA : exact(t.claimsAmountRawSum)}
+                </Pill>
+                {t.claimsAmountUnitSuspect && <Pill status="warn">⚠ бирлик тасдиқланмаган</Pill>}
               </>
             }
           />
@@ -951,12 +1170,13 @@ function LegalBody({ data }: { data: LegalAffairsDashboard }) {
             unit="та"
             stripe="var(--s3)"
             foot={
-              <>
-                <Pill>{qy.contractReviews.mergedBlocks.length} бирлаштирилган блок</Pill>
-                {qy.contractReviews.duplicateOrdinals.length > 0 && (
-                  <Pill status="warn">такрорий Т/р бор</Pill>
-                )}
-              </>
+              rf.reviewedFirst !== null && rf.reviewedLast !== null ? (
+                <Pill>
+                  {monthLabel(rf.reviewedFirst)} — {monthLabel(rf.reviewedLast)}
+                </Pill>
+              ) : (
+                <Pill>кўриб чиқилган давр {NO_DATA}</Pill>
+              )
             }
           />
           <StatTile
@@ -965,59 +1185,43 @@ function LegalBody({ data }: { data: LegalAffairsDashboard }) {
             unit="та"
             stripe="var(--s4)"
             foot={
-              <>
-                <Pill>{nf(t.physicalRows)} физик Excel қатори</Pill>
-                {mergedTotal > 0 && <Pill>фарқ {nf(mergedTotal)} қатор — merge</Pill>}
-              </>
+              <Pill>
+                {t.courtCases} суд иши · {t.claims} претензия · {t.contractReviews} экспертиза
+              </Pill>
             }
           />
         </div>
-
-        {/* Сифат белгиларининг ҚИСҚА хулосаси — батафсили бўлим охирида.
-            Ялпи «20 та белги» деган сон қайси турдаги муаммо эканини айтмайди,
-            шунинг учун ёнида турлари бўйича тақсимоти турибди. */}
-        {qy.issues > 0 && (
-          <Card className="mt-3" stripe="var(--warn)">
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-              <span className="text-[12.5px] [font-weight:650]">
-                Манбада {qy.issues} та белги топилган
-              </span>
-              {qs.unitConflicts > 0 && (
-                <Pill status="crit">{qs.unitConflicts} ўлчов бирлиги зиддияти</Pill>
-              )}
-              {qs.dateAnomalies > 0 && (
-                <Pill status="crit">{qs.dateAnomalies} сана аномалияси</Pill>
-              )}
-              {qs.emptyColumns > 0 && (
-                <Pill status="warn">{qs.emptyColumns} бутунлай бўш устун</Pill>
-              )}
-              {qs.sparseColumns > 0 && (
-                <Pill status="warn">{qs.sparseColumns} сийрак устун</Pill>
-              )}
-              {qs.duplicates > 0 && <Pill status="warn">{qs.duplicates} такрорий қиймат</Pill>}
-              {qs.headerIssues > 0 && (
-                <Pill status="warn">{qs.headerIssues} сарлавҳа муаммоси</Pill>
-              )}
-              {qs.monthOnlyColumns > 0 && (
-                <Pill>{qs.monthOnlyColumns} устун: кун эмас, ой</Pill>
-              )}
-              {qs.extras > 0 && <Pill>{qs.extras} қутқарилган катак</Pill>}
-              {qs.warnings > 0 && <Pill>{qs.warnings} импорт огоҳлантириши</Pill>}
-              <span className="flex-1" />
-              <span className="text-[11.5px] text-ink-3">
-                батафсили пастда — «Батафсил маълумот» бўлимида
-              </span>
-            </div>
-          </Card>
-        )}
       </Section>
 
-      {/* --- 2. СУД ИШЛАРИ — бўлимнинг энг катта қисми ---------------------- */}
+      {/* --- 2. СУД ИШЛАРИ — бўлимнинг мазмуни ------------------------------
+          ⚠️ Ишларнинг рўйхати аввал «Батафсил маълумот» ичидаги ёпиқ блокда
+          эди: бўлимнинг ЯГОНА мазмунли қисми бир босиш ортида турарди. Энди
+          у шу ернинг ўзида ва ҳар бир иш бир қарашда ўқилади. */}
       <Section
         title="Суд ишлари"
-        note={`${t.courtCases} та · варақ «${qy.courtCases.sheet}» · бўлимдаги ${t.records} ёзувдан ${t.courtCases} таси`}
+        note={`${t.courtCases} та иш · ${v.byCourt.length} суд · ${v.byLawyer.length} юрист`}
       >
-        <div className={GRID.g2}>
+        <Card
+          title="Ишлар — нима ҳақида"
+          sub={`${v.cases.length} та`}
+          note="Ҳар бир қаторда: иш мазмуни, суди, юристи, босқичи ва мажлис куни. «Тўлиқ матн» — манбадаги ҳамма майдон: мазмуннинг тўлиғи, суд натижаси, шикоят матнлари ва изоҳ."
+        >
+          {v.cases.length === 0 ? (
+            <EmptyState title="Суд ишлари топилмади" />
+          ) : (
+            /* Рўйхат узун (23 иш) — карточка бутун саҳифани чўзиб
+               юбормаслиги учун ўз ичида скроллга ўтади. Чегара `tbl-wrap`
+               нинг ҳулқи билан бир хил: мазмун кесилмайди, фақат кўриниш
+               қутиси чекланади. */
+            <div className="max-h-[620px] overflow-y-auto rounded-[6px] border border-hair px-3" tabIndex={0}>
+              {v.cases.map((c) => (
+                <CaseCard key={c.key} c={c} fillOf={qy.courtCases.fillOf} />
+              ))}
+            </div>
+          )}
+        </Card>
+
+        <div className={"mt-3 " + GRID.g3}>
           <Card title="Юристлар кесими" sub={`${v.byLawyer.length} юрист`}>
             {lawyerRows.length === 0 ? (
               <EmptyState title="Юрист кўрсатилган иш топилмади" />
@@ -1042,107 +1246,11 @@ function LegalBody({ data }: { data: LegalAffairsDashboard }) {
               />
             )}
           </Card>
-        </div>
-
-        <div className={"mt-3 " + GRID.g32}>
-          <Card
-            title="Суд мажлислари — ойлар бўйича"
-            sub="та"
-            note="Ўқ узлуксиз: оралиқдаги нол — ҲАҚИҚИЙ нол, ўша ойда мажлис бўлмаган. Санаси ўқилмаган иш диаграммага умуман кирмайди (нол баландлик билан турса «мажлис бўлмаган» дегандай кўринарди) — улар қуйида алоҳида санаб ўтилган."
-          >
-            {cf.byMonth.length === 0 ? (
-              <EmptyState
-                title="Мажлис санаси ўқилган иш йўқ"
-                text="Бу «юкланмади» эмас: манбада сана ўқиладиган шаклда кўрсатилмаган."
-              />
-            ) : (
-              <Columns
-                labels={monthLabels}
-                fullLabels={monthFull}
-                series={monthSeries}
-                height={210}
-                vFmt={(n) => `${nf(n)} та`}
-                /* Индекс — ЧИЗИЛГАН устунники, шунинг учун `drawnMonths`.
-                   Сабаби юқорида, `drawnMonths` нинг ёнида ёзилган. */
-                valueLabel={(_, i) => {
-                  const m = drawnMonths[i];
-                  return m === undefined ? null : nf(m.cases);
-                }}
-                ariaLabel="Суд мажлисларининг ойлар бўйича тақсимоти"
-              />
-            )}
-            <p className="mt-2 border-t border-grid pt-2 text-[11.5px] leading-[1.5] text-ink-3">
-              Диаграммада <b className="font-semibold text-ink-2">{nf(cf.hearingIso)}</b> та иш —
-              манбада мажлис санаси ўқиладиган шаклда турганлари.
-              {cf.hearingFirst !== null && cf.hearingLast !== null && (
-                <>
-                  {" "}
-                  Давр: <b>{dateLabel(cf.hearingFirst)}</b> — <b>{dateLabel(cf.hearingLast)}</b>.
-                </>
-              )}
-              {peakMonth !== null && peakMonth.cases > 0 && (
-                <>
-                  {" "}
-                  Энг банд ой — <b>{monthLabel(peakMonth.month)}</b>, {nf(peakMonth.cases)} та
-                  мажлис.
-                </>
-              )}
-              {cf.hearingAsText > 0 && (
-                <>
-                  {" "}
-                  Яна <b className="text-warn-ink">{nf(cf.hearingAsText)}</b> та ишда сана ўрнида
-                  хом матн турибди — у парс қилинмади (форматни тахмин қилиш маълумот тўқиш
-                  бўларди) ва диаграммага кирмади.
-                </>
-              )}
-              {cf.hearingMissing > 0 && (
-                <>
-                  {" "}
-                  <b className="text-warn-ink">{nf(cf.hearingMissing)}</b> та ишда эса мажлис
-                  куни умуман кўрсатилмаган — бу нол эмас, маълумотнинг йўқлиги.
-                </>
-              )}
-            </p>
-            {/* ⚠️ «Яқин мажлислар» блоки фақат ҲАҚИҚАТАН кутилаётган мажлис
-                бўлса чизилади. Ҳозир манбада битта ҳам йўқ — бўш блокни
-                «маълумот йўқ» деб кўрсатиш шовқиндан бошқа нарса бермасди. */}
-            {cf.upcoming.length > 0 ? (
-              <div className="mt-2 border-t border-grid pt-2">
-                <div className={LBL}>
-                  Кутилаётган мажлислар ({nf(cf.upcoming.length)} та ·{" "}
-                  {dateLabel(cf.today)} ҳолатига)
-                </div>
-                <ul className="mt-1 flex flex-col">
-                  {cf.upcoming.map((u) => (
-                    <li
-                      key={u.key}
-                      className="flex flex-wrap items-baseline gap-x-2 border-t border-grid py-1.5 text-[12px] first:border-t-0"
-                    >
-                      <span className="w-[26px] flex-none font-mono text-[11px] tabular-nums text-ink-3">
-                        {u.ordinal === null ? "—" : nf(u.ordinal)}
-                      </span>
-                      <span className="font-mono tabular-nums">{dateLabel(u.date)}</span>
-                      <span className="min-w-0 flex-1 break-words text-ink-2">
-                        {u.court ?? NO_DATA}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ) : (
-              <p className="mt-2 text-[11.5px] leading-[1.5] text-ink-3">
-                <b>{dateLabel(cf.today)}</b> ҳолатига кутилаётган мажлис йўқ: ўқилган{" "}
-                {nf(cf.hearingIso)} та сананинг ҳаммаси ўтган даврга тегишли
-                {cf.hearingLast !== null && <>, энг охиргиси — {dateLabel(cf.hearingLast)}</>}.
-              </p>
-            )}
-          </Card>
 
           <Card
             title="Апелляция босқичи"
             sub={`${cf.appealed.length} / ${t.courtCases} иш`}
             stripe={cf.appealed.length > 0 ? "var(--s2)" : undefined}
-            note="«Апелляцияга чиққан» — иккита шикоят устунидан камида биттаси тўлдирилган иш. Устунларни алоҳида санаш адаштирарди: улар бир-бирининг устига тушади."
           >
             <Big label="Апелляцияга чиққан" value={cf.appealed.length} unit="та иш">
               <p className="mt-1 text-[11px] leading-[1.45] text-ink-3">
@@ -1150,7 +1258,7 @@ function LegalBody({ data }: { data: LegalAffairsDashboard }) {
                 <b className="font-semibold text-ink-2">
                   {pctTxt((cf.appealed.length / Math.max(1, t.courtCases)) * 100)}
                 </b>
-                . Шикоят матни тўлиқ ҳолида пастдаги «Ишларнинг тўлиқ рўйхати» да.
+                . Шикоят матни ишнинг «тўлиқ матн» ида.
               </p>
             </Big>
 
@@ -1161,109 +1269,107 @@ function LegalBody({ data }: { data: LegalAffairsDashboard }) {
                 ))}
               </ul>
             )}
+          </Card>
+        </div>
 
-            {/* «Устун бор, лекин 0/23 тўлдирилган» — сифат бўлимига ташлаб
-                кетилмайди: у айнан шу кесимнинг ўзига тегишли. */}
-            <div className="mt-2.5 border-t border-grid pt-2">
-              <div className={LBL}>Шикоят устунларининг тўлдирилганлиги</div>
+        {/* Мажлисларнинг вақт кесими — «иш қачон кўрилган» ва «яқинда нима
+            кутиляпти» деган саволга жавоб. Аввал диаграмманинг остида уч
+            қаторли методология матни турарди; у «Манба ва методология»
+            блокига тўлиқ кўчирилган, бу ерда битта жумла қолди. */}
+        <Card
+          className="mt-3"
+          title="Суд мажлислари — ойлар бўйича"
+          sub="та"
+        >
+          {cf.byMonth.length === 0 ? (
+            <EmptyState
+              title="Мажлис санаси ўқилган иш йўқ"
+              text="Бу «юкланмади» эмас: манбада сана ўқиладиган шаклда кўрсатилмаган."
+            />
+          ) : (
+            <Columns
+              labels={monthLabels}
+              fullLabels={monthFull}
+              series={monthSeries}
+              height={200}
+              vFmt={(n) => `${nf(n)} та`}
+              /* Индекс — ЧИЗИЛГАН устунники, шунинг учун `drawnMonths`.
+                 Сабаби юқорида, `drawnMonths` нинг ёнида ёзилган. */
+              valueLabel={(_, i) => {
+                const m = drawnMonths[i];
+                return m === undefined ? null : nf(m.cases);
+              }}
+              ariaLabel="Суд мажлисларининг ойлар бўйича тақсимоти"
+            />
+          )}
+
+          {/* ⚠️ «Яқин мажлислар» блоки фақат ҲАҚИҚАТАН кутилаётган мажлис
+              бўлса чизилади. Ҳозир манбада битта ҳам йўқ — бўш блокни
+              «маълумот йўқ» деб кўрсатиш шовқиндан бошқа нарса бермасди. */}
+          {cf.upcoming.length > 0 ? (
+            <div className="mt-2 border-t border-grid pt-2">
+              <div className={LBL}>
+                Кутилаётган мажлислар ({nf(cf.upcoming.length)} та · {dateLabel(cf.today)}{" "}
+                ҳолатига)
+              </div>
               <ul className="mt-1 flex flex-col">
-                {qy.courtCases.columns
-                  .filter((c) => c.field.startsWith("appeal"))
-                  .map((c) => (
-                    <li
-                      key={c.key}
-                      className="flex flex-wrap items-baseline gap-x-2 border-t border-grid py-1.5 text-[11.5px] first:border-t-0"
-                    >
-                      <span className="min-w-0 flex-1 break-words text-ink-2">{c.label}</span>
-                      <span className="font-mono tabular-nums text-ink-3">
-                        {nf(c.filled)}
-                        <span className="mx-1">/</span>
-                        {nf(c.total)}
-                      </span>
-                      {c.filled === 0 && <Pill status="warn">устун бор, маълумот йўқ</Pill>}
-                    </li>
-                  ))}
+                {cf.upcoming.map((u) => (
+                  <li
+                    key={u.key}
+                    className="flex flex-wrap items-baseline gap-x-2 border-t border-grid py-1.5 text-[12px] first:border-t-0"
+                  >
+                    <span className="w-[26px] flex-none font-mono text-[11px] tabular-nums text-ink-3">
+                      {u.ordinal === null ? "—" : nf(u.ordinal)}
+                    </span>
+                    <span className="font-mono tabular-nums">{dateLabel(u.date)}</span>
+                    <span className="min-w-0 flex-1 break-words text-ink-2">
+                      {u.court ?? NO_DATA}
+                    </span>
+                  </li>
+                ))}
               </ul>
             </div>
-
-            {/* Нега натижа бўйича диаграмма йўқ — ўлчови билан. */}
-            <p className="mt-2 border-t border-grid pt-2 text-[11.5px] leading-[1.5] text-ink-3">
-              «Суд натижаси» устуни{" "}
-              <b className="font-semibold text-ink-2">
-                {nf(cf.resultFilled)} / {nf(t.courtCases)}
-              </b>{" "}
-              тўлдирилган, лекин у <b>эркин матн</b>: {nf(cf.resultDistinct)} ноёб қиймат,
-              узунлиги {nf(cf.resultMinLen)}–{nf(cf.resultMaxLen)} белги. «Ютилган /
-              ютқазилган» каби тасниф манбада йўқ, уни матндан чиқариш эса маълумот тўқиш
-              бўларди — шунинг учун натижа диаграммага айлантирилмади ва рўйхатда тўлиқ
-              матн ҳолида турибди.
+          ) : (
+            <p className="mt-2 border-t border-grid pt-2 text-[12px] leading-[1.5] text-ink-2">
+              <b>{dateLabel(cf.today)}</b> ҳолатига кутилаётган мажлис йўқ — ўқилган{" "}
+              {nf(cf.hearingIso)} та сананинг ҳаммаси ўтган даврга тегишли
+              {cf.hearingLast !== null && <>, энг охиргиси {dateLabel(cf.hearingLast)}</>}.
+              {peakMonth !== null && peakMonth.cases > 0 && (
+                <> Энг банд ой — {monthLabel(peakMonth.month)}, {nf(peakMonth.cases)} та мажлис.</>
+              )}
             </p>
-          </Card>
-        </div>
+          )}
+        </Card>
       </Section>
 
-      {/* --- 3. ПРЕТЕНЗИЯЛАР — атиги 2 ёзув, тўлиқ ҳолда кўринади ----------- */}
-      <Section title="Претензиялар" note={`${t.claims} та · варақ «${qy.claims.sheet}»`}>
-        <div className={GRID.g23}>
-          <Card
-            title="Манбадаги хом йиғинди"
-            sub={t.claimsAmountUnitLabel}
-            stripe={t.claimsAmountUnitSuspect ? "var(--warn)" : "var(--s1)"}
-          >
-            <div className="font-mono text-[24px] leading-[1.1] [font-weight:640] tabular-nums tracking-[-0.02em]">
-              {t.claimsAmountRawSum === null ? <Muted /> : exact(t.claimsAmountRawSum)}
-            </div>
-            <div className="mt-2 flex flex-wrap items-center gap-1.5">
-              <Pill>{t.claims} та ёзувдан</Pill>
-              {t.claimsAmountUnitSuspect && <Pill status="warn">⚠ бирлик тасдиқланмаган</Pill>}
-            </div>
-            {/* Қиймат ҳам, ёрлиқ ҳам манбадагидек. Қайта шкалалаш (×1000 ёки
-                ÷1000) бу ерда АТАЙЛАБ қилинмайди: у тахминни ҳақиқатга
-                айлантириб қўярди. */}
-            <p className="mt-2.5 border-t border-grid pt-2.5 text-[11.5px] leading-[1.5] text-ink-3">
-              Манбадаги устун сарлавҳаси <b className="font-semibold text-ink-2">млн сўм</b>{" "}
-              дейди, лекин қийматларнинг катталиги оддий{" "}
-              <b className="font-semibold text-ink-2">сўм</b> эканини кўрсатади: «млн сўм» бўлса
-              биттагина претензия 9,1 триллион сўмга чиқарди. Бу{" "}
-              <b className="font-semibold text-ink-2">тасдиқланмаган</b> кузатув, шунинг учун
-              қиймат қайта ҳисобланмади ва ёрлиқ ўзгартирилмади — иккиси ҳам манбадагидек
-              турибди.
-            </p>
-          </Card>
-
-          <Card
-            title="Бўлим ҳолати"
-            note="«Манбада 2 та ёзув бор» билан «маълумот йўқ» — иккита БОШҚА нарса. Бу бўлим бўш эмас: манбада айнан шунча ёзув киритилган."
-          >
-            <DataTable
-              cols={[
-                { t: "Кўрсаткич", wrap: true },
-                { t: "Қиймат", num: true },
-              ]}
-              rows={[
-                { key: "records", cells: ["Манбадаги ёзувлар", nf(qy.claims.records)] },
-                { key: "phys", cells: ["Физик Excel қаторлари", nf(qy.claims.physicalRows)] },
-                { key: "cols", cells: ["Устунлар", nf(qy.claims.columns.length)] },
-                {
-                  key: "empty",
-                  cells: [
-                    "Бутунлай бўш устунлар",
-                    <b key="e" className="text-warn-ink">
-                      {nf(qy.claims.emptyColumns.length)}
-                    </b>,
-                  ],
-                },
-              ]}
-              caption="Претензиялар бўлимининг ҳолати"
-            />
-            <p className="mt-2 text-[11.5px] leading-[1.5] text-ink-3">
-              {qy.claims.columns.length} устундан {qy.claims.emptyColumns.length} таси (
-              {qy.claims.emptyColumns.map((c) => c.label).join(", ")}) биронта ёзувда ҳам
-              тўлдирилмаган. Улар қуйида «маълумот йўқ» деб ўз ўрнида кўрсатилади — нол билан
-              тўлдирилмайди.
-            </p>
-          </Card>
-        </div>
+      {/* --- 3. ПРЕТЕНЗИЯЛАР — атиги 2 ёзув, тўлиқ ҳолда кўринади -----------
+          ⚠️ «Бўлим ҳолати» карточкаси (ёзувлар, физик Excel қаторлари,
+          устунлар, бутунлай бўш устунлар) «Манба ва методология» жадвалига
+          кўчирилди — у файл ҳақида, претензия ҳақида эмас. */}
+      <Section title="Претензиялар" note={`${t.claims} та · даъво юборилган`}>
+        <Card
+          title="Даъво суммаси"
+          sub={t.claimsAmountUnitLabel}
+          stripe={t.claimsAmountUnitSuspect ? "var(--warn)" : "var(--s1)"}
+        >
+          <div className="font-mono text-[24px] leading-[1.1] [font-weight:640] tabular-nums tracking-[-0.02em]">
+            {t.claimsAmountRawSum === null ? <Muted /> : exact(t.claimsAmountRawSum)}
+          </div>
+          {/* Қиймат ҳам, ёрлиқ ҳам манбадагидек. Қайта шкалалаш (×1000 ёки
+              ÷1000) АТАЙЛАБ қилинмайди: у тахминни ҳақиқатга айлантириб
+              қўярди. Огоҳлантириш соннинг ЎЗИГА тегади — шунинг учун битта
+              қисқа жумла бўлиб шу ерда қолади. */}
+          <p className="mt-2 text-[11.5px] leading-[1.5] text-ink-2">
+            {t.claims} та ёзувдан.
+            {t.claimsAmountUnitSuspect && (
+              <>
+                {" "}
+                ⚠ Бирлик <b>тасдиқланмаган</b>: манбадаги сарлавҳа «млн сўм» дейди, қиймат
+                катталиги эса оддий «сўм» ни кўрсатади. Қиймат қайта ҳисобланмади.
+              </>
+            )}
+          </p>
+        </Card>
 
         {/* Атиги 2 ёзув — улар `Disclosure` га яширилмайди: бўлимнинг ўзи
             шунча кичик ва очиб кўриш учун битта босиш ортиқча бўларди. */}
@@ -1279,150 +1385,78 @@ function LegalBody({ data }: { data: LegalAffairsDashboard }) {
         </Card>
       </Section>
 
-      {/* --- 4. ШАРТНОМА ЭКСПЕРТИЗАСИ — қисқа кесим ------------------------- */}
+      {/* --- 4. ШАРТНОМА ЭКСПЕРТИЗАСИ — қисқа кесим -------------------------
+          ⚠️ «Бўлим ҳолати» карточкасидаги файл механикаси (физик қаторлар,
+          merge блоклари, «келиб тушган сана ўқилган N/M») «Манба ва
+          методология» жадвалига кўчирилди. Бу ерда экспертизанинг ЎЗИ —
+          рўйхат, даври ва сонни ўзгартирадиган огоҳлантириш қолди. */}
       <Section
         title="Шартнома экспертизаси"
-        note={`${t.contractReviews} та · варақ «${qy.contractReviews.sheet}»`}
+        note={
+          rf.reviewedFirst !== null && rf.reviewedLast !== null
+            ? `${t.contractReviews} та · ${monthLabel(rf.reviewedFirst)} — ${monthLabel(rf.reviewedLast)}`
+            : `${t.contractReviews} та`
+        }
       >
-        <div className={GRID.g32}>
-          <Card
-            title="Экспертизалар — қисқа кесим"
-            sub={`${v.reviews.length} та`}
-            note="Хулоса матни, «лавозим турган» устун ва қутқарилган катаклар тўлиқ ҳолида пастдаги «Батафсил маълумот» да."
-          >
-            {v.reviews.length === 0 ? (
-              <EmptyState title="Шартнома экспертизаси топилмади" />
-            ) : (
-              /* `maxHeight` стандарт 440px дан катта: манбадаги 10 ёзувнинг
-                 иккитаси икки қаторга ёйилади ва стандарт баландликда охирги
-                 қатор карточка четида КЕСИЛИБ қоларди. Рўйхат узайса жадвал
-                 ўзи скроллга ўтади — бу чегара уни ўчирмайди. */
-              <DataTable
-                cols={[
-                  { t: "Т/р", num: true },
-                  { t: "Контрагент", wrap: true },
-                  { t: "Келиб тушган", wrap: true },
-                  { t: "Кўриб чиқилган (ой)", wrap: true },
-                ]}
-                rows={reviewRows}
-                maxHeight={560}
-                caption="Шартнома экспертизаларининг қисқа кесими"
-              />
-            )}
-          </Card>
-
-          <Card
-            title="Бўлим ҳолати"
-            sub={`${qy.contractReviews.records} ёзув · ${qy.contractReviews.physicalRows} физик қатор`}
-            stripe={rf.yearSuspect > 0 ? "var(--warn)" : undefined}
-          >
+        <Card
+          title="Экспертизалар"
+          sub={`${v.reviews.length} та`}
+          stripe={rf.yearSuspect > 0 ? "var(--warn)" : undefined}
+          note="Хулоса матни, «лавозим турган» устун ва қутқарилган катаклар тўлиқ ҳолида пастдаги «Батафсил маълумот» да."
+        >
+          {v.reviews.length === 0 ? (
+            <EmptyState title="Шартнома экспертизаси топилмади" />
+          ) : (
+            /* `maxHeight` стандарт 440px дан катта: манбадаги 10 ёзувнинг
+               иккитаси икки қаторга ёйилади ва стандарт баландликда охирги
+               қатор карточка четида КЕСИЛИБ қоларди. Рўйхат узайса жадвал
+               ўзи скроллга ўтади — бу чегара уни ўчирмайди. */
             <DataTable
               cols={[
-                { t: "Кўрсаткич", wrap: true },
-                { t: "Қиймат", num: true },
+                { t: "Т/р", num: true },
+                { t: "Контрагент", wrap: true },
+                { t: "Келиб тушган", wrap: true },
+                { t: "Кўриб чиқилган (ой)", wrap: true },
               ]}
-              rows={[
-                {
-                  key: "received",
-                  cells: [
-                    "Келиб тушган сана ўқилган",
-                    `${nf(rf.receivedIso)} / ${nf(qy.contractReviews.records)}`,
-                  ],
-                },
-                {
-                  key: "counterparty",
-                  cells: [
-                    "Контрагент кўрсатилган",
-                    `${nf(rf.withCounterparty)} / ${nf(qy.contractReviews.records)}`,
-                  ],
-                },
-                {
-                  key: "merged",
-                  cells: [
-                    "Бирлаштирилган (merge) блок",
-                    nf(qy.contractReviews.mergedBlocks.length),
-                  ],
-                },
-                {
-                  key: "suspect",
-                  cells: [
-                    "Йили кетма-кетликдан чиққан",
-                    rf.yearSuspect === 0 ? (
-                      <span key="s" className="font-mono text-ink-3">
-                        0
-                      </span>
-                    ) : (
-                      <b key="s" className="text-crit-ink">
-                        {nf(rf.yearSuspect)}
-                      </b>
-                    ),
-                  ],
-                },
-              ]}
-              caption="Шартнома экспертизаси бўлимининг ҳолати"
+              rows={reviewRows}
+              maxHeight={560}
+              caption="Шартнома экспертизаларининг қисқа кесими"
             />
+          )}
 
-            <p className="mt-2 text-[11.5px] leading-[1.5] text-ink-3">
-              {rf.receivedFirst !== null && rf.receivedLast !== null && (
-                <>
-                  Ҳужжатлар <b>{dateLabel(rf.receivedFirst)}</b> дан{" "}
-                  <b>{dateLabel(rf.receivedLast)}</b> гача келиб тушган.{" "}
-                </>
-              )}
-              {rf.reviewedFirst !== null && rf.reviewedLast !== null && (
-                <>
-                  Кўриб чиқилган давр: <b>{monthLabel(rf.reviewedFirst)}</b> —{" "}
-                  <b>{monthLabel(rf.reviewedLast)}</b> (манбада бу устун кун эмас,{" "}
-                  <b>ой</b> белгиси).{" "}
-                </>
-              )}
-              {/* ⚠️ Фарқ ШУ варақники (16 физик қатор − 10 ёзув), учала
-                  варақнинг йиғиндиси эмас — у юқоридаги «Жами ёзувлар»
-                  плиткасида алоҳида турибди. */}
-              {rf.mergedRows > 0 && (
-                <>
-                  Фарқ {nf(rf.mergedRows)} қатор — бирлаштирилган блоклар сабабли; бу импорт
-                  блокларни тўғри ҳал қилганининг далили.
-                </>
-              )}
+          {/* Даврни ЎЗГАРТИРАДИГАН огоҳлантириш — шунинг учун шу ерда
+              қолади, битта қисқа жумла бўлиб. */}
+          {rf.yearSuspect > 0 && (
+            <p className="mt-2 text-[11.5px] leading-[1.5] text-warn-ink">
+              ⚠ <b>{nf(rf.yearSuspect)}</b> та ёзувда «кўриб чиқилган» йили{" "}
+              <b className="font-mono">2001</b> — улар юқоридаги давр ҳисобига қўшилмади,
+              лекин рўйхатда манбадагидек, ⚠ белгиси билан турибди.
             </p>
-
-            {rf.yearSuspect > 0 && (
-              <p className="mt-2 text-[11.5px] leading-[1.5] text-warn-ink">
-                ⚠ <b>{nf(rf.yearSuspect)}</b> та ёзувда «кўриб чиқилган» йили{" "}
-                <b className="font-mono">2001</b> — устундаги қолган қийматлар 2026 йилида.
-                Қиймат манбадагидек <b>тузатилмади</b> ва рўйхатда ⚠ белгиси билан
-                кўринади, лекин юқоридаги давр ҳисобига <b>қўшилмади</b>: акс ҳолда бутун
-                бўлим «Март 2001 — Август 2026» бўлиб кўринарди ва давр ҳеч нарса демасди.
-              </p>
-            )}
-          </Card>
-        </div>
+          )}
+        </Card>
       </Section>
 
-      {/* --- 5. БАТАФСИЛ — иккинчи даража ------------------------------------
+      {/* --- 5. МАНБА қавати — иккинчи даража --------------------------------
           Бу ердаги ҳеч нарса олиб ташланмаган: ҳаммаси жойида, фақат ёпиқ
           ҳолатда бошланади. Тугманинг ўзида ичкарида нима борлиги ва нечта
-          экани ёзилган. */}
+          экани ёзилган.
+
+          ⚠️ Биринчи экрандан ТУШГАН нарсалар шу ерда:
+            · «Манбада 20 та белги топилган» чизиғи ва саккизта чип →
+              «Манбадаги белгилар» (`LegalQualitySummaryCard`);
+            · плиткалар остидаги файл чиплари, «учала тур алоҳида…» изоҳи,
+              диаграмма остидаги уч қаторли методология, «22 ноёб натижа
+              матни» ўлчови, иккита «Бўлим ҳолати» карточкаси →
+              «Манба ва методология» (`LegalSourceCard`);
+            · «Суд ишларининг тўлиқ рўйхати» блоки БУ ЕРДАН ОЛИНДИ — у
+              иккинчи бўлимга, ўқиладиган рўйхат бўлиб кўчди, ва ҳар бир
+              иш «тўлиқ матн» билан ўша ердаёқ тўлиқ очилади. */}
       <Section
         title="Батафсил маълумот"
         note="манбадаги ҳар бир ёзув ва ҳар бир белги — керак бўлганда очилади"
       >
-        <Disclosure
-          label="Суд ишларининг тўлиқ рўйхати"
-          hint={`${v.cases.length} та иш · ҳар бирида ${qy.courtCases.columns.length} майдон`}
-        >
-          <Card
-            title="Ишларнинг тўлиқ рўйхати"
-            sub={`${v.cases.length} та`}
-            note="Иш мазмуни ва суд натижаси МАНБАДАГИ тўлиқ матн билан кўрсатилади — қисқартирилса ҳужжатнинг ҳуқуқий маъноси йўқоларди. Тўлдирилмаган устун «маълумот йўқ» деб ўз ўрнида қолади."
-          >
-            {v.cases.length === 0 ? (
-              <EmptyState title="Суд ишлари топилмади" />
-            ) : (
-              v.cases.map((c) => <CaseRow key={c.key} c={c} fillOf={qy.courtCases.fillOf} />)
-            )}
-          </Card>
+        <Disclosure label="Манба ва методология" hint="сонлар қандай ҳисобланган">
+          <LegalSourceCard v={v} />
         </Disclosure>
 
         <Disclosure
@@ -1460,9 +1494,11 @@ function LegalBody({ data }: { data: LegalAffairsDashboard }) {
         </Disclosure>
 
         <Disclosure
-          label="Маълумот сифати — манбадаги белгилар"
+          label="Манбадаги белгилар — маълумот сифати"
           hint={`${qy.issues} та белги · яширилмайди, тузатилмайди`}
         >
+          {/* Аввал биринчи экранда, бутун кенглик бўйлаб турган чизиқ. */}
+          <LegalQualitySummaryCard v={v} />
           {qy.warnings.length > 0 && (
             <Banner tone="warn">Бўлимлараро огоҳлантиришлар: {qy.warnings.join(" · ")}</Banner>
           )}

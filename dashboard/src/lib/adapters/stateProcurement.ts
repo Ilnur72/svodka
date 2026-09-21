@@ -60,6 +60,45 @@ export const NO_DATA = "маълумот йўқ";
 /** Устуннинг ўзи манбада мавжуд бўлмаган ҳолат — «бўш» дан БОШҚА нарса. */
 export const NO_COLUMN = "устун манбада йўқ";
 
+/* -------------------------------------------------------------------------- */
+/* экрандаги ўлчов бирлиги                                                    */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Манбадаги сумма бирлиги. **Ҳеч қаерда ўзгартирилмайди**: хом қиймат
+ * `amount` майдонида шу бирликда қолади ва «Батафсил маълумот» бўлимидаги
+ * жадвалларда айнан шундай кўрсатилади.
+ */
+export const AMOUNT_SOURCE_UNIT = "млн сўм";
+
+/**
+ * ХУЛОСА қаватидаги ягона сумма бирлиги.
+ *
+ * ⚠️ Нега керак: 2025 йилнинг суммаси манбада `1 160 953,8428` **млн сўм** —
+ * яъни «млн» ёрлиғи остида миллиондан 1,16 миллион марта катта сон турибди.
+ * Бундай сонни одам ўқий олмайди: экранда у «бир миллион бир юз олтмиш минг»
+ * бўлиб кўринади, аслида эса 1,16 триллион сўм.
+ *
+ * Шунинг учун ХУЛОСА қавати (йил карточкалари, таққослаш, диаграммалар ва
+ * турлар жадвали) бўйлаб битта бирлик ишлатилади — **млрд сўм**. Шу бирликда
+ * бўлимдаги барча сонлар ўқиладиган оралиқда туради: йил — 721…1 161,
+ * чорак — 28…738, тур — 0…664.
+ *
+ * ⚠️ Бу манбани ТУЗАТИШ эмас: қиймат ҳам, манбадаги ёрлиқ ҳам ўз жойида
+ * қолади. Экрандаги ҳар бир катта соннинг ёнида манбадаги хом қиймат ўз
+ * бирлиги билан ёзилади, «Батафсил маълумот» эса бутунлай манба бирлигида.
+ */
+export const AMOUNT_UNIT = "млрд сўм";
+
+/**
+ * Манба бирлигидан (млн сўм) экран бирлигига (млрд сўм).
+ *
+ * ⚠️ `null` нолга айлантирилмайди — «кўрсатилмаган» ва «нол» бу бўлимда
+ * икки ХИЛ нарса. Натижа ҲИСОБЛАНГАН қиймат, шунинг учун экранда `nf(v, 2)`
+ * билан чиқади (`exact()` эмас): бўлиш сузувчи нуқта «думи»ни ҳосил қилади.
+ */
+export const bln = (v: number | null): number | null => (v === null ? null : v / 1000);
+
 /** Кўрсаткич номи — кирилл. Манбадаги сарлавҳалар билан бир хил атама. */
 export const MEASURE_LABEL: Record<"count" | "amount" | "approvedTmb", string> = {
   count: "сони",
@@ -337,6 +376,45 @@ export interface ProcYearTotal {
   unitSuspect: boolean;
 }
 
+/**
+ * Охирги йилнинг мавжуд чораклари ↔ ОЛДИНГИ йилнинг АЙНАН ўша чораклари.
+ *
+ * ⚠️ «Бу йил ўтган йилга нисбатан қандай» деган савол тўлиқ бўлмаган йилда
+ * осонгина ЁЛҒОН жавоб беради: 2026 да манбада 2 чорак бор, 2025 да эса 4 та.
+ * Тўғридан-тўғри солиштирилса «харидлар 38% га камайди» деган хулоса чиқарди —
+ * ҳолбуки иккита чорак тўртта чорак билан таққосланган бўларди.
+ *
+ * Шунинг учун бу ерда фақат АЙНАН бир хил чораклар солиштирилади (2026 I–II
+ * чорак ↔ 2025 I–II чорак) ва қайси чораклар олингани `quarterLabels` да
+ * очиқ ёзилади. Мос чорак топилмаса солиштирув УМУМАН ясалмайди (`null`) —
+ * ярим тўғри солиштирувдан кўра йўқлиги ҳалолроқ.
+ */
+export interface ProcYearCompare {
+  /** Кейинги (охирги) йил. */
+  year: number;
+  /** База — олдинги йил. */
+  baseYear: number;
+  /** Солиштирилган чорак ёрлиқлари — «I чорак», «II чорак». */
+  quarterLabels: string[];
+  count: number | null;
+  baseCount: number | null;
+  /** ⚠️ МАНБА бирлигида (млн сўм) — экранга `bln()` билан чиқади. */
+  amount: number | null;
+  baseAmount: number | null;
+  /** Фоиз ўзгариш; `null` — база кўрсатилмаган ёки нол (нолга бўлиш). */
+  countPct: number | null;
+  amountPct: number | null;
+  /**
+   * ⚠️ Солиштирувнинг қайси томонида аномал катак бор.
+   *
+   * Бу безак эмас: 2025 I–II чоракда битта шубҳали катак (634 990) ўша ярим
+   * йилликнинг 83% ини ташкил қилади, яъни фоиз ўзгариш АЙНАН шу битта
+   * катакка боғлиқ. Панел буни соннинг ёнида ёзиши шарт.
+   */
+  outlierInBase: boolean;
+  outlierInYear: boolean;
+}
+
 export interface ProcQuality {
   /**
    * Жами нечта солиштирув қилинган (8 давр × 2 кўрсаткич = 16).
@@ -430,6 +508,11 @@ export interface ProcView {
   periods: ProcPeriod[];
   /** Фақат `quarter` слотлари — диаграммалар шулардан чизилади. */
   quarters: ProcPeriod[];
+  /**
+   * «Ўтган йилга нисбатан» — АЙНАН бир хил чораклар кесимида.
+   * `null` — манбада солиштириш учун мос чорак топилмади.
+   */
+  compare: ProcYearCompare | null;
   /** 10 харид тури, манба тартибида. */
   types: ProcType[];
   /**
@@ -533,6 +616,73 @@ function yearTotals(
       unitSuspect: periods.some((p) => p.year === year && p.amountUnitSuspect),
     };
   });
+}
+
+/**
+ * «Ўтган йилга нисбатан» — фақат АЙНАН мос чораклар бўйича.
+ *
+ * ⚠️ Йиғинди ТУР қаторларининг чорак слотларидан олинади, `byPeriod` дан
+ * эмас — `yearTotals` билан айнан бир хил йўл, шунда иккита кўрсаткич
+ * бир-бирига қарама-қарши тушиб қолмайди.
+ */
+function yearCompare(
+  periods: ProcPeriod[],
+  types: ProcType[],
+  outliers: ProcOutlier[],
+): ProcYearCompare | null {
+  const years = [...new Set(periods.map((p) => p.year))].sort((a, b) => a - b);
+  if (years.length < 2) return null;
+  const year = years[years.length - 1];
+  const baseYear = years[years.length - 2];
+
+  const quartersOf = (y: number) => periods.filter((p) => p.year === y && p.kind === "quarter");
+
+  // Охирги йилда МАНБАДА мавжуд чораклар — солиштирув шулар бўйича кесилади.
+  const labels = quartersOf(year)
+    .map((p) => p.quarterLabel)
+    .filter((x): x is string => x !== null);
+  if (labels.length === 0) return null;
+
+  const keysOf = (y: number) =>
+    new Set(
+      quartersOf(y)
+        .filter((p) => p.quarterLabel !== null && labels.includes(p.quarterLabel))
+        .map((p) => p.key),
+    );
+  const yearKeys = keysOf(year);
+  const baseKeys = keysOf(baseYear);
+  // Базада АЙНАН ўша чораклар топилмаса — солиштирув ясалмайди: ярим тўғри
+  // солиштирув «харидлар камайди» деган ёлғон хулосага олиб келарди.
+  if (baseKeys.size !== yearKeys.size || baseKeys.size === 0) return null;
+
+  const cellsOf = (keys: Set<string>) =>
+    types.flatMap((t) => t.slots.filter((s) => keys.has(s.periodKey)));
+  const now = cellsOf(yearKeys);
+  const base = cellsOf(baseKeys);
+
+  const count = sumOrNull(now.map((s) => s.count));
+  const baseCount = sumOrNull(base.map((s) => s.count));
+  const amount = sumOrNull(now.map((s) => s.amount));
+  const baseAmount = sumOrNull(base.map((s) => s.amount));
+
+  // ⚠️ Базада нол бўлса фоиз ҳисобланмайди — нолга бўлиш ўрнига `null`:
+  // «чексиз ўсиш» деган сон экранда ҳеч нарса демасди.
+  const pct = (a: number | null, b: number | null): number | null =>
+    a === null || b === null || b === 0 ? null : ((a - b) / b) * 100;
+
+  return {
+    year,
+    baseYear,
+    quarterLabels: labels,
+    count,
+    baseCount,
+    amount,
+    baseAmount,
+    countPct: pct(count, baseCount),
+    amountPct: pct(amount, baseAmount),
+    outlierInBase: outliers.some((o) => baseKeys.has(o.periodKey)),
+    outlierInYear: outliers.some((o) => yearKeys.has(o.periodKey)),
+  };
 }
 
 export function procurementView(d: StateProcurementDashboard): ProcView {
@@ -756,6 +906,7 @@ export function procurementView(d: StateProcurementDashboard): ProcView {
     years: yearTotals(periods, types, totalSlots, quality.outliers),
     periods,
     quarters: periods.filter((p) => p.kind === "quarter"),
+    compare: yearCompare(periods, types, quality.outliers),
     types,
     totalRow: totalSlots,
     quality,

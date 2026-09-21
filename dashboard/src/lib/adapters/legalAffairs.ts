@@ -213,6 +213,16 @@ export interface LegalCase {
   /** ⚠️ Устун манбада МАВЖУД, лекин 0/23 тўлдирилган — доим `null`. */
   appealPostponed: string | null;
   note: string | null;
+  /**
+   * Иш апелляция босқичига чиққанми — иккита шикоят устунидан **камида
+   * биттаси** тўлдирилган.
+   *
+   * ⚠️ Бу ЯГОНА босқич белгиси: манбада «иш қайси инстанцияда» деган устун
+   * УМУМАН ЙЎҚ, шунинг учун бошқа босқич (ижро, кассация ва ҳ.к.) ўйлаб
+   * топилмайди. Қоида айнан шу ерда, бир жойда ёзилган — `caseFlow.appealed`
+   * ҳам шу майдондан ясалади, панел эса қоидани такрорламайди.
+   */
+  inAppeal: boolean;
   extras: LegalExtra[];
 }
 
@@ -677,7 +687,7 @@ function buildCaseFlow(cases: LegalCase[]): LegalCaseFlow {
     .sort((a, b) => a.date.localeCompare(b.date));
 
   const appealed: LegalAppealRow[] = cases
-    .filter((c) => c.appealSummary !== null || c.appealHearing !== null)
+    .filter((c) => c.inAppeal)
     .map((c) => ({
       key: c.key,
       ordinal: c.ordinal,
@@ -758,27 +768,32 @@ export function legalView(d: LegalAffairsDashboard): LegalView {
   const dupCaseNumbers = new Set(q.courtCases.duplicateCaseNumbers.map((x) => x.value));
   const dupReviewOrdinals = new Set(q.contractReviews.duplicateOrdinals.map((x) => x.value));
 
-  const cases: LegalCase[] = d.courtCases.map((c: LegalCourtCase) => ({
-    id: c.id,
-    key: c.key,
-    ordinal: c.ordinal,
-    excelRow: c.excelRow,
-    excelRowEnd: c.excelRowEnd,
-    rowSpan: c.rowSpan,
-    subject: c.subjectCyrillic,
-    ruling: dateView(c.rulingDate, c.rulingDateTextCyrillic),
-    court: txt(c.courtNameCyrillic),
-    caseNumber: txt(c.caseNumber),
-    caseNumberDuplicate: c.caseNumber !== null && dupCaseNumbers.has(c.caseNumber),
-    lawyer: txt(c.lawyerCyrillic),
-    hearing: dateView(c.hearingDate, c.hearingDateTextCyrillic),
-    result: txt(c.resultCyrillic),
-    appealSummary: txt(c.appealSummaryCyrillic),
-    appealHearing: txt(c.appealHearingTextCyrillic),
-    appealPostponed: txt(c.appealPostponedTextCyrillic),
-    note: txt(c.noteCyrillic),
-    extras: extras(c.extras, `case-${c.id}`),
-  }));
+  const cases: LegalCase[] = d.courtCases.map((c: LegalCourtCase) => {
+    const appealSummary = txt(c.appealSummaryCyrillic);
+    const appealHearing = txt(c.appealHearingTextCyrillic);
+    return {
+      id: c.id,
+      key: c.key,
+      ordinal: c.ordinal,
+      excelRow: c.excelRow,
+      excelRowEnd: c.excelRowEnd,
+      rowSpan: c.rowSpan,
+      subject: c.subjectCyrillic,
+      ruling: dateView(c.rulingDate, c.rulingDateTextCyrillic),
+      court: txt(c.courtNameCyrillic),
+      caseNumber: txt(c.caseNumber),
+      caseNumberDuplicate: c.caseNumber !== null && dupCaseNumbers.has(c.caseNumber),
+      lawyer: txt(c.lawyerCyrillic),
+      hearing: dateView(c.hearingDate, c.hearingDateTextCyrillic),
+      result: txt(c.resultCyrillic),
+      appealSummary,
+      appealHearing,
+      appealPostponed: txt(c.appealPostponedTextCyrillic),
+      note: txt(c.noteCyrillic),
+      inAppeal: appealSummary !== null || appealHearing !== null,
+      extras: extras(c.extras, `case-${c.id}`),
+    };
+  });
 
   const claims: LegalClaimRow[] = d.claims.map((c: LegalClaim) => ({
     id: c.id,
