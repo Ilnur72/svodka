@@ -1,5 +1,5 @@
 import type { MapItem, MapItemType, MapObjectsResponse } from "../../api/types";
-import { exact, pctTxt } from "../format";
+import { exact, nf, pctTxt } from "../format";
 import {
   LAYER_COLOR,
   LAYER_COLOR_FALLBACK,
@@ -22,20 +22,26 @@ import { USD } from "./invest";
  *
  * Аввалги `adapters/investMap.ts` бандл ичидаги реестрдан (`investSource.ts`)
  * ва қўлда ёзилган координата жадвалидан 7 та нуқта ясарди. Энди манба —
- * `GET /map/objects`: 55 объект, уччала қатлам аралаш
- * (2 завод, 46 геология, 7 инвестиция).
+ * `GET /map/objects`: 192 объект, уччала қатлам аралаш
+ * (2 завод, 46 геология, 144 реестр лойиҳаси).
+ *
+ * ⚠️ `invest` қатлами энди «Инвестиция лойиҳалари» ЭМАС: манба
+ * `invest_projects` (7) дан `project_registry_projects` (лойиҳалар реестри,
+ * 144) га ўтди. `type` калити ўзгармади (`'invest'`), фақат ном ва изоҳлар
+ * янгиланди — қаранг: `lib/map/markers.ts` даги `LAYER_NAME`.
  *
  * ═══ Кирилл — биринчи навбатда ══════════════════════════════════════════
  *
  * `?lang=uz` сўралганда ҳам `name`/`region` ЛОТИН келади, кириллчаси эса
  * `nameCyrillic`/`regionCyrillic` да. Сводка бутунлай кирилл, шунинг учун
  * ҳамма жойда `cyr()` ишлатилади: кириллчаси бўлса ўша, бўлмаса лотинчаси
- * (жимгина бўш қолдирилмайди). Жонли жавобда `nameCyrillic` 55/55 тўлган,
- * `regionCyrillic` эса 5 та геология лойиҳасида `null`.
+ * (жимгина бўш қолдирилмайди). Жонли жавобда `nameCyrillic` 192/192 тўлган,
+ * `regionCyrillic` эса бир нечта геология лойиҳасида `null`.
  *
  * ═══ Ҳеч нарса жимгина йўқолмайди ═══════════════════════════════════════
  *
- * Координатаси йўқ объект (жонли жавобда 8 та, ҳаммаси геология) харитага
+ * Координатаси йўқ объект (жонли жавобда 19 та: 8 геология + 11 реестр
+ * лойиҳаси — сабаблари бэкенддаги `dataQuality.investIssues` да) харитага
  * нуқта сифатида тушмайди, лекин `offMap` рўйхатида қолади ва экранда очиқ
  * кўрсатилади. Жадвалда йўқ қатлам захира рангда чизилади ва легендада
  * «жадвалда йўқ қатлам» бўлиб санаб ўтилади.
@@ -177,6 +183,13 @@ export interface MapOffItem {
   name: string;
   region: string;
   token: string;
+  /**
+   * НЕГА харитада йўқ — `invest`/реестр лойиҳалари учун бэкенд
+   * `dataQuality.investIssues` да берган сабаб («Ҳудуди» бўш, «Республика
+   * ҳудудида» — жой номи эмас ва ҳ.к.). Геология объектларида йўқ (`undefined`)
+   * — уларда сабаб битта: базада координата йўқ.
+   */
+  reason?: string;
 }
 
 export interface MapVM {
@@ -244,10 +257,24 @@ function shorten(name: string): string {
  * сифати эмас, КЎРСАТИШ ҳақида: бэкенд устма-уст тушган белгиларни атайин
  * ажратган. Уччаласи ҳам яширилмайди.
  */
+/**
+ * Силжиш ҳақидаги жумла. Бэкенд `coordsDisplacedM` да МАСОФАни бериб қўяди
+ * (`invest`/реестр қатламида битта нуқтага 63 тагача лойиҳа тушгани учун
+ * белгилар 1,5–6 км га тарқатилди), шунинг учун у бор бўлса очиқ ёзилади —
+ * фойдаланувчи силжиган белгини объектнинг ҳақиқий жойи деб ўқимаслиги учун.
+ */
+function shiftText(item: MapItem): string {
+  if (!item.coordsDisplaced) return "";
+  const m = item.coordsDisplacedM;
+  if (m !== null && m > 0) {
+    const dist = m >= 1000 ? `${nf(m / 1000, 1)} км` : `${nf(m)} м`;
+    return ` Белгилар устма-уст тушмаслиги учун нуқта ~${dist} силжитилган.`;
+  }
+  return " Белгилар устма-уст тушмаслиги учун нуқта бир оз силжитилган.";
+}
+
 function placeOf(item: MapItem): MapPlaceNote {
-  const shift = item.coordsDisplaced
-    ? " Белгилар устма-уст тушмаслиги учун нуқта бир оз силжитилган."
-    : "";
+  const shift = shiftText(item);
 
   if (item.coordsSource === "linked") {
     return {
@@ -301,9 +328,10 @@ const money = (v: number | null): string | null => (v === null ? null : `${exact
  * Бўш қиймат қатор сифатида чизилмайди — «—» билан тўлган жадвал маълумот
  * бермайди, фақат карточкани узайтиради. Йўқолиш эмас: майдон манбада бўш.
  *
- * ⚠️ `elements[]` ИШЛАТИЛМАЙДИ: жонли жавобда у 55 объектнинг ҳаммасида бўш.
- * Геологияда металл номлари `detail.mineralCyrillic` / `metalsCyrillic` да
- * эркин матн ҳолида туради — шунинг учун улар ўқилади.
+ * ⚠️ `elements[]` ИШЛАТИЛМАЙДИ: жонли жавобда у `geology` ва `invest`/реестр
+ * қатламларининг ҳаммасида бўш. Геологияда металл номлари
+ * `detail.mineralCyrillic` / `metalsCyrillic` да эркин матн ҳолида туради —
+ * шунинг учун улар ўқилади.
  */
 function rowsOf(item: MapItem, region: string): MapField[] {
   const d = item.detail;
@@ -349,16 +377,52 @@ function rowsOf(item: MapItem, region: string): MapField[] {
 }
 
 /* -------------------------------------------------------------------------- */
+/* координатасиз реестр лойиҳасининг сабаби                                    */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Барча координатаси йўқлик изоҳлари шу калима билан бошланади (бэкенддаги
+ * `missingCoordsIssue`). Битта лойиҳада бошқа сифат изоҳлари ҳам бўлиши
+ * мумкин (IRR/NPV/қоплаш матни) — улар харитадаги лойиҳаларга ҳам тегишли,
+ * шунинг учун айнан шу бошланғич бўйича ажратилади.
+ */
+const COORDS_ISSUE_HEAD = "Xaritada YO";
+
+/**
+ * `id` (`invest-<key>`) → координатаси йўқлигининг ЎҚИЛАДИГАН сабаби.
+ * Бэкенднинг ўз матни олинади (ҳеч нарса тўқилмайди), фақат рўйхат
+ * сарлавҳаси билан такрорланадиган «Xaritada YO`Q:» бошланғичи олиб
+ * ташланади.
+ */
+function investOffReasons(res: MapObjectsResponse): Map<string, string> {
+  const by = new Map<string, string>();
+  for (const it of res.dataQuality.investIssues) {
+    if (by.has(it.id) || !it.issue.startsWith(COORDS_ISSUE_HEAD)) continue;
+    const colon = it.issue.indexOf(":");
+    by.set(it.id, (colon >= 0 ? it.issue.slice(colon + 1) : it.issue).trim());
+  }
+  return by;
+}
+
+/* -------------------------------------------------------------------------- */
 /* асосий функция                                                              */
 /* -------------------------------------------------------------------------- */
 
 /**
  * Ёрлиқ тўқнашганда устунлик. Аниқ координатали объект тахминийсидан
  * устун: унинг нуқтаси ҳақиқатан шу ерда, яъни ёрлиғи ҳам тўғри жойда.
- * Қатлам ҳам ҳисобга олинади — заводлар иккита, улар йўқолиб қолмасин.
+ *
+ * Қатлам оғирлиги — КАМЁБЛИК бўйича: кам учрайдиган қатлам юқорида туради,
+ * акс ҳолда сершумор қатлам камчиликни батамом сиқиб чиқарарди
+ * (`MapCanvas` ёрлиқларни оғирлик камайиши бўйича жойлаштиради).
+ *
+ * ⚠️ `invest` 200 эди — у 7 та лойиҳа бўлганда тўғри. Манба
+ * `project_registry_projects` га ўтгач у 144 тага чиқди ва энг сершумор
+ * қатламга айланди, 46 та геология ёрлиғи эса остида кўмилиб қоларди.
+ * Ҳозирги нисбат: завод 2 · геология 46 · реестр 144.
  */
 function weightOf(item: MapItem): number {
-  const layer = item.type === "factory" ? 300 : item.type === "invest" ? 200 : 100;
+  const layer = item.type === "factory" ? 300 : item.type === "geology" ? 200 : 100;
   const accurate = item.coordsAccuracy === "exact" ? 50 : 0;
   const own = item.coordsSource === "own" ? 10 : 0;
   return layer + accurate + own;
@@ -367,6 +431,9 @@ function weightOf(item: MapItem): number {
 export function mapVM(res: MapObjectsResponse, baseUrl: string): MapVM {
   const pins: MapPin[] = [];
   const offMap: MapOffItem[] = [];
+  // Реестр лойиҳаларининг «нега харитада йўқ» сабаблари — бир марта тайёрлаб
+  // олинади (`id` бўйича қидириш учун).
+  const offReasons = investOffReasons(res);
   // Легенда тартиби — жавобда қатлам БИРИНЧИ марта учраган тартиб: у сонга
   // боғланмайди, шунда маълумот ўзгарганда легенда сакрамайди.
   const legend = new Map<string, MapLegendItem>();
@@ -391,7 +458,7 @@ export function mapVM(res: MapObjectsResponse, baseUrl: string): MapVM {
     // Координатаси йўқ объект харитага тушмайди, лекин ЙЎҚОЛМАЙДИ.
     if (item.lat === null || item.lon === null) {
       row.offCount += 1;
-      offMap.push({ id: item.id, type: item.type, layerName, name, region, token });
+      offMap.push({ id: item.id, type: item.type, layerName, name, region, token, reason: offReasons.get(item.id) });
       continue;
     }
 

@@ -1952,7 +1952,8 @@ export interface MapLinkRef {
  * Харитадаги битта элемент — уччала тур учун ҳам АЙНАН шу шакл.
  *
  * ⚠️ Координатаси йўқ элемент ҳам келади (`lat: null`) — ҳеч нарса ташлаб
- * юборилмайди. Жонли жавобда бундай элемент 8 та (ҳаммаси `geology`).
+ * юборилмайди. Жонли жавобда бундай элемент 19 та (8 `geology` +
+ * 11 `invest`/реестр — сабаблари `dataQuality.investIssues` да).
  */
 export interface MapItem {
   /** Барқарор ва уникал: `factory-91`, `geology-12`, `invest-miskon` */
@@ -1964,7 +1965,7 @@ export interface MapItem {
    * `nameCyrillic` ни афзал кўради.
    */
   name: string | null;
-  /** Ўша номнинг манбадаги кириллча шакли. Жонли жавобда 55 тасида ҳам бор. */
+  /** Ўша номнинг манбадаги кириллча шакли. Жонли жавобда 192 тасида ҳам бор. */
   nameCyrillic: string | null;
   /** ЛОТИН */
   region: string | null;
@@ -1982,11 +1983,23 @@ export interface MapItem {
   lon: number | null;
   /**
    * `true` — нуқта бошқа элемент билан устма-уст тушгани учун бэкенд томонидан
-   * АТАЙИН силжитилган. Жонли жавобда 25 та.
+   * АТАЙИН силжитилган.
    *
    * ⚠️ Фронтендда ИККИНЧИ марта силжитилмайди — қаранг: `MapCanvas`.
    */
   coordsDisplaced: boolean;
+  /**
+   * Белги асл нуқтадан НЕЧА МЕТР силжитилгани (`coordsDisplaced: false`
+   * бўлса `null`).
+   *
+   * ⚠️ `invest` қатлами реестрга ўтгач битта нуқтада 63 тагача лойиҳа
+   * тўпланди ва белгилар 1,5–6 км га тарқатилди. Масофани `lat`/`lon` билан
+   * `sourceLat`/`sourceLon` дан ҳисоблаш мумкин, лекин уни бэкенд бериб
+   * қўйгани маъқул: силжиш карточкада ОЧИҚ айтилиши керак («белги ~4,5 км
+   * силжитилган»), акс ҳолда фойдаланувчи уни объектнинг ҳақиқий жойи деб
+   * ўқийди.
+   */
+  coordsDisplacedM: number | null;
   /** Силжитишдан олдинги, базадаги ҳақиқий нуқта. */
   sourceLat: number | null;
   sourceLon: number | null;
@@ -2007,10 +2020,10 @@ export interface MapItem {
   /**
    * Кимёвий белгилар (`["Au","Ag"]`).
    *
-   * ⚠️ Жонли жавобда 55 элементнинг ҲАММАСИДА бўш (`[]`): геология жадвалида
-   * кимёвий белги устуни йўқ, металл номлари эса `detail.metalsCyrillic` /
-   * `detail.mineralCyrillic` да эркин матн ҳолида. Шунинг учун карточка
-   * қаторлари `elements` устига қурилмайди.
+   * ⚠️ Жонли жавобда `geology` (46) ва `invest`/реестр (144) элементларининг
+   * ҲАММАСИДА бўш (`[]`): бу жадвалларда кимёвий белги устуни йўқ, металл
+   * номлари эса `detail.metalsCyrillic` / `detail.mineralCyrillic` да эркин
+   * матн ҳолида. Шунинг учун карточка қаторлари `elements` устига қурилмайди.
    */
   elements: string[];
   /**
@@ -2025,8 +2038,9 @@ export interface MapItem {
    */
   statusCyrillic: string | null;
   /**
-   * УЛУШ 0…1 (фоиз ЭМАС). Жонли жавобда: `invest` да 7/7 тўлган,
-   * `geology` да 46 тасида ҳам `null`, `factory` да биттасида `0`.
+   * УЛУШ 0…1 (фоиз ЭМАС). `invest`/реестрда `progressRaw` бор лойиҳаларда
+   * тўлади (хом фоиз `detail.progressRaw` да), `geology` да ҳаммасида `null`,
+   * `factory` да базадаги `work_persent` дан.
    */
   progress: number | null;
   costMlnUsd: number | null;
@@ -2041,8 +2055,9 @@ export interface MapItem {
    * Матн майдонларининг кириллча шакли `*Cyrillic` қўшимчали жуфтликда
    * (`fullName` / `fullNameCyrillic`).
    *
-   * ⚠️ `invest` да реестрнинг `type` устуни бу ерда `investType` деб аталади:
-   * юқоридаги `type` дискриминатор сифатида банд.
+   * ⚠️ `invest` да `detail.investType` энди ДОИМ `null`: манба лойиҳалар
+   * реестрига ўтди ва унда MINE/METALL/MARKET тасниф устуни ЙЎҚ. Шу сабабли
+   * `?investType=` фильтри натижани тораймайди — қаранг: `investTypeApplies`.
    */
   detail: Record<string, unknown>;
 }
@@ -2136,9 +2151,43 @@ export interface MapDataQuality {
 export interface MapFiltersMeta {
   applied: boolean;
   layer: MapItemType[] | null;
+  /** `?investType=` — сўралган қиймат АЙНАН қайтади; `null` — берилмаган. */
   investType: string[] | null;
+  /**
+   * ⚠️ ДОИМ `false`. `invest` қатлами лойиҳалар реестридан келади ва унда
+   * MINE/METALL/MARKET тасниф устуни ЙЎҚ — ya'ni `?investType=` параметри
+   * қабул қилинади (нотўғри қиймат ҳамон `400`), лекин натижани ТОРАЙТИРМАЙДИ.
+   */
+  investTypeApplies: boolean;
+  /** Юқоридаги ҳолатнинг ўқиладиган изоҳи. */
+  investTypeNote: string;
   excluded: MapTypeCounts;
   totalBeforeFilter: number;
+}
+
+/**
+ * `invest` қатлами ҚАЙСИ жадвалдан келаётгани ва нечтаси харитага
+ * тушмагани.
+ *
+ * ⚠️ Нега керак: `items[].type` ҳамон `'invest'` ва `?layer=invest` ҳамон
+ * ишлайди, лекин ОРҚАСИДАГИ манба алмашди — `invest_projects` (7 лойиҳа)
+ * ўрнига `project_registry_projects` (144 лойиҳа). Бу майдонсиз истеъмолчи
+ * «нега 7 эмас, 133 та белги» деган саволга фақат коддан жавоб топарди.
+ */
+export interface MapInvestSourceMeta {
+  /** Ҳозирги манба жадвал. */
+  table: string;
+  /** Базадаги ўчирилмаган лойиҳалар сони. */
+  projects: number;
+  /** Координатаси бор — харитага белги бўлиб тушадиганлари. */
+  withCoords: number;
+  /**
+   * Координатаси йўқ — `items[]` да `lat: null` билан ҚАЙТАДИ, лекин
+   * харитада кўринмайди. Ҳар бирининг сабаби `dataQuality.investIssues` да.
+   */
+  withoutCoords: number;
+  /** Манба алмашгани ва тўлиқ шакл қаердалиги — ўқиладиган матн. */
+  note: string;
 }
 
 export interface MapObjectsMeta {
@@ -2148,6 +2197,8 @@ export interface MapObjectsMeta {
   filters: MapFiltersMeta;
   /** Боғлаш эвристик — ҳисоботда очиқ кўрсатилади. */
   matchStrategy: string;
+  /** `invest` қатламининг манбаси ва координата қамрови. */
+  investSource: MapInvestSourceMeta;
   /**
    * ⚠️ ВАҚТИНЧАЛИК. `factory` жадвалида демо ёзувлар бор, шунинг учун жавобга
    * фақат РЕАЛ заводлар тушади. Демо ёзувлар базадан ўчирилгач бу уччала
@@ -2159,7 +2210,7 @@ export interface MapObjectsMeta {
   factoriesFiltered?: number;
 }
 
-/** `GET /map/objects` жавоби — ҳаммаси битта сўровда (~148 КБ). */
+/** `GET /map/objects` жавоби — ҳаммаси битта сўровда (~764 КБ). */
 export interface MapObjectsResponse {
   /** ҲАММАСИ шу ерда: factory + geology + invest. */
   items: MapItem[];
