@@ -1,5 +1,6 @@
 import { useAuthToken } from "./api/auth";
 import { Dashboard } from "./Dashboard";
+import { NoAccess } from "./components/NoAccess";
 import { InvestMapPage } from "./pages/InvestMapPage";
 import { CameraWallPage } from "./pages/CameraWallPage";
 
@@ -65,10 +66,17 @@ function pathIs(segment: string): boolean {
 }
 
 /**
- * Кириш нуқтаси. Логин экрани йўқ: дашборд хост иловасининг `iframe` ичида
- * очилади ва токенни ўша хостдан олади (қаранг: `api/auth.ts`). Токен
- * топилмаса — фойдаланувчидан ҳеч нарса сўралмайди, чунки бу унинг эмас,
- * жойлаштиришнинг муаммоси; шунчаки сабаби кўрсатилади.
+ * Кириш нуқтаси. Логин экрани йўқ ва қўшилмайди: дашборд хост илованинг
+ * `iframe` ичида очилади ва кириш ҳуқуқини ўша хостдан олади (қаранг:
+ * `api/auth.ts`). Ҳуқуқ топилмаса дашборд умуман чизилмайди — ўрнига
+ * `NoAccess` экрани туради.
+ *
+ * ⚠️ Дарвоза интерфейс безаги эмас, ҳимоянинг бир қисми: `Gated` ичида
+ * `Dashboard` ва `InvestMapPage` ЯРАТИЛМАЙДИ, демак уларнинг `useQuery`
+ * hook'лари ҳам ишга тушмайди ва биронта API сўрови юборилмайди. Иккинчи
+ * қатлам `apiGet` да: у токенсиз `fetch` га етиб бормай `UnauthorizedError`
+ * ташлайди. Ҳақиқий ҳимоя эса барибир бэкендда (`UniversalAuthGuard`) —
+ * бу ерда фақат бегона кишига бўш/хато экран кўрсатмаслик масаласи.
  */
 export default function App() {
   // Девор токенсиз ҳам ўз кўринишида чизилади — шунинг учун у `useAuthToken()`
@@ -81,26 +89,15 @@ export default function App() {
   return <Gated />;
 }
 
+/**
+ * Дарвоза. `useAuthToken()` — `useSyncExternalStore`, шунинг учун ҳуқуқ
+ * кейинроқ пайдо бўлса (хост `localStorage` га ёзса ёки манзил ўзгарса)
+ * экран ЎЗИ алмашади. Тескариси ҳам ишлайди: `401` дан кейин `apiGet`
+ * `invalidateToken()` ни чақиради ва фойдаланувчи ўша заҳоти шу экранга
+ * қайтади — сеанс муддати тугаган ҳолат ҳам шу ерда тугайди.
+ */
 function Gated() {
   const token = useAuthToken();
-  if (!token) return <NoToken />;
+  if (!token) return <NoAccess />;
   return pathIs(MAP_PATH) ? <InvestMapPage /> : <Dashboard />;
-}
-
-function NoToken() {
-  return (
-    <main className="mx-auto flex min-h-screen max-w-[520px] flex-col justify-center px-5 py-10">
-      <div
-        role="alert"
-        className="rounded-card border border-hair bg-surface px-5 py-6 shadow-card"
-        style={{ borderLeft: "3px solid var(--crit)" }}
-      >
-        <p className="text-[13.5px] [font-weight:650] text-ink">Кириш токени топилмади</p>
-        <p className="mt-2 text-[12.5px] leading-[1.5] text-ink-2">
-          Дашборд токенни хост иловадан олади. Уни очиш учун хост тизимига киринг ва
-          бўлимни ўша ердан очинг.
-        </p>
-      </div>
-    </main>
-  );
 }

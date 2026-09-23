@@ -14,7 +14,14 @@ import { useSyncExternalStore } from "react";
  *   3. Ота-ойна (`window.parent`, `window.top`) нинг `localStorage` и — фақат
  *      same-origin'да ўқилади; cross-origin'да браузер тўсади, хато ютилади
  *      ва навбат кейинги манбага ўтади.
- *   4. `.env` (`VITE_API_TOKEN`) — фақат юқоридаги учаласи ҳам топилмаса.
+ *   4. `.env` (`VITE_API_TOKEN`) — **фақат `npm run dev` да** ва фақат
+ *      юқоридаги учаласи ҳам топилмаса. Prod build'да бу манба умуман йўқ,
+ *      қаранг: `devToken()`.
+ *
+ * Ҳеч бир манбада токен бўлмаса `getToken()` `null` қайтаради ва илова
+ * дашборд ўрнига «кириш ҳуқуқи йўқ» экранини чизади (`App.tsx`). Бу ҳолатда
+ * биронта API сўрови ҳам юборилмайди: `apiGet` токенсиз `fetch` га умуман
+ * етиб бормайди.
  *
  * Хост қийматни `Bearer eyJ…` кўринишида сақлаши мумкин — префикс олиб
  * ташланади, чунки `Authorization` сарлавҳасини `api/client.ts` ўзи ясайди.
@@ -126,30 +133,61 @@ function bootstrapFromUrl(): void {
 
 bootstrapFromUrl();
 
+/**
+ * Манбалар — юқоридаги кетма-кетликда. Ҳар бири thunk: рўйхат бир марта
+ * тузилади, лекин ўқиш фақат навбат келганда бўлади, яъни биринчи манбада
+ * токен бор бўлса cross-origin `window.parent` га умуман тегилмайди.
+ */
+const SOURCES: ReadonlyArray<() => string | null> = [
+  () => read(() => sessionStorage, KEY),
+  () => read(() => localStorage, KEY),
+  () => read(() => storageOf(window.parent), KEY),
+  () => read(() => storageOf(window.top), KEY),
+  devToken,
+];
+
+/**
+ * `401` олган токенлар — қаранг: `invalidateToken()`.
+ *
+ * Фақат жорий саҳифа умри давомида сақланади ва ҳеч қаерга ёзилмайди:
+ * саҳифа қайта юкланса рўйхат тозаланади, яъни хост токенни янгилаган
+ * бўлса дашборд ўзи тикланади.
+ */
+const rejected = new Set<string>();
+
 function readToken(): string | null {
-  return (
-    normalize(read(() => sessionStorage, KEY)) ??
-    normalize(read(() => localStorage, KEY)) ??
-    normalize(read(() => storageOf(window.parent), KEY)) ??
-    normalize(read(() => storageOf(window.top), KEY)) ??
-    devToken()
-  );
+  for (const source of SOURCES) {
+    const t = normalize(source());
+    if (t !== null && !rejected.has(t)) return t;
+  }
+  return null;
 }
 
 /**
- * Захира: `.env` (ёки `.env.local`, у устун) даги `VITE_API_TOKEN`.
+ * Захира: `.env` (ёки `.env.local`, у устун) даги `VITE_API_TOKEN` —
+ * **фақат `npm run dev` да**.
  *
- * Энг охирида турибди — хостдан ёки манзил сатридан келган ҳақиқий токен
+ * Энг охирида турибди: хостдан ёки манзил сатридан келган ҳақиқий токен
  * ҳар доим ундан устун, шунинг учун бу қиймат хост орқали очилганда ҳеч
  * нарсани ўзгартирмайди.
  *
- * ⚠️ `import.meta.env.DEV` қоровули ЙЎҚ — қиймат `npm run dev` да ҳам,
- * `npm run build` натижасида ҳам bundle ичига тушади (фойдаланувчи талаби
- * бўйича, деплой қилинган `dist/` да ҳам ишлаши учун). Демак бу build'ни
- * ким очса ҳам, devtools орқали токенни топа олади. `.env`/`.env.local`
- * иккови ҳам git'га тушмайди (`*.local`, `.env` — `.gitignore`).
+ * ⚠️ `import.meta.env.DEV` қоровули МАЖБУРИЙ ва олиб ташланмайди. Усиз
+ * қиймат `npm run build` натижасига ҳам тушар эди — деплой қилинган `dist/`
+ * ни очган ҳар ким токенни devtools орқали ўқиб, дашбордни кўра оларди.
+ * Яъни қоровулсиз бу ерда «захира» эмас, ҳамма учун очиқ калит турар эди.
+ *
+ * Vite `import.meta.env.DEV` ни build вақтида `false` матни билан
+ * АЛМАШТИРАДИ, шунинг учун қуйидаги эрта `return` дан кейинги қатор prod
+ * bundle'да ўлик кодга айланади ва минификатор уни токен сатри билан бирга
+ * бутунлай олиб ташлайди. Текшириш: `grep -r "eyJ" dist/` → 0 та.
+ *
+ * ⚠️ `import.meta.env` га ЯЛПИ мурожаат қилинмайди (`const e = import.meta.env`
+ * ёки `import.meta.env["VITE_API_TOKEN"]` каби) — ундай ёзилса Vite бутун env
+ * объектини, яъни токенни ҳам, bundle ичига сериялаб қўяди ва қоровул
+ * фойдасиз бўлиб қолади.
  */
 function devToken(): string | null {
+  if (!import.meta.env.DEV) return null;
   return normalize(import.meta.env.VITE_API_TOKEN);
 }
 
@@ -165,11 +203,20 @@ export function getToken(): string | null {
 }
 
 /**
- * `401` дан кейин чақирилади: кэш ва сеанс нусхаси ташланади, шунда токен
- * хостдан қайтадан ўқилади. Хостнинг `localStorage` ига тегилмайди — у калит
- * бизники эмас ва уни ўчириш хост иловасини ҳам тизимдан чиқариб юборарди.
+ * `401` дан кейин чақирилади: муддати тугаган токен ишлатилмайдиган деб
+ * белгиланади, сеанс нусхаси ва кэш ташланади — шунда токен манбалардан
+ * қайтадан ўқилади.
+ *
+ * Хостнинг `localStorage` ига ТЕГИЛМАЙДИ: у калит бизники эмас ва уни
+ * ўчириш хост иловасини ҳам тизимдан чиқариб юборарди. Шунинг учун эски
+ * қиймат ўша ерда қолади — уни иккинчи марта ўқиб олмаслик учун `rejected`
+ * рўйхати керак. Усиз, токен айнан ўша калитдан келган ҳолатда, `getToken()`
+ * ўша эскирган қийматни қайтаравериб турар ва фойдаланувчи «кириш ҳуқуқи
+ * йўқ» экрани ўрнига бўлимлардаги хато ҳолатларини кўрар эди.
  */
 export function invalidateToken(): void {
+  const spent = getToken();
+  if (spent !== null) rejected.add(spent);
   try {
     sessionStorage.removeItem(KEY);
   } catch {
