@@ -5,6 +5,7 @@ import { useQuery } from "./lib/useQuery";
 import { monthsInRange, monthsOf, usePeriodState } from "./lib/period";
 import { periodLabel } from "./lib/format";
 import { TABS, useHashTab } from "./lib/useHashTab";
+import { tabsVisible } from "./lib/embed";
 import { PeriodPicker } from "./components/PeriodPicker";
 import { ErrorState, Skeleton } from "./components/states";
 import { ObzorPanel } from "./panels/ObzorPanel";
@@ -83,7 +84,10 @@ function DashboardBody({ range }: { range: { min: string; max: string } }) {
   const allMonths = useMemo(() => monthsInRange(range.min, range.max), [range.min, range.max]);
   const [period, setPeriod] = usePeriodState(allMonths);
   const months = useMemo(() => monthsOf(period, allMonths), [period, allMonths]);
-  const tablistRef = useRef<HTMLDivElement>(null);
+  // Хост иловасининг iframe'и ичида таб қатори чизилмайди — қаранг `lib/embed.ts`.
+  // Қиймат саҳифа умри давомида ўзгармайди (манзилдан бир марта ўқилади),
+  // шунинг учун ҳолат ҳам, эффект ҳам керак эмас.
+  const withTabs = tabsVisible();
 
   const props: PanelProps = { period, months };
 
@@ -199,25 +203,6 @@ function DashboardBody({ range }: { range: { min: string; max: string } }) {
     }
   }
 
-  // WAI-ARIA tabs: стрелкалар таблар орасида юради, Home/End четларга.
-  const onTabKeyDown = (ev: KeyboardEvent<HTMLDivElement>) => {
-    const keys = ["ArrowRight", "ArrowLeft", "Home", "End"];
-    if (!keys.includes(ev.key)) return;
-    ev.preventDefault();
-    const i = TABS.findIndex((t) => t.id === tab);
-    const next =
-      ev.key === "ArrowRight"
-        ? (i + 1) % TABS.length
-        : ev.key === "ArrowLeft"
-          ? (i - 1 + TABS.length) % TABS.length
-          : ev.key === "Home"
-            ? 0
-            : TABS.length - 1;
-    const id: TabId = TABS[next].id;
-    selectTab(id);
-    tablistRef.current?.querySelector<HTMLButtonElement>(`#tab-${id}`)?.focus();
-  };
-
   return (
     <>
       <a
@@ -252,56 +237,103 @@ function DashboardBody({ range }: { range: { min: string; max: string } }) {
         </div>
       </header>
 
-      <nav className="sticky top-[61px] z-[35] border-b border-rule bg-surface " aria-label="Бўлимлар">
-        <div
-          ref={tablistRef}
-          className="tabs-scroll flex gap-0.5 px-5"
-          role="tablist"
-          aria-label="Бўлимлар"
-          onKeyDown={onTabKeyDown}
-        >
-          {TABS.map((t) => {
-            const on = t.id === tab;
-            return (
-              <button
-                key={t.id}
-                id={`tab-${t.id}`}
-                type="button"
-                role="tab"
-                aria-selected={on}
-                aria-controls={`panel-${t.id}`}
-                tabIndex={on ? 0 : -1}
-                onClick={() => selectTab(t.id)}
-                className={
-                  "flex cursor-pointer items-center gap-[7px] border-b-2 px-3.5 pt-[11px] pb-[9px] text-[13.5px] whitespace-nowrap " +
-                  (on
-                    ? "border-s1 text-ink [font-weight:650]"
-                    : "border-transparent font-medium text-ink-2 hover:text-ink")
-                }
-              >
-                <span
-                  aria-hidden="true"
-                  className={
-                    "h-[7px] w-[7px] flex-none rounded-full " + (on ? "bg-s1" : "bg-rule")
-                  }
-                />
-                {t.label}
-              </button>
-            );
-          })}
-        </div>
-      </nav>
+      {withTabs && <TabsBar tab={tab} onSelect={selectTab} />}
 
       <main id="main" className="px-5 pt-5 pb-16">
         {/*
           Давр ўзгарганда панел remount қилинмайди: сўровлар ўзи янгиланади,
           эски натижа эса янгиси келгунича экранда қолади (скелет миллтилламайди).
         */}
-        <div id={`panel-${tab}`} role="tabpanel" aria-labelledby={`tab-${tab}`} tabIndex={0}>
+        {/*
+          Таб қатори чизилмаган ҳолда `role="tabpanel"` ҳам қўйилмайди: унинг
+          `aria-labelledby` си мавжуд бўлмаган `#tab-…` га ишора қилиб қолар,
+          экран ўқувчи эса рўйхати йўқ таб панелини эълон қилар эди.
+        */}
+        <div
+          id={`panel-${tab}`}
+          role={withTabs ? "tabpanel" : undefined}
+          aria-labelledby={withTabs ? `tab-${tab}` : undefined}
+          tabIndex={withTabs ? 0 : undefined}
+        >
           {renderPanel()}
         </div>
       </main>
 
     </>
+  );
+}
+
+/**
+ * Бўлимлар таб қатори.
+ *
+ * Алоҳида компонент бўлиб турибди, чунки у `iframe` ичида УМУМАН чизилмайди
+ * (қаранг `lib/embed.ts`). Шу сабабли `tablistRef` ва клавиатура ҳодисаси ҳам
+ * фақат қатор ҳақиқатан кўринганда яратилади — чизилмаган қаторга боғланиб
+ * осилиб қоладиган ҳеч нарса қолмайди.
+ *
+ * `sticky top-[61px]` — сарлавҳанинг баландлиги; сарлавҳа `sticky top-0` да
+ * қолгани учун бу сон яширилган ҳолда ҳам бирон жойда ҳисобга олинмайди
+ * (лойиҳада 61px га таянадиган бошқа элемент йўқ).
+ */
+function TabsBar({ tab, onSelect }: { tab: TabId; onSelect: (t: TabId) => void }) {
+  const tablistRef = useRef<HTMLDivElement>(null);
+
+  // WAI-ARIA tabs: стрелкалар таблар орасида юради, Home/End четларга.
+  const onTabKeyDown = (ev: KeyboardEvent<HTMLDivElement>) => {
+    const keys = ["ArrowRight", "ArrowLeft", "Home", "End"];
+    if (!keys.includes(ev.key)) return;
+    ev.preventDefault();
+    const i = TABS.findIndex((t) => t.id === tab);
+    const next =
+      ev.key === "ArrowRight"
+        ? (i + 1) % TABS.length
+        : ev.key === "ArrowLeft"
+          ? (i - 1 + TABS.length) % TABS.length
+          : ev.key === "Home"
+            ? 0
+            : TABS.length - 1;
+    const id: TabId = TABS[next].id;
+    onSelect(id);
+    tablistRef.current?.querySelector<HTMLButtonElement>(`#tab-${id}`)?.focus();
+  };
+
+  return (
+    <nav className="sticky top-[61px] z-[35] border-b border-rule bg-surface " aria-label="Бўлимлар">
+      <div
+        ref={tablistRef}
+        className="tabs-scroll flex gap-0.5 px-5"
+        role="tablist"
+        aria-label="Бўлимлар"
+        onKeyDown={onTabKeyDown}
+      >
+        {TABS.map((t) => {
+          const on = t.id === tab;
+          return (
+            <button
+              key={t.id}
+              id={`tab-${t.id}`}
+              type="button"
+              role="tab"
+              aria-selected={on}
+              aria-controls={`panel-${t.id}`}
+              tabIndex={on ? 0 : -1}
+              onClick={() => onSelect(t.id)}
+              className={
+                "flex cursor-pointer items-center gap-[7px] border-b-2 px-3.5 pt-[11px] pb-[9px] text-[13.5px] whitespace-nowrap " +
+                (on
+                  ? "border-s1 text-ink [font-weight:650]"
+                  : "border-transparent font-medium text-ink-2 hover:text-ink")
+              }
+            >
+              <span
+                aria-hidden="true"
+                className={"h-[7px] w-[7px] flex-none rounded-full " + (on ? "bg-s1" : "bg-rule")}
+              />
+              {t.label}
+            </button>
+          );
+        })}
+      </div>
+    </nav>
   );
 }
