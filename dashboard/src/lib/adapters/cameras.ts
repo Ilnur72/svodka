@@ -1,5 +1,5 @@
 import { UPLOAD_BASE } from "../../api/client";
-import type { CamerasResponse } from "../../api/types";
+import type { CameraRow, CamerasResponse } from "../../api/types";
 
 /**
  * «Камералар девори» учун адаптер: сервернинг заводлар бўйича гуруҳланган
@@ -34,8 +34,11 @@ export interface WallCamera {
    * `null` — катак дарҳол «сигнал йўқ» ҳолатида чизилади, бекорга уринмайди.
    */
   streamUrl: string | null;
-  /** Стрим кўтарилмаганда кўрсатиладиган охирги кадр. */
-  snapshotUrl: string | null;
+  /**
+   * Стрим кўтарилмаганда кўрсатиладиган охирги кадр. ДОИМ бор — қаранг:
+   * `snapshotOf`. Файлнинг ўзи топилмаслиги мумкин, буни катак ҳал қилади.
+   */
+  snapshotUrl: string;
   /** Реестрда `active` эмас — камера ўзи ишламаслиги кутилади. */
   inactive: boolean;
 }
@@ -53,6 +56,26 @@ export type WallSlot = WallCamera | null;
  */
 function stripAddr(name: string): string {
   return name.replace(/\s*\b\d{1,3}(?:\.\d{1,3}){3}(?::\d+)?\s*$/, "").trim();
+}
+
+/**
+ * Охирги сақланган кадрнинг манзили. ҲАР ДОИМ ясалади — `null` қайтмайди.
+ *
+ * Реестрдаги `screenshot_url` устуни кўпинча тўлдирилмай қолади, кадрларни
+ * ёзувчи хизмат эса файлни барибир БИР ХИЛ келишув бўйича қўяди:
+ * `camera-screenshots/camera_<id>.jpg`. Шунинг учун устун бўш бўлса ўша
+ * келишув бўйича йўл ясалади — айни наqsh `frontend/` лойиҳасидаги
+ * `CameraStreamCell` да ҳам ишлатилади ва ўша ерда ишлайди.
+ *
+ * Нега бу МУҲИМ: устун бўш бўлгани учун `null` қайтарилса, катакда захира
+ * қатлам умуман чизилмас эди ва экранда қоп-қора тўртбурчак қоларди.
+ *
+ * Файл ҳақиқатан йўқ бўлса зарар йўқ: катакдаги `<img onError>` захира
+ * қатламни ўчиради ва ўрнига «уланиш йўқ» ҳолати кўринади.
+ */
+function snapshotOf(cam: CameraRow): string {
+  const rel = (cam.screenshot_url ?? "").trim().replace(/^\/+/, "");
+  return `${UPLOAD_BASE}/mnt/tmkupload/${rel || `camera-screenshots/camera_${cam.id}.jpg`}`;
 }
 
 /** Жавобни барқарор (id бўйича) ягона рўйхатга ёзади. */
@@ -74,9 +97,7 @@ export function flattenCameras(res: CamerasResponse): WallCamera[] {
           cam.stream_uuid && cam.webrtc_server
             ? `${cam.webrtc_server.replace(/\/+$/, "")}/stream/${cam.stream_uuid}/channel/${cam.channel ?? 0}/webrtc`
             : null,
-        snapshotUrl: cam.screenshot_url
-          ? `${UPLOAD_BASE}/mnt/tmkupload/${cam.screenshot_url.replace(/^\/+/, "")}`
-          : null,
+        snapshotUrl: snapshotOf(cam),
         inactive: cam.status !== "active",
       });
     }

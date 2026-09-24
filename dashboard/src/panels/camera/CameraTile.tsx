@@ -13,6 +13,26 @@ import type { WallCamera } from "../../lib/adapters/cameras";
  * манзилда туради. Айнан шу келишув `frontend/` даги `CameraStreamCell`
  * да ҳам ишлатилади — бу ерда ундан фарқ фақат қайта уланишда.
  *
+ * ═══ «Жонли» — трек эмас, КАДР ══════════════════════════════════════════
+ *
+ * Энг муҳим қоида: катак `live` ҳолатига `ontrack` да ЎТМАЙДИ.
+ *
+ * Стрим сервери оммавий манзилда, камералар эса ичкарида (`10.85.0.x`).
+ * Сервер камерага ета олмаганда ҳам SDP алмашинуви муваффақиятли тугайди
+ * ва бўш трек очилади — битта ҳам кадр келмайди. `ontrack` да `live` деб
+ * ҳисоблаш айнан шу ерда ёлғон ҳолат берарди: экранда қоп-қора тўртбурчак,
+ * устида эса яшил нуқта билан «Жонли эфир».
+ *
+ * Шунинг учун ҳақиқий КАДР кутилади: `<video>` да маълумот бўлиши
+ * (`readyState >= HAVE_CURRENT_DATA`) ва ўлчами кадрга ўхшаши
+ * (`MIN_FRAME_PX`). Иккинчи шарт шунчаки эҳтиёт эмас — кадр бермайдиган
+ * трекда Chrome `videoWidth` ни 2 қилиб кўрсатади, яъни «нолдан катта»
+ * текшируви бу ерда АЛДАР эди.
+ *
+ * Текшируш уч йўл билан бошланади, чунки бирортаси ҳам ҳамма браузерда
+ * ишончли эмас: `requestVideoFrameCallback` (энг аниқ, Firefox'да йўқ),
+ * медиа ҳодисалари (`FRAME_EVENTS`) ва оддий поллинг (`FRAME_POLL_MS`).
+ *
  * ═══ Нега ўз-ўзидан қайта уланиш БОР ════════════════════════════════════
  *
  * Бу компонент ситуацион марказ деворида очилади ва ҳафталаб ёпилмайди.
@@ -26,8 +46,19 @@ import type { WallCamera } from "../../lib/adapters/cameras";
  *
  * WebRTC'да «уланмади» ҳодисаси ҳар доим ҳам келмайди: SDP алмашинуви
  * муваффақиятли тугаб, кадр эса умуман келмаслиги мумкин. Шунинг учун
- * алоҳида таймер: белгиланган вақтда биринчи трек келмаса — хато деб
+ * алоҳида таймер: белгиланган вақтда биринчи КАДР келмаса — хато деб
  * ҳисобланади ва қайта уриниш бошланади.
+ *
+ * ═══ Қора экран бўлмайди ════════════════════════════════════════════════
+ *
+ * Жонли кадр йўқ пайтда катак уч қаватдан иборат ва улар бир-бирининг
+ * устида туради, шунинг учун ҳеч қандай ҳолатда қора тўртбурчак қолмайди:
+ *
+ *   0. `wall-tile__blank` — доим остида: белги ва тус. Расм юкланаётганда
+ *      ҳам, умуман топилмаганда ҳам кўринадигани шу.
+ *   1. `wall-tile__snap`  — серверда сақланган охирги кадр. У эскириб
+ *      қолмаслиги учун `SNAP_REFRESH_MS` да бир марта қайта сўралади.
+ *   4. `wall-tile__down`  — «Сигнал йўқ» ёзуви ва қўлда уриниш тугмаси.
  *
  * ═══ Нега илдиз `<button>` ЭМАС ════════════════════════════════════════
  *
@@ -40,11 +71,41 @@ import type { WallCamera } from "../../lib/adapters/cameras";
 
 type Phase = "connecting" | "live" | "error";
 
-/** Биринчи трек шунча вақтда келмаса, уланиш муваффақиятсиз деб ҳисобланади. */
+/** Захира кадрнинг ҳолати: юкланмоқда / кўринди / файл топилмади. */
+type Snap = "idle" | "ok" | "fail";
+
+/** Биринчи КАДР шунча вақтда келмаса, уланиш муваффақиятсиз деб ҳисобланади. */
 const TRACK_TIMEOUT_MS = 12_000;
 
 /** Қайта уриниш кечикишлари; охиргиси такрорланаверади. */
 const RETRY_MS = [3_000, 6_000, 12_000, 30_000];
+
+/**
+ * Кадр келганини билдириши мумкин бўлган медиа ҳодисалари. Уларнинг
+ * бирортаси ҳам ўзича етарли эмас — ҳар бири `check()` ни чақиради, қарор
+ * эса фақат `videoWidth` бўйича қабул қилинади.
+ */
+const FRAME_EVENTS = ["loadeddata", "playing", "timeupdate", "resize"] as const;
+
+/** Ҳодисалар ҳам, `requestVideoFrameCallback` ҳам ишламаган ҳолат учун захира. */
+const FRAME_POLL_MS = 400;
+
+/**
+ * Кадр «ҳақиқий» ҳисобланиши учун энг кичик ўлчам, пиксел.
+ *
+ * Бу сон ЎЙЛАБ ТОПИЛГАН эмас, ўлчаб олинган: кадр бермайдиган Navoi
+ * камераларига уланганда Chrome `videoWidth` ни нол эмас, **2** қилиб
+ * кўрсатади — трек очилган, лекин декодер ҳали ҳеч нарса чизмаган. Шунинг
+ * учун «нолдан катта» шарти етарли эмас, ҳақиқий кадр талаб қилинади.
+ * Энг паст сифатли кузатув камераси ҳам 320×240 дан кичик бўлмайди.
+ */
+const MIN_FRAME_PX = 16;
+
+/**
+ * Сақланган кадрни қайта сўраш даври. Девор ҳафталаб очиқ туради — шу
+ * бўлмаса катакда бир марта юкланган, ойлик эски расм осилиб қоларди.
+ */
+const SNAP_REFRESH_MS = 3 * 60_000;
 
 const ICE: RTCConfiguration = {
   iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
@@ -68,7 +129,9 @@ export function CameraTile({ camera, no, fit, expanded, onToggleExpand }: Camera
   const [nonce, setNonce] = useState(0);
   /** Кечикиш поғонаси. `state` эмас — ўзгариши қайта уланишни бошламаслиги керак. */
   const backoff = useRef(0);
-  const [snapFailed, setSnapFailed] = useState(false);
+  const [snap, setSnap] = useState<Snap>("idle");
+  /** Захира кадрни кэшдан эмас, серверда ёзилган янгисидан олиш учун. */
+  const [snapTick, setSnapTick] = useState(0);
 
   const url = camera?.streamUrl ?? null;
 
@@ -81,16 +144,70 @@ export function CameraTile({ camera, no, fit, expanded, onToggleExpand }: Camera
     let alive = true;
     let watchdog = 0;
     let retry = 0;
+    let poll = 0;
+    let frameCb = 0;
+    /** Биринчи кадр аллақачон қабул қилинганми — такрор ишламаслик учун. */
+    let got = false;
     setPhase("connecting");
 
     const ac = new AbortController();
     const pc = new RTCPeerConnection(ICE);
+    const video = videoRef.current;
+
+    // Олдинги уринишдан қолган кадр тозаланади. Бўлмаса `videoWidth` эски
+    // қийматида қолар ва янги уланиш ҳали бирорта кадр бермасдан «жонли»
+    // деб ҳисобланарди.
+    if (video) video.srcObject = null;
+
+    /** Кадр кузатувини тўхтатади: кадр келди ёки катак ёпилди. */
+    const stopWatch = () => {
+      window.clearInterval(poll);
+      const v = videoRef.current;
+      if (!v) return;
+      for (const ev of FRAME_EVENTS) v.removeEventListener(ev, check);
+      if (frameCb && typeof v.cancelVideoFrameCallback === "function") {
+        v.cancelVideoFrameCallback(frameCb);
+        frameCb = 0;
+      }
+    };
+
+    /**
+     * Ҳақиқий кадр келдими? Фақат шу ер `live` ни ёқади — қаранг: файл боши.
+     *
+     * Иккала шарт ҳам зарур: `readyState` декодерда маълумот борлигини
+     * (`HAVE_CURRENT_DATA`), ўлчам эса унинг кадр эканини тасдиқлайди —
+     * бўш трекда Chrome 2×2 кўрсатади (`MIN_FRAME_PX`).
+     */
+    const check = () => {
+      if (!alive || got) return;
+      const v = videoRef.current;
+      if (!v || v.readyState < 2) return;
+      if (v.videoWidth < MIN_FRAME_PX || v.videoHeight < MIN_FRAME_PX) return;
+      got = true;
+      window.clearTimeout(watchdog);
+      stopWatch();
+      backoff.current = 0;
+      setPhase("live");
+    };
+
+    /** Кадр кузатувини бошлайди — фақат трек келганидан кейин маъноси бор. */
+    const startWatch = () => {
+      const v = videoRef.current;
+      if (!v) return;
+      for (const ev of FRAME_EVENTS) v.addEventListener(ev, check);
+      if (typeof v.requestVideoFrameCallback === "function") {
+        frameCb = v.requestVideoFrameCallback(() => check());
+      }
+      poll = window.setInterval(check, FRAME_POLL_MS);
+      check();
+    };
 
     /** Узилиш: ресурслар ёпилади ва кейинги уриниш режалаштирилади. */
     const fail = () => {
       if (!alive) return;
       alive = false;
       window.clearTimeout(watchdog);
+      stopWatch();
       ac.abort();
       try {
         pc.close();
@@ -110,10 +227,11 @@ export function CameraTile({ camera, no, fit, expanded, onToggleExpand }: Camera
 
     pc.ontrack = (e) => {
       if (!alive || !videoRef.current || !e.streams[0]) return;
+      // `live` га ЎТИЛМАЙДИ ва соат ТЎХТАТИЛМАЙДИ: трек келгани кадр
+      // келганини англатмайди (файл бошидаги изоҳ). Кадр `TRACK_TIMEOUT_MS`
+      // ичида келмаса `fail()` ишлайди ва катакда захира кадр кўринади.
       videoRef.current.srcObject = e.streams[0];
-      window.clearTimeout(watchdog);
-      backoff.current = 0;
-      setPhase("live");
+      startWatch();
     };
 
     pc.onconnectionstatechange = () => {
@@ -148,6 +266,7 @@ export function CameraTile({ camera, no, fit, expanded, onToggleExpand }: Camera
       alive = false;
       window.clearTimeout(watchdog);
       window.clearTimeout(retry);
+      stopWatch();
       ac.abort();
       try {
         pc.close();
@@ -157,10 +276,23 @@ export function CameraTile({ camera, no, fit, expanded, onToggleExpand }: Camera
     };
   }, [url, nonce]);
 
+  // Стрим кўтарилмаган пайтда захира кадр даврий равишда янгиланади: экранда
+  // «охирги кадр» ёзуви турганда унинг ростдан ҳам охиргиси бўлгани маъқул.
+  // Жонли эфирда сўров умуман юборилмайди.
+  useEffect(() => {
+    if (phase === "live") return;
+    const t = window.setInterval(() => {
+      setSnap("idle");
+      setSnapTick((n) => n + 1);
+    }, SNAP_REFRESH_MS);
+    return () => window.clearInterval(t);
+  }, [phase]);
+
   /** Қўлда қайта уланиш — кечикишни кутмасдан, поғонани ҳам нолдан бошлаб. */
   const retryNow = useCallback(() => {
     backoff.current = 0;
-    setSnapFailed(false);
+    setSnap("idle");
+    setSnapTick((n) => n + 1);
     setNonce((n) => n + 1);
   }, []);
 
@@ -180,6 +312,16 @@ export function CameraTile({ camera, no, fit, expanded, onToggleExpand }: Camera
         ? { label: "Уланмоқда…", tone: "var(--warn)" }
         : { label: "Сигнал йўқ", tone: "var(--crit)" };
 
+  // Захира кадр — фақат файл ҳақиқатан юкланганда «бор» ҳисобланади, шунда
+  // пастдаги ёзув ҳам рост бўлади. Кэшни четлаб ўтиш учун `?t=` қўшилади,
+  // лекин биринчи юкланишда эмас — у ерда браузер кэши фойдали.
+  const snapSrc = snapTick > 0 ? `${camera.snapshotUrl}?t=${snapTick}` : camera.snapshotUrl;
+  const downHint = !camera.streamUrl
+    ? "Стрим манзили реестрда кўрсатилмаган"
+    : snap === "ok"
+      ? "Экранда охирги сақланган кадр · ўзи қайта уланмоқда"
+      : "Ўзи қайта уланмоқда";
+
   return (
     <div className={`wall-tile${expanded ? " wall-tile--full" : ""}`}>
       {/* Стрим. Хато ҳолатида ҳам DOM'дан олиб ташланмайди: қайта уланиш
@@ -193,15 +335,31 @@ export function CameraTile({ camera, no, fit, expanded, onToggleExpand }: Camera
         style={{ objectFit: fit, opacity: phase === "live" ? 1 : 0 }}
       />
 
-      {/* Захира: охирги сақланган кадр. Сусайтирилган — уни жонли эфир деб
-          ўйлаб қолиш мумкин эмас, устидаги ёзув эса буни очиқ айтади. */}
-      {phase !== "live" && camera.snapshotUrl && !snapFailed && (
+      {/* Энг остки қатлам. Расм юкланаётганда ҳам, умуман топилмаганда ҳам
+          катак қоп-қора қолмайди — шу ерда белги ва тус туради. */}
+      {phase !== "live" && (
+        <span className="wall-tile__blank" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.3}>
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M10.66 6H14a2 2 0 0 1 2 2v2.34l1 1L22 8v8M16 16a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h2l10 10ZM2 2l20 20"
+            />
+          </svg>
+        </span>
+      )}
+
+      {/* Захира: серверда сақланган охирги кадр. Сусайтирилган ва рангсиз —
+          уни жонли эфир деб ўйлаб қолиш мумкин эмас, устидаги ёзув эса буни
+          очиқ айтади. Файл топилмаса қатлам ўчади ва остидагиси кўринади. */}
+      {phase !== "live" && snap !== "fail" && (
         <img
-          src={camera.snapshotUrl}
+          src={snapSrc}
           alt=""
           className="wall-tile__snap"
           style={{ objectFit: fit }}
-          onError={() => setSnapFailed(true)}
+          onLoad={() => setSnap("ok")}
+          onError={() => setSnap("fail")}
         />
       )}
 
@@ -223,12 +381,8 @@ export function CameraTile({ camera, no, fit, expanded, onToggleExpand }: Camera
 
       {phase === "error" && (
         <div className="wall-tile__down">
-          <p className="wall-tile__down-head">Сигнал йўқ</p>
-          <p className="wall-tile__down-hint">
-            {camera.streamUrl
-              ? "Ўзи қайта уланмоқда"
-              : "Стрим манзили реестрда кўрсатилмаган"}
-          </p>
+          <p className="wall-tile__down-head">Уланиш йўқ</p>
+          <p className="wall-tile__down-hint">{downHint}</p>
           {camera.streamUrl && (
             <button type="button" className="wall-tile__retry" onClick={retryNow}>
               Ҳозир уриниб кўриш

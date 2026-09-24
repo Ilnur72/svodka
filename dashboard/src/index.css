@@ -1092,9 +1092,43 @@ button.map-list__item.is-on {
   transition: opacity 0.25s ease;
 }
 .wall-tile__snap {
-  /* Сақланган кадр жонли эфирга ўхшаб қолмаслиги керак. */
-  opacity: 0.4;
-  filter: grayscale(0.35);
+  z-index: 1;
+  /* Икки талаб бир вақтда: сақланган кадр жонли эфирга ўхшамаслиги керак
+     (шунинг учун рангсизлантирилган ва сусайтирилган), лекин КЎРИНИШИ ҳам
+     шарт — акс ҳолда катак қоп-қора бўлиб қолади ва оператор мониторни
+     ўчган деб ўйлайди. Ҳолат ёзуви ва «Уланиш йўқ» қатлами ҳар қандай
+     ҳолда устида туради, шунинг учун чалғитиш хавфи йўқ. */
+  opacity: 0.62;
+  filter: grayscale(0.5) contrast(0.92);
+}
+
+/* Энг остки қатлам: стрим ҳам, сақланган кадр ҳам бўлмаганда кўринадигани.
+   Катак ҲЕЧ ҚАЧОН қора тўртбурчак қолмаслиги керак — «жавоб берилмаган
+   экран» билан «уланиш йўқ» ни фарқлаб бўлмай қоларди. */
+.wall-tile__blank {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background:
+    radial-gradient(120% 100% at 50% 0%, rgba(120, 190, 255, 0.08), transparent 68%),
+    repeating-linear-gradient(
+      -45deg,
+      rgba(255, 255, 255, 0.022) 0 10px,
+      transparent 10px 20px
+    ),
+    #0b1118;
+  color: rgba(150, 175, 200, 0.17);
+}
+.wall-tile__blank svg {
+  width: 26%;
+  min-width: 38px;
+  max-width: 84px;
+  height: auto;
+  /* Ёзув катакнинг ўртасида туради — белги ундан юқорига сурилади. */
+  translate: 0 -34%;
 }
 
 /* Босиладиган қатлам — бутун катак. Ёзувлар ундан ЮҚОРИДА туради, лекин
@@ -1238,15 +1272,19 @@ button.map-list__item.is-on {
   pointer-events: none;
   text-align: center;
   padding: 10px;
+  /* Остида сақланган кадр туриши мумкин — ёзув ўқилиши учун юмшоқ соя. */
+  background: radial-gradient(58% 46% at 50% 50%, rgba(4, 8, 13, 0.78), transparent 78%);
 }
 .wall-tile__down-head {
   font-size: 13px;
   font-weight: 650;
   color: var(--crit);
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.9);
 }
 .wall-tile__down-hint {
   font-size: 11px;
-  color: rgba(214, 225, 236, 0.7);
+  color: rgba(214, 225, 236, 0.78);
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.9);
 }
 .wall-tile__retry {
   pointer-events: auto;
