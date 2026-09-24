@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { WallCamera } from "../../lib/adapters/cameras";
 
 /**
@@ -56,9 +56,15 @@ import type { WallCamera } from "../../lib/adapters/cameras";
  *
  *   0. `wall-tile__blank` — доим остида: белги ва тус. Расм юкланаётганда
  *      ҳам, умуман топилмаганда ҳам кўринадигани шу.
- *   1. `wall-tile__snap`  — серверда сақланган охирги кадр. У эскириб
- *      қолмаслиги учун `SNAP_REFRESH_MS` да бир марта қайта сўралади.
- *   4. `wall-tile__down`  — «Сигнал йўқ» ёзуви ва қўлда уриниш тугмаси.
+ *   1. `wall-tile__snap`  — серверда сақланган охирги кадр, ТЎЛИҚ
+ *      кўринишда. У эскириб қолмаслиги учун `SNAP_REFRESH_MS` да бир
+ *      марта қайта сўралади.
+ *
+ * ⚠️ Учинчи қатлам (`wall-tile__down` — «Уланиш йўқ» ёзуви, изоҳ ва қўлда
+ * уриниш тугмаси) ОЛИБ ТАШЛАНДИ. Фойдаланувчи талаби: «ulanish yo'q degan
+ * yozuv tursa hunik ko'rinadi» — катак оддий сурат каби кўриниши керак.
+ * Ҳолат йўқолмади: у юқоридаги `wall-tile__status` ёрлиғида ранг ва матн
+ * билан туради, қайта уланиш эса `backoff` орқали ўзи давом этади.
  *
  * ═══ Нега илдиз `<button>` ЭМАС ════════════════════════════════════════
  *
@@ -288,13 +294,9 @@ export function CameraTile({ camera, no, fit, expanded, onToggleExpand }: Camera
     return () => window.clearInterval(t);
   }, [phase]);
 
-  /** Қўлда қайта уланиш — кечикишни кутмасдан, поғонани ҳам нолдан бошлаб. */
-  const retryNow = useCallback(() => {
-    backoff.current = 0;
-    setSnap("idle");
-    setSnapTick((n) => n + 1);
-    setNonce((n) => n + 1);
-  }, []);
+  // Қўлда қайта уланиш тугмаси ОЛИБ ТАШЛАНДИ: у «Уланиш йўқ» қатлами
+  // ичида турарди, қатлам эса фойдаланувчи талаби билан кетди. Қайта
+  // уланиш барибир ўзи давом этади — `backoff` ва `RETRY_MS` га қаранг.
 
   if (!camera) {
     return (
@@ -316,11 +318,6 @@ export function CameraTile({ camera, no, fit, expanded, onToggleExpand }: Camera
   // пастдаги ёзув ҳам рост бўлади. Кэшни четлаб ўтиш учун `?t=` қўшилади,
   // лекин биринчи юкланишда эмас — у ерда браузер кэши фойдали.
   const snapSrc = snapTick > 0 ? `${camera.snapshotUrl}?t=${snapTick}` : camera.snapshotUrl;
-  const downHint = !camera.streamUrl
-    ? "Стрим манзили реестрда кўрсатилмаган"
-    : snap === "ok"
-      ? "Экранда охирги сақланган кадр · ўзи қайта уланмоқда"
-      : "Ўзи қайта уланмоқда";
 
   return (
     <div className={`wall-tile${expanded ? " wall-tile--full" : ""}`}>
@@ -349,9 +346,11 @@ export function CameraTile({ camera, no, fit, expanded, onToggleExpand }: Camera
         </span>
       )}
 
-      {/* Захира: серверда сақланган охирги кадр. Сусайтирилган ва рангсиз —
-          уни жонли эфир деб ўйлаб қолиш мумкин эмас, устидаги ёзув эса буни
-          очиқ айтади. Файл топилмаса қатлам ўчади ва остидагиси кўринади. */}
+      {/* Захира: серверда сақланган охирги кадр. ТЎЛИҚ кўринишда — устига
+          ёзув ёки суст пардa қўйилмайди (фойдаланувчи талаби: «ulanish yo'q
+          degan yozuv tursa hunik ko'rinadi»). Жонли эфирдан фарқи юқоридаги
+          кичик ёрлиқда: у ерда ранг ва матн ҳолатни ҳалол айтиб туради.
+          Файл топилмаса қатлам ўчади ва остидагиси кўринади. */}
       {phase !== "live" && snap !== "fail" && (
         <img
           src={snapSrc}
@@ -377,18 +376,12 @@ export function CameraTile({ camera, no, fit, expanded, onToggleExpand }: Camera
         }
       />
 
-      {phase === "connecting" && <span className="wall-tile__spinner" aria-hidden="true" />}
-
-      {phase === "error" && (
-        <div className="wall-tile__down">
-          <p className="wall-tile__down-head">Уланиш йўқ</p>
-          <p className="wall-tile__down-hint">{downHint}</p>
-          {camera.streamUrl && (
-            <button type="button" className="wall-tile__retry" onClick={retryNow}>
-              Ҳозир уриниб кўриш
-            </button>
-          )}
-        </div>
+      {/* Айланма ФАҚАТ захира кадр йўқ пайтда. Расм бор бўлса катак
+          тўлдирилган — устига белги ёки ёзув қўйиш кераксиз шовқин
+          бўларди. Ҳолат барибир юқоридаги кичик ёрлиқда ёзилган, ва
+          қайта уланиш `backoff` билан ўзи давом этади. */}
+      {phase !== "live" && snap !== "ok" && (
+        <span className="wall-tile__spinner" aria-hidden="true" />
       )}
 
       <span className="wall-tile__no">{String(no).padStart(2, "0")}</span>
